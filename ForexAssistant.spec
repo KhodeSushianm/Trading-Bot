@@ -1,0 +1,38 @@
+# -*- mode: python ; coding: utf-8 -*-
+# PyInstaller spec — ساخت ForexAssistant.exe (تک‌فایلی، بدون کنسول)
+from PyInstaller.utils.hooks import collect_submodules
+
+hidden = []
+hidden += collect_submodules("yfinance")
+hidden += collect_submodules("tradingview_ta")
+
+a = Analysis(
+    ["panel.py"],
+    pathex=["."],
+    binaries=[],
+    datas=[("assets", "assets"), ("config.yaml", "assets")],
+    hiddenimports=hidden,
+    hookspath=[],
+    hooksconfig={},
+    runtime_hooks=[],
+    excludes=["matplotlib", "scipy", "tkinter", "PyQt5", "PyQt6", "IPython", "notebook"],
+    noarchive=False,
+)
+
+pyz = PYZ(a.pure)
+
+exe = EXE(
+    pyz,
+    a.scripts,
+    a.binaries,
+    a.datas,
+    [],
+    name="ForexAssistant",
+    debug=False,
+    bootloader_ignore_signals=False,
+    strip=False,
+    upx=False,
+    console=False,
+    disable_windowed_traceback=False,
+    icon="assets/icon.ico",
+)

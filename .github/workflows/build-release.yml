@@ -1,0 +1,57 @@
+name: Build Windows EXE & Release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pyinstaller
+
+      - name: Build EXE (PyInstaller)
+        run: pyinstaller ForexAssistant.spec --noconfirm
+
+      - name: Smoke test (offscreen GUI + engine selftest)
+        env:
+          QT_QPA_PLATFORM: offscreen
+        run: .\dist\ForexAssistant.exe --selftest
+
+      - name: Publish GitHub Release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: نسخه ${{ github.ref_name }} — پنل ویندوز (ForexAssistant)
+          body: |
+            ## 📥 راهنمای نصب (۲ دقیقه)
+
+            1. فایل **`ForexAssistant-...-windows.exe`** را از بخش Assets پایین همین صفحه دانلود کن
+            2. آن را در یک **پوشه اختصاصی** بگذار (مثلاً `Desktop\ForexAssistant`) — برنامه در اولین اجرا `config.yaml` و پوشه `logs` را کنار خودش می‌سازد
+            3. رویش دابل‌کلیک کن. اگر هشدار آبی **SmartScreen** ویندوز آمد: **More info → Run anyway** (برای برنامه‌های امضان‌شده طبیعی است)
+            4. در بخش **تلگرام**: توکن بات را از `@BotFather` بگیر و وارد کن → دکمه **«📥 گرفتن خودکار شناسه»** → **«✅ ارسال پیام تست»**
+            5. دکمه **«▶ شروع ربات»** را بزن — از این پس هر ۱۵ دقیقه گزارش کامل تحلیل به تلگرامت می‌رسد 📱
+
+            > ⏳ اجرای اول ۱۰ تا ۲۰ ثانیه طول می‌کشد (استخراج فایل‌های فشرده) — طبیعی است.
+            > 🔤 فونت ایران‌سنس: فایل فونت را در پوشه `fonts` کنار EXE بگذار و برنامه را باز کن — خودکار جای وزیرمتن فعال می‌شود.
+            > ⚠️ این ابزار فقط تحلیل و سیگنال می‌دهد و هیچ معامله‌ای انجام نمی‌دهد؛ تصمیم با شماست.
+          files: dist/ForexAssistant.exe|ForexAssistant-${{ github.ref_name }}-windows.exe
+          draft: false
+          prerelease: false
