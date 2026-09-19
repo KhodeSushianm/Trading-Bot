@@ -1,0 +1,54 @@
+# 🧪 تست‌های دستی (خارج از CI)
+
+این تست‌ها **عمداً در GitHub Actions اجرا نمی‌شوند**، چون به اینترنت زنده یا
+کتابخانهٔ GUI نیاز دارند و در CI باعث شکست‌های کاذب (flaky) می‌شوند.
+
+تست‌های **خودکار و آفلاین** که در CI روی هر push اجرا می‌شوند این‌ها هستند:
+
+| فرمان | فایل |
+|---|---|
+| `python main.py --selftest` | داخل `main.py` |
+| `python panel.py --selftest` | داخل `panel.py` (فقط در جاب ویندوز) |
+| `python tests/check_config.py` | `tests/check_config.py` |
+
+---
+
+## تست‌های این پوشه
+
+| فایل | نیازمندی | چه می‌سنجد |
+|---|---|---|
+| `test_news_direction.py` | اینترنت (RSS زنده) | ۱۴ حالت جهت‌دهی اخبار + **توزیع امتیازها** روی دادهٔ واقعی (تشخیص «تورم امتیاز» — وقتی همهٔ خبرها سقف می‌گیرند، امتیاز بی‌فایده است) |
+| `test_veto_report.py` | آفلاین | رندر خط وتو داخل گزارش کامل، یکدستی `now` در کل گزارش، ترجمهٔ عنوان‌ها، و اجرای `main.py --alerts --dry-run` |
+| `test_gui_integration.py` | PySide6 + اینترنت | سیم‌کشی واقعی پنل↔موتور: ۴ تب، پرشدن هر تب، برچسب‌های وضعیت، و **منطق زمان‌بند بریفینگ** (شلیک در پنجرهٔ catch-up، عدم تکرار روزانه، عدم ارسال بی‌موقع) |
+
+---
+
+## اجرا
+
+```bash
+pip install -r requirements.txt          # برای تست GUI به PySide6 نیاز داری
+
+python tests/manual/test_news_direction.py
+python tests/manual/test_veto_report.py
+
+# تست GUI بدون مانیتور (لینوکس/CI):
+QT_QPA_PLATFORM=offscreen python tests/manual/test_gui_integration.py
+```
+
+در ویندوز:
+```bat
+set QT_QPA_PLATFORM=offscreen
+python tests\manual\test_gui_integration.py
+```
+
+هر سه با کد خروجی `0` و پیام «✅ همهٔ تست‌ها پاس شدند» تمام می‌شوند.
+
+---
+
+## نکته دربارهٔ تست GUI
+
+`test_gui_integration.py` در بخشی از تست، تابع `engine.run_briefing` را با یک
+mock جایگزین می‌کند تا زمان‌بند را **بدون انتظار برای ساعت واقعی** بسنجد.
+بعد از تست، تابع اصلی بازگردانده می‌شود و خود تست هم این بازگشت را
+assert می‌کند — وگرنه بخش‌های بعدی (که چرخهٔ واقعی می‌زنند) با mock اجرا
+می‌شدند و نتیجهٔ کاذب می‌دادند. (این باگ یک بار در همین تست رخ داد و رفع شد.)
