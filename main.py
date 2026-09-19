@@ -7,6 +7,8 @@
     python main.py --briefing          # فقط بریفینگ صبحگاهی 🌅
     python main.py --alerts            # فقط بررسی/ارسال هشدار رویدادهای پراثر 🚨
     python main.py --signals           # فقط سیگنال‌های صادرشده را چاپ کن 🎯
+    python main.py --journal           # 📊 کارنامهٔ دقت (کلی + هفتگی + تفکیک‌ها)
+    python main.py --nightly           # 🌙 خلاصهٔ شبانه
     python main.py --as-of "2026-09-23 14:00"   # ⚠️ شبیه‌سازی: داور را در یک
                                                 #    زمان فرضی بسنج (بازار بسته/تعطیل)
     python main.py --no-fundamental    # بدون تقویم و اخبار (فقط تکنیکال)
@@ -19,6 +21,7 @@
 from __future__ import annotations
 
 import argparse
+import os
 import sys
 
 from src import app_paths
@@ -311,10 +314,24 @@ def _selftest() -> int:
     # چ) ژورنال سیگنال (پایهٔ مرحله ۴)
     import json as _json
     rec = sg.to_journal(sent=True)
-    need = {"ts", "symbol", "direction", "entry", "sl", "tp", "pip", "atr", "risk_pips",
-            "reward_pips", "rr", "score", "max_score", "session", "evidences", "sent", "outcome"}
+    need = {"kind", "id", "ts", "symbol", "direction", "entry", "sl", "tp", "pip",
+            "atr", "risk_pips", "reward_pips", "rr", "score", "max_score",
+            "session", "evidences", "sent"}
     assert need <= set(rec), f"فیلدهای ژورنال ناقص: {need - set(rec)}"
-    assert rec["outcome"] is None, "outcome را مرحلهٔ ۴ پر می‌کند"
+    assert rec["kind"] == "signal" and rec["id"], "رکورد سیگنال باید kind/id داشته باشد"
+
+    # ژورنال event-source: نتیجه به‌صورت رکورد جدا با همان id گره می‌خورد
+    import tempfile
+    from src.journal.store import Journal
+    with tempfile.TemporaryDirectory() as td:
+        jr = Journal(os.path.join(td, "s.jsonl"))
+        jr.append(rec)
+        jr.add_outcome(rec["id"], "TP", rec["tp"], rec["rr"], note="تست")
+        loaded = jr.load()
+        assert len(loaded) == 1, "replay باید دقیقاً یک سیگنال بدهد"
+        assert loaded[0].outcome == "TP" and loaded[0].r == rec["rr"], \
+            "رکورد outcome باید به سیگنال گره بخورد"
+        assert loaded[0].is_win and not loaded[0].is_open
     assert _json.loads(_json.dumps(rec, ensure_ascii=False))["symbol"] == sg.symbol
 
     print(f"SELFTEST OK — {len(evs)} رویداد پارس شد، {len(cases)} حالت جهت‌دهی، "
@@ -346,6 +363,10 @@ def main() -> None:
     parser.add_argument("--as-of", default=None, metavar="YYYY-MM-DD HH:MM",
                         help="⚠️ شبیه‌سازی: زمان فرضی (UTC) برای داور/سشن/تقویم. "
                              "در این حالت سیگنالی به تلگرام نمی‌رود.")
+    parser.add_argument("--journal", action="store_true",
+                        help="📊 کارنامهٔ دقت را چاپ کن (و به تلگرام بفرست)")
+    parser.add_argument("--nightly", action="store_true",
+                        help="🌙 خلاصهٔ شبانه را چاپ کن (و به تلگرام بفرست)")
     parser.add_argument("--selftest", action="store_true", help="خودآزمون بدون اینترنت")
     args = parser.parse_args()
 
@@ -361,7 +382,11 @@ def main() -> None:
 
     log = lambda m: print(m, file=sys.stderr)  # noqa: E731
 
-    if args.briefing:
+    if args.journal or args.nightly:
+        from src.engine import run_journal_report
+        res = run_journal_report(cfg, on_log=log,
+                                 kind="nightly" if args.nightly else "stats")
+    elif args.briefing:
         res = run_briefing(cfg, on_log=log)
     elif args.alerts:
         fired = check_event_alerts(cfg, on_log=log, dry_run=args.dry_run)

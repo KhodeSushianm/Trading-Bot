@@ -155,7 +155,8 @@ class GlassRoot(QWidget):
 #  پنجرهٔ اصلی
 # ══════════════════════════════════════════════════════════════
 class MainWindow(QMainWindow):
-    TAB_DASH, TAB_SIGNAL, TAB_REPORT, TAB_FUND, TAB_BRIEF, TAB_LOG, TAB_SETTINGS = range(7)
+    (TAB_DASH, TAB_SIGNAL, TAB_REPORT, TAB_FUND, TAB_BRIEF,
+     TAB_LOG, TAB_JOURNAL, TAB_SETTINGS) = range(8)
 
     def __init__(self, show_splash: bool = True):
         super().__init__()
@@ -169,6 +170,7 @@ class MainWindow(QMainWindow):
                             on_briefing=lambda r: self.q.put(("briefing", r)),
                             on_fundamental=lambda r: self.q.put(("fundamental", r)),
                             on_signal=lambda r: self.q.put(("signal", r)),
+                            on_journal=lambda r: self.q.put(("journal", r)),
                             cfg_provider=load_config)
         self._sig_signature = ""
         self._ev_signature = ""
@@ -293,6 +295,7 @@ class MainWindow(QMainWindow):
         self.nav.add_stretch(1)
         self.nav.add_section("سیستم")
         self.nav.add_item("live", "گزارش زنده", "live")
+        self.nav.add_item("journal", "کارنامه", "chart")
         self.nav.add_item("settings", "تنظیمات", "settings")
         self.nav.activated.connect(self._on_nav)
         return self.nav
@@ -302,7 +305,7 @@ class MainWindow(QMainWindow):
         self.pages.setObjectName("pages")
         for w in (self._page_dash(), self._page_signals(), self._page_report(),
                   self._page_fund(), self._page_brief(), self._page_live(),
-                  self._page_settings()):
+                  self._page_journal(), self._page_settings()):
             w.setObjectName("page")
             self.pages.addWidget(w)
         return self.pages
@@ -468,6 +471,23 @@ class MainWindow(QMainWindow):
         lay.addWidget(self.log_view, 1)
         return w
 
+    def _page_journal(self) -> QWidget:
+        w, lay = self._page_frame("کارنامه", "دقت واقعی سیستم — حلقهٔ صداقت")
+
+        bar = QHBoxLayout()
+        bar.addStretch(1)
+        self.btn_journal = _btn("به‌روزرسانی کارنامه", "ghost", "refresh",
+                                "همین حالا کارنامه را بازسازی کن")
+        self.btn_journal.clicked.connect(self._on_journal)
+        bar.addWidget(self.btn_journal)
+        lay.addLayout(bar)
+
+        self.journal_view = _plain(None,
+                                   "هنوز کارنامه‌ای نیست.\n"
+                                   "با اولین سیگنالِ بسته‌شده، آمار دقت اینجا ساخته می‌شود.")
+        lay.addWidget(self.journal_view, 1)
+        return w
+
     def _page_settings(self) -> QWidget:
         w, lay = self._page_frame("تنظیمات", "تلگرام، فایل‌ها و دربارهٔ برنامه")
 
@@ -576,6 +596,8 @@ class MainWindow(QMainWindow):
                 self._fill(self.sig_view, payload, self.TAB_SIGNAL, "سیگنال‌ها")
                 self.pages.setCurrentIndex(self.TAB_SIGNAL)
                 self._toast_signal(payload)
+            elif kind == "journal":
+                self._fill(self.journal_view, payload, self.TAB_JOURNAL, "کارنامه")
 
     def _toast_signal(self, text: str) -> None:
         first = next((l for l in text.splitlines() if "سیگنال" in l), "سیگنال جدید")
@@ -705,6 +727,10 @@ class MainWindow(QMainWindow):
         if not self.loop.run_once_async():
             self._log("[i] یک تحلیل دیگر در جریان است — کمی صبر کن")
 
+    def _on_journal(self) -> None:
+        if not self.loop.run_journal_async():
+            self._log("[i] یک کار دیگر در جریان است — کمی صبر کن")
+
     def _on_briefing(self) -> None:
         if not self.loop.run_briefing_async():
             self._log("[i] یک کار دیگر در جریان است — کمی صبر کن")
@@ -805,10 +831,11 @@ def _selftest() -> int:
     assert len(_chunks("x" * 9000)) >= 3, "تقسیم پیام تلگرام درست کار نمی‌کند"
     assert callable(run_cycle) and callable(run_briefing) and callable(check_event_alerts)
 
-    assert win.pages.count() == 7, f"انتظار ۷ صفحه، {win.pages.count()}"
+    assert win.pages.count() == 8, f"انتظار ۸ صفحه، {win.pages.count()}"
     assert (win.TAB_DASH, win.TAB_SIGNAL, win.TAB_REPORT, win.TAB_FUND,
-            win.TAB_BRIEF, win.TAB_LOG, win.TAB_SETTINGS) == tuple(range(7))
-    assert len(win.nav._items) == 7, "ریل ناوبری باید ۷ آیتم داشته باشد"   # noqa: SLF001
+            win.TAB_BRIEF, win.TAB_LOG, win.TAB_JOURNAL,
+            win.TAB_SETTINGS) == tuple(range(8))
+    assert len(win.nav._items) == 8, "ریل ناوبری باید ۸ آیتم داشته باشد"   # noqa: SLF001
     assert win.user_name, "نام کاربر برای Splash باید مقدار داشته باشد"
     assert f"سلام {win.user_name}" in win.greet_lbl.text(), "سلام بزرگ در هدر"
 

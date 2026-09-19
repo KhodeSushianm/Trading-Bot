@@ -28,11 +28,15 @@ from .data.tradingview import fetch_tv_snapshot
 from .fa import fa_num
 from .fundamental.calendar import fetch_calendar, veto_for_symbol
 from .fundamental.news import fetch_news
+from .journal.stats import compute_stats
+from .journal.store import Journal
+from .journal.tracker import resolve_open_signals
 from .judge.scoring import JudgeContext, judge_all, judge_config
 from .judge.session import market_status
 from .notify import telegram
 from .report.console import render_report
 from .report.fundamental import render_briefing, render_event_alert
+from .report.journal import render_nightly, render_stats
 from .report.signal import render_judge_summary, render_signal
 
 LogFn = Callable[[str], None]
@@ -117,6 +121,14 @@ def _collect_fundamental(cfg: dict, log: LogFn) -> tuple:
     else:
         log("[i] موتور اخبار در تنظیمات غیرفعال است")
     return cal_snap, news_snap
+
+
+def _pct(v) -> str:
+    return f"{fa_num(f'{v * 100:.0f}')}٪" if v is not None else "—"
+
+
+def _rfmt(v) -> str:
+    return f"{fa_num(f'{v:+.2f}')}" if v is not None else "—"
 
 
 def _horizon_hours(cfg: dict) -> float:
@@ -267,6 +279,22 @@ def run_cycle(cfg: Optional[dict] = None, on_log: LogFn = _noop,
     if simulated:
         log(f"⚠️ حالت شبیه‌سازی: زمان فرضی {now:%Y-%m-%d %H:%M} UTC "
             f"(دادهٔ بازار واقعی است، ساعت داور عوض شده)")
+    # ── 📔 ژورنال: بستن خودکار سیگنال‌های باز از روی کندل‌ها ──
+    journal, stats, resolved = None, None, []
+    if (cfg.get("journal") or {}).get("enabled", True):
+        journal = Journal()
+        try:
+            resolved = resolve_open_signals(journal, mkt["datasets"], now=now,
+                                            cfg=cfg, on_log=log)
+        except Exception as e:
+            log(f"[!] پیگیری ژورنال ناموفق: {str(e)[:90]}")
+        try:
+            stats = compute_stats(journal.load(), now)
+        except Exception as e:
+            log(f"[!] محاسبهٔ آمار ژورنال ناموفق: {str(e)[:90]}")
+    else:
+        log("[i] ژورنال در تنظیمات غیرفعال است")
+
     vetoes = _compute_vetoes(cfg, cal_snap, mkt["analyses"], now, log)
 
     # ── ⚖️ داور امتیازدهی (مرحله ۳) ───────────────────────────
@@ -291,13 +319,23 @@ def run_cycle(cfg: Optional[dict] = None, on_log: LogFn = _noop,
     else:
         log("[i] داور امتیازدهی در تنظیمات غیرفعال است")
 
+    journal_line = ""
+    if stats is not None:
+        o = stats.overall
+        journal_line = (
+            f"📊 کارنامه تا الان: بسته {fa_num(o.closed)} "
+            f"(برد {fa_num(o.wins)} / باخت {fa_num(o.losses)} / منقضی {fa_num(o.expired)})"
+            f" | نرخ برد {_pct(o.hit_rate)} | میانگین R {_rfmt(o.avg_r)}"
+            f" | باز {fa_num(stats.open_count)}"
+            + (f" | بسته‌شدهٔ این چرخه: {fa_num(len(resolved))}" if resolved else ""))
+
     report = render_report(
         mkt["analyses"], mkt["ranking"], mkt["source_name"],
         tv_map=mkt["tv_map"], tv_tf=mkt["tv_tf"],
         cal_snap=cal_snap, news_snap=news_snap,
         symbols_cfg=cfg["symbols"], vetoes=vetoes,
         cal_horizon=_horizon_hours(cfg), judge_summary=judge_summary,
-        now=now, simulated=simulated,
+        now=now, simulated=simulated, journal_line=journal_line,
     )
     result.update(report=report, errors=mkt["errors"], ok=True, vetoes=vetoes,
                   calendar_ok=bool(cal_snap and cal_snap.ok),
@@ -338,6 +376,14 @@ def run_cycle(cfg: Optional[dict] = None, on_log: LogFn = _noop,
                                  "entry": sig.entry, "sl": sig.sl, "tp": sig.tp})
         _save_signal_state(state)
     result["signals"] = sent_signals
+    result["resolved"] = [{"symbol": e.symbol, "direction": e.direction,
+                           "outcome": e.outcome, "r": e.r} for e in resolved]
+    result["stats"] = stats
+    if stats is not None and journal is not None:
+        try:
+            result["journal_report"] = render_stats(stats, journal.open_entries(), now)
+        except Exception:
+            result["journal_report"] = ""
 
     # ── دادهٔ ساختاریافته برای داشبورد پنل ───────────────────
     result["ranking"] = list(mkt["ranking"])
@@ -487,6 +533,45 @@ def check_event_alerts(cfg: Optional[dict] = None, cal_snap=None,
 
 
 # ══════════════════════════════════════════════════════════════
+#  گزارش‌های ژورنال (کارنامه / خلاصهٔ شبانه)
+# ══════════════════════════════════════════════════════════════
+def run_journal_report(cfg: Optional[dict] = None, on_log: LogFn = _noop,
+                       kind: str = "stats") -> dict:
+    """📊 کارنامهٔ دقت یا 🌙 خلاصهٔ شبانه را می‌سازد و به تلگرام می‌فرستد.
+
+    kind: "stats" | "nightly"
+    """
+    t0 = time.time()
+    cfg = cfg or load_config()
+    result = {"ok": False, "report": "", "telegram": (False, ""), "elapsed": 0.0,
+              "stats": None}
+
+    def log(msg: str) -> None:
+        on_log(f"[{datetime.now():%H:%M:%S}] {msg}")
+
+    jr = Journal()
+    try:
+        entries = jr.load()
+    except Exception as e:
+        log(f"[!] خواندن ژورنال ناموفق: {str(e)[:90]}")
+        return result
+    now = datetime.now(timezone.utc)
+    stats = compute_stats(entries, now)
+    if kind == "nightly":
+        text = render_nightly(entries, stats, now)
+        label = "🌙 خلاصهٔ شبانه"
+    else:
+        text = render_stats(stats, jr.open_entries(), now)
+        label = "📊 کارنامهٔ دقت"
+    result.update(report=text, ok=True, stats=stats)
+    _archive(text, "journal.log")
+    result["telegram"] = _send_telegram(cfg, text, log, label=label)
+    result["elapsed"] = time.time() - t0
+    log(f"✅ {label} آماده شد ({result['elapsed']:.0f} ثانیه)")
+    return result
+
+
+# ══════════════════════════════════════════════════════════════
 #  زمان‌بند پس‌زمینه
 # ══════════════════════════════════════════════════════════════
 class BotLoop:
@@ -506,12 +591,15 @@ class BotLoop:
                  on_briefing: Callable[[str], None] | None = None,
                  on_fundamental: Callable[[str], None] | None = None,
                  on_signal: Callable[[str], None] | None = None,
+                 on_journal: Callable[[str], None] | None = None,
                  cfg_provider: Callable[[], dict] = load_config):
         self.on_log = on_log
         self.on_report = on_report
         self.on_briefing = on_briefing or on_report
         self.on_fundamental = on_fundamental or (lambda _: None)
         self.on_signal = on_signal or self.on_report
+        self.on_journal = on_journal or self.on_report
+        self._journal_done: set[str] = set()
         self.cfg_provider = cfg_provider
         self._stop = threading.Event()
         self._thread: Optional[threading.Thread] = None
@@ -523,7 +611,8 @@ class BotLoop:
                             "next_briefing": None, "alerts_sent": 0, "last_alert": None,
                             "last_vetoes": [], "calendar_ok": None, "news_count": 0,
                             "last_signals": [], "signals_total": 0, "last_signal": None,
-                            "ranking": [], "upcoming": [], "symbols_summary": []}
+                            "ranking": [], "upcoming": [], "symbols_summary": [],
+                            "journal_report": "", "resolved": []}
 
     @property
     def running(self) -> bool:
@@ -552,6 +641,18 @@ class BotLoop:
             return False
         threading.Thread(target=self._once, args=(run_cycle, "report"),
                          daemon=True, name="bot-once").start()
+        return True
+
+    def run_journal_async(self, kind: str = "stats") -> bool:
+        """کارنامه/خلاصهٔ شبانه دستی (دکمهٔ صفحهٔ کارنامه)."""
+        if self._once_running:
+            return False
+
+        def _go():
+            res = run_journal_report(self.cfg_provider(), on_log=self.on_log, kind=kind)
+            if res.get("report"):
+                self.on_journal(res["report"])
+        threading.Thread(target=_go, daemon=True, name="bot-journal").start()
         return True
 
     def run_briefing_async(self) -> bool:
@@ -593,6 +694,11 @@ class BotLoop:
 
         for key in ("ranking", "upcoming", "symbols_summary"):
             self.state[key] = res.get(key) or ({} if key == "symbols_summary" else [])
+        if res.get("journal_report"):
+            self.state["journal_report"] = res["journal_report"]
+            self.on_journal(res["journal_report"])
+        if res.get("resolved"):
+            self.state["resolved"] = res["resolved"]
 
         sigs = res.get("signals") or []
         self.state["last_signals"] = [
@@ -627,6 +733,7 @@ class BotLoop:
                     self._do_alerts(cfg)
 
                 self._maybe_briefing(cfg)
+                self._maybe_journal(cfg)
             except Exception as e:
                 self.on_log(f"❌ خطای غیرمنتظره: {str(e)[:130]}")
                 self.state["last_error"] = str(e)[:130]
@@ -684,6 +791,47 @@ class BotLoop:
                 if cand > now and (best is None or cand < best):
                     best = cand
         return best
+
+    def _maybe_journal(self, cfg: dict) -> None:
+        """زمان‌بندی 🌙 خلاصهٔ شبانه و 📊 گزارش هفتگی دقت."""
+        jcfg = cfg.get("journal") or {}
+        if not jcfg.get("enabled", True) or self._once_running:
+            return
+        now = datetime.now(timezone.utc)
+        today = now.strftime("%Y-%m-%d")
+
+        def _due(spec: dict, default_time: str, default_catchup: float) -> bool:
+            if not spec.get("enabled", True):
+                return False
+            hm = self._parse_hhmm(str(spec.get("time_utc", default_time)))
+            if not hm:
+                return False
+            target = now.replace(hour=hm[0], minute=hm[1], second=0, microsecond=0)
+            return target <= now and \
+                (now - target).total_seconds() / 60.0 <= float(
+                    spec.get("catchup_window_minutes", default_catchup))
+
+        n = jcfg.get("nightly") or {}
+        if f"nightly:{today}" not in self._journal_done and _due(n, "21:30", 60):
+            self._journal_done.add(f"nightly:{today}")
+            self.on_log("🌙 زمان خلاصهٔ شبانه رسید — در حال ساخت…")
+            res = run_journal_report(cfg, on_log=self.on_log, kind="nightly")
+            if res.get("report"):
+                self.on_journal(res["report"])
+
+        w = jcfg.get("weekly") or {}
+        day = int(w.get("day_utc", 6))          # 0=دوشنبه … 6=یکشنبه
+        if (now.weekday() == day
+                and f"weekly:{today}" not in self._journal_done
+                and _due(w, "20:00", 120)):
+            self._journal_done.add(f"weekly:{today}")
+            self.on_log("📊 زمان گزارش هفتگی دقت رسید — در حال ساخت…")
+            res = run_journal_report(cfg, on_log=self.on_log, kind="stats")
+            if res.get("report"):
+                self.on_journal(res["report"])
+
+        for k in [k for k in self._journal_done if not k.endswith(today)]:
+            self._journal_done.discard(k)
 
     def _maybe_briefing(self, cfg: dict) -> None:
         bcfg = cfg.get("briefing") or {}

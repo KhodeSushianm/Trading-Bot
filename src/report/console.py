@@ -169,7 +169,8 @@ def render_report(analyses: List[SymbolAnalysis],
                   cal_horizon: float = 48.0,
                   now=None,
                   judge_summary: str = "",
-                  simulated: bool = False) -> str:
+                  simulated: bool = False,
+                  journal_line: str = "") -> str:
     """گزارش کامل (تکنیکال + تاییدیه تریدینگ‌ویو + تقویم اقتصادی + اخبار).
 
     Args:
@@ -231,6 +232,11 @@ def render_report(analyses: List[SymbolAnalysis],
     # ── ⚖️ داور امتیازدهی (مرحله ۳) — قبل از پابرگ، چون نتیجهٔ نهایی است ──
     if judge_summary:
         parts.append(judge_summary)
+
+    # ──  یک خط کارنامه (مرحله ۴) — صدای «حلقهٔ صداقت» در هر گزارش ──
+    if journal_line:
+        parts.append(SEP)
+        parts.append(journal_line)
 
     if any(a.symbol == "XAUUSD" for a in analyses):
         parts.append(SEP)

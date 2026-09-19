@@ -162,14 +162,23 @@ class Signal:
     evidences: list[Evidence] = field(default_factory=list)
     warnings: list[str] = field(default_factory=list)
     sl_capped: bool = False
+    sid: str = ""             # شناسهٔ یکتای ژورنال (مرحله ۴ نتیجه را به آن گره می‌زند)
 
     @property
     def direction_fa(self) -> str:
         return DIR_FA.get(self.direction, self.direction)
 
     def to_journal(self, sent: bool = True) -> dict:
-        """رکورد JSON برای ژورنال سیگنال (مرحله ۴ نتیجه‌اش را پیگیری می‌کند)."""
+        """رکورد JSON برای ژورنال.
+
+        ژورنال به سبک event-source فقط append می‌شود: این رکورد با
+        ``kind="signal"`` نوشته می‌شود و نتیجهٔ آن بعداً به‌صورت رکورد جداگانهٔ
+        ``kind="outcome"`` با همان ``id`` الحاق می‌شود. بنابراین فایل هرگز
+        بازنویسی نمی‌شود و خرابی وسط کار چیزی را از بین نمی‌برد.
+        """
         return {
+            "kind": "signal",
+            "id": self.sid,
             "ts": self.now.isoformat(),
             "symbol": self.symbol,
             "direction": self.direction,
@@ -186,7 +195,6 @@ class Signal:
             "session": self.session_fa,
             "evidences": [f"{e.key}:{e.points}/{e.max_points}" for e in self.evidences],
             "sent": sent,
-            "outcome": None,          # مرحله ۴ پرش می‌کند: TP | SL | OPEN | EXPIRED
         }
 
 
@@ -632,6 +640,7 @@ def judge_symbol(a: SymbolAnalysis, sym_cfg: dict, md: Optional[MarketData],
     pip = a.pip or 0.0001
     j.signal = Signal(
         symbol=a.symbol, fa_name=a.fa_name, direction=j.direction,
+        sid=f"{a.symbol}-{j.direction}-{ctx.now:%Y%m%d%H%M%S}-{round(a.price, 6)}",
         score=j.score, max_score=j.max_score,
         stars=max(1, min(5, round(j.score / j.max_score * 5))) if j.max_score else 1,
         entry=a.price, sl=sl, tp=tp, pip=pip, atr=a.atr,

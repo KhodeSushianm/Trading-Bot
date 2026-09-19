@@ -105,8 +105,8 @@ win = P.MainWindow(show_splash=False)
 win.show()
 app.processEvents()
 
-check(win.pages.count() == 7, f"۷ صفحه ساخته شد ({win.pages.count()})")
-check(len(win.nav._items) == 7, f"ریل ناوبری ۷ آیتم دارد ({len(win.nav._items)})")   # noqa: SLF001
+check(win.pages.count() == 8, f"۸ صفحه ساخته شد ({win.pages.count()})")
+check(len(win.nav._items) == 8, f"ریل ناوبری ۸ آیتم دارد ({len(win.nav._items)})")   # noqa: SLF001
 check(win.user_name == "سوشیان", f"نام کاربر از config خوانده شد: {win.user_name}")
 check(f"سلام {win.user_name}" in win.greet_lbl.text(),
       f"سلام بزرگ در هدر: {win.greet_lbl.text()}")

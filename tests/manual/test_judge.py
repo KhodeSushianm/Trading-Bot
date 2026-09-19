@@ -4,6 +4,7 @@
 همهٔ مسیرها با دادهٔ مصنوعی و `now` تزریق‌شده سنجیده می‌شوند، چون بازار
 در آخر هفته بسته است و وتوی WEEKEND همه‌چیز را می‌بلعد.
 """
+import os
 import pathlib
 import sys
 from datetime import datetime, timedelta, timezone
@@ -320,10 +321,28 @@ print("=" * 78)
 print("۹) ژورنال سیگنال (پایهٔ مرحله ۴)")
 print("=" * 78)
 rec = sig.to_journal(sent=True)
-need = {"ts", "symbol", "direction", "entry", "sl", "tp", "pip", "atr", "risk_pips",
-        "reward_pips", "rr", "score", "max_score", "session", "evidences", "sent", "outcome"}
+need = {"kind", "id", "ts", "symbol", "direction", "entry", "sl", "tp", "pip",
+        "atr", "risk_pips", "reward_pips", "rr", "score", "max_score",
+        "session", "evidences", "sent"}
 check(need <= set(rec), f"همهٔ فیلدهای ژورنال حاضرند (کم: {need - set(rec)})")
-check(rec["outcome"] is None, "outcome خالی است — مرحلهٔ ۴ پرش می‌کند")
+check(rec["kind"] == "signal" and bool(rec["id"]),
+      "رکورد سیگنال kind/id دارد (پایهٔ event-sourcing)")
+
+# ژورنال event-source: نتیجه به‌صورت رکورد جدا با همان id گره می‌خورد
+import tempfile
+from src.journal.store import Journal, TP
+from src.journal.stats import compute_stats
+with tempfile.TemporaryDirectory() as td:
+    jr = Journal(os.path.join(td, "s.jsonl"))
+    jr.append(rec)
+    jr.add_outcome(rec["id"], TP, rec["tp"], rec["rr"], note="تست")
+    loaded = jr.load()
+    check(len(loaded) == 1 and loaded[0].outcome == TP and loaded[0].r == rec["rr"],
+          "رکورد outcome با همان id به سیگنال گره خورد")
+    check(loaded[0].is_win and not loaded[0].is_open, "سیگنال بسته به‌درستی علامت خورد")
+    st = compute_stats(loaded, loaded[0].ts)
+    check(st.overall.wins == 1 and st.overall.hit_rate == 1.0,
+          f"آمار: ۱ برد و نرخ برد ۱۰۰٪ (wins={st.overall.wins}, hr={st.overall.hit_rate})")
 check(all(isinstance(x, str) and ":" in x for x in rec["evidences"]),
       f"مدارک به‌شکل قابل‌پارس ذخیره شدند: {rec['evidences'][:3]}")
 import json as _json

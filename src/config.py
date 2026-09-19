@@ -115,6 +115,20 @@ def load_config(path: str | None = None) -> dict:
     if not isinstance(b["times_utc"], list):
         b["times_utc"] = [str(b["times_utc"])]
 
+    # ── مرحله ۴: ژورنال و آمار دقت ─────────────────────────────
+    j = cfg.setdefault("journal", {})
+    for k, v in (("enabled", True), ("expiry_hours", 48),
+                 ("conservative_both_touch", True)):
+        j.setdefault(k, v)
+    jn = j.setdefault("nightly", {})
+    for k, v in (("enabled", True), ("time_utc", "21:30"),
+                 ("catchup_window_minutes", 60)):
+        jn.setdefault(k, v)
+    jw = j.setdefault("weekly", {})
+    for k, v in (("enabled", True), ("day_utc", 6), ("time_utc", "20:00"),
+                 ("catchup_window_minutes", 120)):
+        jw.setdefault(k, v)
+
     # ── رابط کاربری ─────────────────────────────────────────────
     u = cfg.setdefault("ui", {})
     for k, v in (("user_name", "سوشیان"), ("splash", True), ("animations", True)):

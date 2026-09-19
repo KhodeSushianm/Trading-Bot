@@ -153,6 +153,25 @@ need(cfg["judge"]["veto"]["high_impact_event"] is True
      f"پنجرهٔ وتوی رویداد = {cfg['fundamental']['veto_minutes_before']} دقیقه "
      f"(داور و موتور فاندامنتال از همین یک عدد استفاده می‌کنند)")
 
+# ── مرحله ۴: ژورنال ───────────────────────────────────────────
+j = cfg["journal"]
+need(isinstance(j.get("enabled"), bool), f"journal.enabled = {j.get('enabled')}")
+need(0 < float(j.get("expiry_hours", 0)) <= 24 * 30,
+     f"journal.expiry_hours = {j.get('expiry_hours')} (بین ۰ و ۳۰ روز)")
+need(isinstance(j.get("conservative_both_touch"), bool),
+     f"journal.conservative_both_touch = {j.get('conservative_both_touch')}")
+for sect, dflt in (("nightly", "21:30"), ("weekly", "20:00")):
+    sp = j[sect]
+    need(isinstance(sp.get("enabled"), bool), f"journal.{sect}.enabled = {sp.get('enabled')}")
+    hhmm = str(sp.get("time_utc", dflt)).split(":")
+    need(len(hhmm) == 2 and hhmm[0].isdigit() and hhmm[1].isdigit()
+         and 0 <= int(hhmm[0]) <= 23 and 0 <= int(hhmm[1]) <= 59,
+         f"journal.{sect}.time_utc = {sp.get('time_utc')}")
+    need(float(sp.get("catchup_window_minutes", 0)) > 0,
+         f"journal.{sect}.catchup_window_minutes = {sp.get('catchup_window_minutes')}")
+need(0 <= int(j["weekly"].get("day_utc", 0)) <= 6,
+     f"journal.weekly.day_utc = {j['weekly'].get('day_utc')} (۰=دوشنبه … ۶=یکشنبه)")
+
 # ── رابط کاربری ───────────────────────────────────────────────
 u = cfg.get("ui", {})
 need(isinstance(u.get("user_name", ""), str) and len(u.get("user_name", "")) > 0,
