@@ -14,6 +14,41 @@ def is_frozen() -> bool:
     return bool(getattr(sys, "frozen", False))
 
 
+def fix_console_encoding() -> None:
+    """کنسول را روی UTF-8 بگذار تا متن فارسی و ایموجی استثنا پرتاب نکنند.
+
+    چرا لازم است:
+      کدپیش‌فرض کنسول ویندوز cp1252 است. بدون این تابع، اولین print فارسی
+      (مثلاً «[auto] منابع داده فعال: yahoo» در لایهٔ داده) روی ویندوز
+      UnicodeEncodeError می‌دهد. چون آن print داخل connect() و داخل try/except
+      موتور است، خطا بی‌صدا به «اتصال به منبع داده ناموفق» ترجمه می‌شد و
+      کل لایهٔ داده از کار می‌افتاد.
+
+      در EXE پنجره‌ای (console=False) این مشکل دیده نمی‌شد، چون PyInstaller
+      خروجی را دور می‌ریزد؛ ولی در اجرای «python panel.py» روی کنسول واقعی
+      و در GitHub Actions کاملاً فعال است.
+
+    بی‌خطر و چندبار‌فراخوانی‌شدنی است.
+    """
+    for name in ("stdout", "stderr"):
+        stream = getattr(sys, name, None)
+        if stream is None:                      # حالت EXE بی‌کنسول
+            continue
+        try:
+            stream.reconfigure(encoding="utf-8", errors="replace")
+            continue
+        except Exception:
+            pass
+        try:                                    # جریان‌های بدون reconfigure
+            import io
+            buf = getattr(stream, "buffer", None)
+            if buf is not None:
+                setattr(sys, name, io.TextIOWrapper(buf, encoding="utf-8",
+                                                    errors="replace", line_buffering=True))
+        except Exception:
+            pass
+
+
 def app_dir() -> Path:
     """پوشه کنار فایل اجرایی (EXE) یا ریشه پروژه در حالت توسعه.
 

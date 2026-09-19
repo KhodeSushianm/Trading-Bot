@@ -526,6 +526,7 @@ class MainWindow(QMainWindow):
 # ── ورود و راه‌اندازی ──────────────────────────────────────────
 def _selftest() -> int:
     """خودآزمون بدون پنجره (برای ماشین ساخت گیت‌هاب): GUI + موتور را بارگذاری می‌کند."""
+    app_paths.fix_console_encoding()      # کنسول CI ویندوز cp1252 است — وگرنه print فارسی می‌شکند
     os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
     app = QApplication(sys.argv[:1])
     app.setStyle("Fusion")
@@ -566,6 +567,10 @@ def _selftest() -> int:
 
 
 def main() -> None:
+    # پیش از هر print فارسی — بدون این، روی کنسول ویندوز (cp1252) اولین
+    # print لایهٔ داده UnicodeEncodeError می‌دهد و بی‌صدا کل داده از کار می‌افتد
+    app_paths.fix_console_encoding()
+
     if "--selftest" in sys.argv:
         sys.exit(_selftest())
 

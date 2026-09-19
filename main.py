@@ -18,18 +18,18 @@ from __future__ import annotations
 import argparse
 import sys
 
+from src import app_paths
 from src.config import load_config
 from src.engine import check_event_alerts, run_briefing, run_cycle
 
 
 def _fix_windows_console() -> None:
-    """ویندوز: اطمینان از اینکه کنسول متن فارسی و ایموجی را درست نمایش دهد."""
-    if sys.platform == "win32":
-        try:
-            sys.stdout.reconfigure(encoding="utf-8", errors="replace")
-            sys.stderr.reconfigure(encoding="utf-8", errors="replace")
-        except Exception:
-            pass
+    """اطمینان از اینکه کنسول متن فارسی و ایموجی را درست نمایش دهد.
+
+    پیاده‌سازی مشترک با پنل در src/app_paths.fix_console_encoding —
+    آن نسخه علاوه بر reconfigure، جریان‌های بدون buffer را هم پوشش می‌دهد.
+    """
+    app_paths.fix_console_encoding()
 
 
 def _selftest() -> int:
@@ -153,8 +153,27 @@ def _selftest() -> int:
     assert check_event_alerts(acfg, cal_snap=cal.CalendarSnapshot(events=cny),
                               now=cny[0].when, dry_run=True) == [], "CNY در پوشش ما نیست"
 
+    # ۶) کدگذاری کنسول — باگ واقعی نسخهٔ ۰٫۲: print فارسی روی کنسول cp1252
+    #    ویندوز UnicodeEncodeError می‌داد و چون داخل try/except موتور بود،
+    #    بی‌صدا کل لایهٔ داده از کار می‌افتاد.
+    import io
+
+    from src import app_paths
+    buf = io.BytesIO()
+    fake = io.TextIOWrapper(buf, encoding="cp1252", errors="strict")   # مثل کنسول ویندوز
+    real_out = sys.stdout
+    sys.stdout = fake
+    try:
+        app_paths.fix_console_encoding()
+        print("فارسی ✅ وتو 🚫 تقویم 🏦")            # نباید استثنا بدهد
+        fake.flush()                                  # TextIOWrapper بافر دارد
+    finally:
+        sys.stdout = real_out
+    got = buf.getvalue().decode("utf-8", "replace")
+    assert "فارسی" in got and "🚫" in got, f"خروجی باید UTF-8 باشد، شد: {got!r}"
+
     print(f"SELFTEST OK — {len(evs)} رویداد پارس شد، {len(cases)} حالت جهت‌دهی درست، "
-          f"۱ هشدار رویداد در پنجرهٔ درست، گزارش‌ها {len(rep)} کاراکتر")
+          f"۱ هشدار رویداد در پنجرهٔ درست، کدگذاری کنسول سالم، گزارش‌ها {len(rep)} کاراکتر")
     return 0
 
 
