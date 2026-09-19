@@ -13,7 +13,8 @@
 """
 from __future__ import annotations
 
-from PySide6.QtCore import QEasingCurve, QPropertyAnimation, Qt, QTimer, QRect
+from PySide6.QtCore import (Property, QEasingCurve, QPropertyAnimation, Qt,
+                            QTimer, QRect)
 from PySide6.QtGui import QColor, QPainter
 from PySide6.QtWidgets import (QFrame, QGraphicsOpacityEffect, QLabel,
                                QVBoxLayout, QWidget)
@@ -31,14 +32,16 @@ class _ProgressLine(QWidget):
         self._value = 0.0
         self.setFixedHeight(3)
 
-    @property
-    def value(self) -> float:
+    # باید Property خودِ Qt باشد تا QPropertyAnimation بتواند انیمیتش کند؛
+    # property معمولی پایتون از دید متاصدلبخشی نامرئی است و خط ساکن می‌ماند.
+    def _get(self) -> float:
         return self._value
 
-    @value.setter
-    def value(self, v: float) -> None:
+    def _set(self, v: float) -> None:
         self._value = max(0.0, min(1.0, v))
         self.update()
+
+    value = Property(float, _get, _set)
 
     def paintEvent(self, ev) -> None:      # noqa: N802
         p = QPainter(self)

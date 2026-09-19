@@ -150,6 +150,18 @@ def _plain(max_blocks: int | None = None, placeholder: str = "") -> QPlainTextEd
     return v
 
 
+def _set_text(lbl: QLabel, txt: str) -> None:
+    """setText فقط وقتی متن واقعاً عوض شده — altrimenti هر تیکِ هر ثانیه
+    یک repaint بی‌مورد به کل ویجت تحمیل می‌کند."""
+    if lbl.text() != txt:
+        lbl.setText(txt)
+
+
+def _set_plain(view: QPlainTextEdit, txt: str) -> None:
+    if view.toPlainText() != txt:
+        view.setPlainText(txt)
+
+
 def _btn(text: str, obj: str, icon_name: str = "", tip: str = "") -> QPushButton:
     b = QPushButton(text)
     b.setObjectName(obj)
@@ -194,6 +206,7 @@ class MainWindow(QMainWindow):
         self.tick.timeout.connect(self._tick)
         self.tick.start(1000)
 
+        self._last_ranking = None
         self._splash = None
         if show_splash and bool(uicfg.get("splash", True)):
             self._show_splash()
@@ -527,6 +540,7 @@ class MainWindow(QMainWindow):
     def _on_nav(self, i: int) -> None:
         self.pages.setCurrentIndex(i)
         page = self.pages.currentWidget()
+        page.update()                 # مطمئن شو محتوای صفحه همان لحظه کشیده می‌شود
         effects.fade(page, 0.0, 1.0, effects.DUR_MED)
 
     # ── صف پیام‌ها ────────────────────────────────────────────
@@ -543,8 +557,13 @@ class MainWindow(QMainWindow):
         b.style().unpolish(b); b.style().polish(b)
 
         def clear():
-            b.setProperty("badge", "false")
-            b.style().unpolish(b); b.style().polish(b)
+            # اگر پنجره بسته شده باشد، ویجت حذف شده و دست‌زدن به آن RuntimeError می‌دهد
+            try:
+                b.setProperty("badge", "false")
+                b.style().unpolish(b)
+                b.style().polish(b)
+            except RuntimeError:
+                pass
         QTimer.singleShot(6000, clear)
 
     def _poll_queue(self) -> None:
@@ -596,17 +615,17 @@ class MainWindow(QMainWindow):
         self.btn_brief.setEnabled(not once_busy)
 
         last = st.get("last_run")
-        self.last_run_lbl.setText("آخرین تحلیل: " + (
+        _set_text(self.last_run_lbl, "آخرین تحلیل: " + (
             fa(time.strftime("%H:%M", time.localtime(last))) if last else "—"))
         nxt = st.get("next_run")
-        self.next_run_lbl.setText(
-            fa(f"تحلیل بعدی تا {int(nxt - now) // 60:02d}:{int(nxt - now) % 60:02d}")
-            if running and nxt and nxt > now else "")
+        _set_text(self.next_run_lbl,
+                  fa(f"تحلیل بعدی تا {int(nxt - now) // 60:02d}:{int(nxt - now) % 60:02d}")
+                  if running and nxt and nxt > now else "")
 
         vetoes = st.get("last_vetoes") or []
-        self.veto_lbl.setText(
-            f"🚫 وتو: {'، '.join(vetoes)}" if vetoes
-            else ("وتوی فعالی نیست" if last else ""))
+        _set_text(self.veto_lbl,
+                  f"🚫 وتو: {'، '.join(vetoes)}" if vetoes
+                  else ("وتوی فعالی نیست" if last else ""))
 
         self._refresh_dash(st)
 
@@ -627,19 +646,22 @@ class MainWindow(QMainWindow):
                 d = "خرید 🟢" if x["direction"] == "BUY" else "فروش 🔴"
                 lines.append(f"{x['symbol']}  {d}  امتیاز {fa(x['score'])} از {fa(x['max_score'])}"
                              + ("" if x.get("sent") else "  (ارسال نشد)"))
-            self.dash_signals.setPlainText("\n".join(lines))
+            _set_plain(self.dash_signals, "\n".join(lines))
         else:
-            self.dash_signals.setPlainText("سیگنالی در این چرخه صادر نشد.")
+            _set_plain(self.dash_signals, "سیگنالی در این چرخه صادر نشد.")
 
         ups = st.get("upcoming") or []
         if ups:
-            self.dash_events.setPlainText("\n".join(
+            _set_plain(self.dash_events, "\n".join(
                 f"{'🔴' if u['impact'] == 'HIGH' else '🟠'} {u['title_fa']} ({u['country_fa']})"
                 f" — {fa(abs(u['minutes']))} دقیقهٔ دیگر" for u in ups))
         else:
-            self.dash_events.setPlainText("رویداد پراثر یا متوسطی در ۴۸ ساعت آینده نیست.")
+            _set_plain(self.dash_events, "رویداد پراثر یا متوسطی در ۴۸ ساعت آینده نیست.")
 
-        self.strength.set_data(st.get("ranking") or [])
+        ranking = st.get("ranking") or []
+        if ranking != self._last_ranking:
+            self._last_ranking = ranking
+            self.strength.set_data(ranking)
 
     # ── اقدام‌ها ──────────────────────────────────────────────
     def _on_start(self) -> None:
@@ -761,6 +783,53 @@ def _selftest() -> int:
     assert len(win.nav._items) == 7, "ریل ناوبری باید ۷ آیتم داشته باشد"   # noqa: SLF001
     assert win.user_name, "نام کاربر برای Splash باید مقدار داشته باشد"
 
+    # ── رگرسیون باگ «صفحه سیاه تا درگ» ─────────────────────────
+    # اگر QGraphicsOpacityEffect بعد از پایان fade روی ویجت بماند، Qt فرزندان
+    # را در بافر آف‌اسکرین نگه می‌دارد و update()های بعدی repaint نمی‌شوند →
+    # صفحه سیاه/کهنه می‌ماند تا کاربر درگ کند. این تست همان را می‌گیرد.
+    from PySide6.QtWidgets import QGraphicsOpacityEffect
+    probe = QWidget()
+    effects.fade(probe, 0.0, 1.0, 60)
+    assert isinstance(probe.graphicsEffect(), QGraphicsOpacityEffect), \
+        "در طول انیمیشن اثر باید وجود داشته باشد"
+    import time as _time
+    deadline = _time.time() + 2.0
+    while _time.time() < deadline and probe.graphicsEffect() is not None:
+        app.processEvents()
+        app.thread().msleep(10)
+    assert probe.graphicsEffect() is None, \
+        "اثرopacity پس از پایان fade باقی ماند → باگ «صفحه سیاه تا درگ» برگشته است"
+
+    # تعویض صفحه هم نباید اثر باقی بگذارد
+    win.nav._select(win.TAB_REPORT)      # noqa: SLF001
+    deadline = _time.time() + 2.0
+    while _time.time() < deadline and win.pages.widget(win.TAB_REPORT).graphicsEffect() is not None:
+        app.processEvents()
+        app.thread().msleep(10)
+    assert win.pages.widget(win.TAB_REPORT).graphicsEffect() is None, \
+        "صفحهٔ گزارش پس از fade هنوز اثر دارد"
+    win.nav._select(win.TAB_DASH)        # noqa: SLF001
+    app.processEvents()
+
+    # ── رگرسیون «صفحهٔ خالی»: محتوا باید واقعاً رندر شود ──────
+    win.report_view.setPlainText("متن نمونه برای بررسی رندر صفحه ✅\nسطر دوم")
+    win.nav._select(win.TAB_REPORT)      # noqa: SLF001
+    deadline = _time.time() + 2.0
+    while (_time.time() < deadline
+           and win.pages.widget(win.TAB_REPORT).graphicsEffect() is not None):
+        app.processEvents()
+        app.thread().msleep(10)
+    app.processEvents()
+    img = win.pages.currentWidget().grab().toImage()
+    bg = img.pixelColor(4, 4)
+    diff = sum(1 for y in range(0, img.height(), 6) for x in range(0, img.width(), 6)
+               if img.pixelColor(x, y) != bg)
+    assert diff > 30, (f"صفحهٔ گزارش فقط پس‌زمینهٔ خالی رندر کرد "
+                       f"({diff} پیکسل متفاوت) — باگ «صفحه سیاه/خالی»")
+
+    win.nav._select(win.TAB_DASH)        # noqa: SLF001
+    app.processEvents()
+
     # آیکون‌ها باید رندر شوند (نه fallback خالی)
     for nm in ("dashboard", "target", "play", "stop", "logo"):
         pm = icons.icon(nm, 24, "#FFFFFF").pixmap(24, 24)
@@ -813,8 +882,11 @@ def main() -> None:
     app.setFont(QFont(fam, 11))
     app.setStyleSheet(build_qss(fam))
 
+    # نشان‌دادن پنجره بر عهدهٔ _after_splash است (بعد از Splash)؛ show() اضافی
+    # اینجا باعث می‌شد پنجره پشت Splash دیده شود و فلش opacity بزند.
     win = MainWindow(show_splash="--no-splash" not in sys.argv)
-    win.show()
+    # مرجع پنجره روی app نگه داشته می‌شود تا تا پایان app.exec زنده بماند
+    app._main_window = win
     sys.exit(app.exec())
 
 

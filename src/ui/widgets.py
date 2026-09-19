@@ -109,6 +109,8 @@ class StatTile(QFrame):
         lay.addWidget(self._num)
 
     def set_value(self, v: str, tone: str = "") -> None:
+        if self._num.text() == v and (self._num.property("tone") or "") == tone:
+            return
         self._num.setText(v)
         if tone != self._num.property("tone"):
             self._num.setProperty("tone", tone)
@@ -141,9 +143,14 @@ class StatusPill(QFrame):
         f.setBold(True)
         self._txt.setFont(f)
         lay.addWidget(self._txt)
+        self._state = ""
         self.set_state("idle")
 
     def set_state(self, state: str, custom_text: str = "") -> None:
+        text = custom_text or self.TEXT.get(state, state)
+        if state == self._state and text == self._txt.text():
+            return                            # تیک هر ثانیه نباید restyle بی‌مورد بزند
+        self._state = state
         self.setProperty("state", state)
         st = self.style()
         st.unpolish(self)
@@ -151,7 +158,7 @@ class StatusPill(QFrame):
         color = self.COLORS.get(state, "#9E9EA8") or self._t.text_3
         self._dot.set_color(color)
         self._dot.set_pulsing(state in ("ok", "busy"))
-        self._txt.setText(custom_text or self.TEXT.get(state, state))
+        self._txt.setText(text)
 
 
 # ══════════════════════════════════════════════════════════════
@@ -236,7 +243,9 @@ class NavRail(QFrame):
         # نشانگر در لبهٔ بیرونی ریل (در RTL = سمت راستِ خودِ ریل)
         self._indicator.move(self.width() - self.IND_W - 2, self._indicator.y())
         if self._items:
-            self._move_indicator()
+            btn = self._items[self._index]
+            y = btn.mapTo(self, QPoint(0, 0)).y() + (btn.height() - self.IND_H) // 2
+            effects.slide_indicator(self._indicator, y, self.IND_H, instant=True)
 
 
 # ══════════════════════════════════════════════════════════════
@@ -303,5 +312,5 @@ class Toast(QFrame):
         self.move(p.width() // 2 - self.width() // 2, Space.LG)
 
     def dismiss(self) -> None:
-        effects.fade(self, 1.0, 0.0, effects.DUR_FAST,
-                     on_finished=self.hide, delete_effect=True)
+        # fade خودش اثر را پس از پایان حذف می‌کند (و برای end=0 اول hide می‌کند)
+        effects.fade(self, 1.0, 0.0, effects.DUR_FAST, on_finished=self.hide)

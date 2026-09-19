@@ -48,19 +48,29 @@ def _keep(widget: QWidget, anim) -> None:
 
 
 def fade(widget: QWidget, start: float = 0.0, end: float = 1.0,
-         ms: int = DUR_MED, easing=EASE, on_finished: Optional[Callable] = None,
-         delete_effect: bool = False) -> QPropertyAnimation:
-    """محو/پررنگ شدن یک ویجت با QGraphicsOpacityEffect."""
+         ms: int = DUR_MED, easing=EASE, on_finished: Optional[Callable] = None) -> None:
+    """محو/پررنگ شدن یک ویجت با QGraphicsOpacityEffect.
+
+    ⚠️ نکتهٔ حیاتی: اثر باید **بعد از پایان انیمیشن حذف شود**. اگر
+    QGraphicsOpacityEffect روی ویجت باقی بماند، Qt فرزندان را در یک بافر
+    آف‌اسکرین رندر می‌کند و update()های بعدی (تغییر متن، تیک هر ثانیه) روی
+    بعضی پلتفرم‌ها repaint نمی‌شوند → ویجت سیاه/کهنه می‌ماند تا کاربر پنجره را
+    درگ/resize کند. این دقیقاً باگی بود که «صفحه سیاه تا درگ» را می‌ساخت.
+    """
     eff = widget.graphicsEffect()
     if not isinstance(eff, QGraphicsOpacityEffect):
         eff = QGraphicsOpacityEffect(widget)
         widget.setGraphicsEffect(eff)
     eff.setOpacity(start)
-    if not ANIMATIONS:
+
+    if not ANIMATIONS or ms <= 0:
         eff.setOpacity(end)
+        widget.setGraphicsEffect(None)      # هیچ اثری باقی نماند
+        widget.update()
         if on_finished:
             on_finished()
         return None
+
     anim = QPropertyAnimation(eff, b"opacity", widget)
     anim.setDuration(ms)
     anim.setStartValue(start)
@@ -68,15 +78,19 @@ def fade(widget: QWidget, start: float = 0.0, end: float = 1.0,
     anim.setEasingCurve(easing)
 
     def _done():
-        if delete_effect:
+        if end <= 0.0 and on_finished:
+            on_finished()                   # اول پنهان کن…
+            widget.setGraphicsEffect(None)  # …بعد اثر را بردار (بدون فلش یک‌فریمی)
+        else:
             widget.setGraphicsEffect(None)
-        if on_finished:
-            on_finished()
+            widget.update()
+            if on_finished:
+                on_finished()
 
     anim.finished.connect(_done)
     _keep(widget, anim)
     anim.start()
-    return anim
+    return None
 
 
 def rise(widget: QWidget, dy: int = 10, ms: int = DUR_MED, delay: int = 0) -> None:
@@ -99,23 +113,22 @@ def rise(widget: QWidget, dy: int = 10, ms: int = DUR_MED, delay: int = 0) -> No
 
 
 def slide_indicator(indicator: QWidget, target_y: int, height: int,
-                    ms: int = DUR_MED) -> None:
-    """نشانگر ریل ناوبری را نرم به آیتم فعال می‌برد."""
+                    ms: int = DUR_MED, instant: bool = False) -> None:
+    """نشانگر ریل ناوبری را نرم به آیتم فعال می‌برد.
+
+    `instant=True` برای resize پنجره است: آنجا انیمیشنِ مجدد فقط پرش‌های
+    پیاپی می‌سازد، پس ژئومتری را مستقیم ست می‌کنیم.
+    """
+    from PySide6.QtCore import QRect
     geo = indicator.geometry()
-    if not ANIMATIONS:
-        from PySide6.QtCore import QRect
-        indicator.setGeometry(QRect(geo.x(), target_y, geo.width(), height))
+    target = QRect(geo.x(), target_y, geo.width(), height)
+    if not ANIMATIONS or instant:
+        indicator.setGeometry(target)
         return
     anim = QPropertyAnimation(indicator, b"geometry", indicator)
     anim.setDuration(ms)
     anim.setStartValue(geo)
-    anim.setEndValue(indicator.parentWidget().rect().adjusted(0, 0, 0, 0)
-                     .adjusted(0, target_y, 0, target_y + height - geo.height())
-                     .adjusted(0, 0, 0, 0))
-    from PySide6.QtCore import QRect
-    x = geo.x()
-    w = geo.width()
-    anim.setEndValue(QRect(x, target_y, w, height))
+    anim.setEndValue(target)
     anim.setEasingCurve(EASE_INOUT)
     _keep(indicator, anim)
     anim.start()

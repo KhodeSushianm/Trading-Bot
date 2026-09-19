@@ -368,14 +368,18 @@ QPlainTextEdit {{
     selection-background-color: {t.raised};
 }}
 QPlainTextEdit:focus {{ border-color: {t.border_strong}; }}
-/* نمای «بی‌قاب» برای فهرست‌های داخل کارت‌ها */
+/* نمای داخلی برای فهرست‌های داخل کارت‌ها.
+   ⚠️ background باید SOLID باشد، نه transparent: با پس‌زمینهٔ شفاف،
+   QPlainTextEdit روی بعضی پلتفرم‌ها متن را تا اولین repaint کامل (درگ/resize)
+   رسم نمی‌کند — همان باگ «صفحه سیاه تا درگ». */
 QPlainTextEdit#plain {{
-    background-color: transparent;
-    border: none;
-    padding: 2px 0;
+    background-color: {t.bg_alt};
+    border: 1px solid {t.divider};
+    border-radius: 10px;
+    padding: 12px;
     color: {t.text_2};
 }}
-QPlainTextEdit#plain:focus {{ border: none; }}
+QPlainTextEdit#plain:focus {{ border-color: {t.border_strong}; }}
 
 /* ── اسکرول‌بار مینیمال ────────────────────────────────────── */
 QScrollBar:vertical {{ background: transparent; width: 8px; margin: 4px; }}
