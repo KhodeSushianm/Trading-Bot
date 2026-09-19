@@ -88,7 +88,16 @@ def _tv_line(a: SymbolAnalysis, tv, tf_label: str) -> str:
     return line
 
 
-def render_symbol(a: SymbolAnalysis, tv=None, tv_tf: str = "4h") -> str:
+def render_symbol(a: SymbolAnalysis, tv=None, tv_tf: str = "4h",
+                  veto_events=None, extra_lines=None, now=None) -> str:
+    """بخش یک نماد در گزارش.
+
+    Args:
+        veto_events: رویدادهای پراثر نزدیک که سیگنال این نماد را وتو می‌کنند (مرحله ۲)
+        extra_lines: خط‌های اضافی (مثل تایید/رد خبری) که قبل از جمع‌بندی چاپ می‌شوند
+        now:         زمان مرجع گزارش — باید در کل گزارش یکسان باشد، وگرنه
+                     شمارش معکوس وتو با فهرست تقویم تناقض پیدا می‌کند
+    """
     lines = [
         SEP,
         f"📊 {a.symbol} — {a.fa_name}",
@@ -111,7 +120,16 @@ def render_symbol(a: SymbolAnalysis, tv=None, tv_tf: str = "4h") -> str:
     lines.append(f"   🎚️ {sup} | {res}")
     lines.append(f"   🌊 نوسان متوسط ساعتی: ATR={_fmt_dist(a.atr, a.pip)}")
     lines.append(_tv_line(a, tv, tv_tf))
-    lines.append(f"   🧾 جمع‌بندی: {VERDICT_FA.get(a.verdict, a.verdict)}")
+    for x in (extra_lines or []):
+        lines.append(x)
+    if veto_events:
+        from .fundamental import render_veto
+        lines.append(render_veto(veto_events, a.symbol, now=now))
+        verdict = ("🚫 وتوی خبری فعال — با اینکه شرایط تکنیکال شکل گرفته، در این پنجره "
+                   "سیگنال صادر نمی‌شود")
+    else:
+        verdict = VERDICT_FA.get(a.verdict, a.verdict)
+    lines.append(f"   🧾 جمع‌بندی: {verdict}")
     return "\n".join(lines)
 
 
@@ -143,32 +161,67 @@ def render_report(analyses: List[SymbolAnalysis],
                   ranking: List[Tuple[str, float]],
                   source_name: str,
                   tv_map: dict | None = None,
-                  tv_tf: str = "4h") -> str:
-    """گزارش کامل کنسول."""
-    now = datetime.now(timezone.utc)
+                  tv_tf: str = "4h",
+                  cal_snap=None,
+                  news_snap=None,
+                  symbols_cfg: list | None = None,
+                  vetoes: dict | None = None,
+                  cal_horizon: float = 48.0,
+                  now=None) -> str:
+    """گزارش کامل (تکنیکال + تاییدیه تریدینگ‌ویو + تقویم اقتصادی + اخبار).
+
+    Args:
+        cal_snap:    CalendarSnapshot از موتور فاندامنتال (اختیاری)
+        news_snap:   NewsSnapshot از موتور اخبار (اختیاری)
+        symbols_cfg: فهرست نمادها از config (برای تفسیر رویدادها به جفت‌ارزها)
+        vetoes:      نگاشت نام نماد → فهرست رویدادهای وتوکننده
+    """
+    now = now or datetime.now(timezone.utc)
     stamps = [a.last_candle for a in analyses if a.last_candle]
     last = max(stamps).strftime("%Y-%m-%d %H:%M") if stamps else "—"
     src_fa = SOURCE_FA.get(source_name, source_name)
     tv_map = tv_map or {}
     tv_on = bool(tv_map)
+    vetoes = vetoes or {}
+    symbols_cfg = symbols_cfg or []
+    fund_on = bool(cal_snap is not None or news_snap is not None)
 
     parts = [
         DSEP,
-        "🔎 گزارش موتور تکنیکال — دستیار سیگنال فارکس",
+        "🔎 گزارش تحلیل بازار — دستیار سیگنال فارکس",
         f"🕒 زمان اجرا: {now:%Y-%m-%d %H:%M} UTC | منبع داده: {src_fa}",
         f"📅 آخرین کندل بسته‌شده: {last} UTC"
         + ("" if tv_on else " | ⚠️ تاییدیه تریدینگ‌ویو این بار در دسترس نبود"),
         DSEP,
     ]
     for a in analyses:
-        parts.append(render_symbol(a, tv=tv_map.get(a.symbol), tv_tf=tv_tf))
+        extra = []
+        if news_snap is not None and news_snap.ok and a.verdict in ("BUY_SETUP", "SELL_SETUP"):
+            from .fundamental import news_lines_for_symbol
+            bias = "buy" if a.verdict == "BUY_SETUP" else "sell"
+            extra = news_lines_for_symbol(news_snap, a.base, a.quote, bias)
+        parts.append(render_symbol(a, tv=tv_map.get(a.symbol), tv_tf=tv_tf,
+                                   veto_events=vetoes.get(a.symbol), extra_lines=extra,
+                                   now=now))
     strength = render_strength(ranking, analyses)
     if strength:
         parts.append(strength)
+
+    # ── بخش فاندامنتال (مرحله ۲) ──────────────────────────────
+    if cal_snap is not None:
+        from .fundamental import render_calendar
+        parts.append(render_calendar(cal_snap, symbols_cfg, now=now,
+                                     horizon_hours=cal_horizon))
+    if news_snap is not None:
+        from .fundamental import render_news
+        parts.append(render_news(news_snap))
+
     if any(a.symbol == "XAUUSD" for a in analyses):
         parts.append(SEP)
         parts.append("📎 طلا از Yahoo به‌صورت فیوچرز (GC=F) است — اختلاف چند دلاری با قیمت اسپات طبیعی است")
     parts.append("")
     parts.append("⚠️ این گزارش فقط تحلیل است، نه دستور معامله — تصمیم نهایی با شماست")
+    if not fund_on:
+        parts.append("ℹ️ موتور فاندامنتال/اخبار در این چرخه غیرفعال بود (config.yaml)")
     parts.append(DSEP)
     return "\n".join(parts)

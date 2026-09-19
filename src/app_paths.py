@@ -6,7 +6,7 @@ import sys
 from pathlib import Path
 
 APP_NAME = "ForexAssistant"
-APP_VERSION = "0.2.0"
+APP_VERSION = "0.3.0"
 
 
 def is_frozen() -> bool:
@@ -45,6 +45,21 @@ def logs_dir() -> Path:
     d = app_dir() / "logs"
     d.mkdir(parents=True, exist_ok=True)
     return d
+
+
+def cache_dir() -> Path:
+    """پوشه کش داده (تقویم اقتصادی، اخبار، وضعیت هشدارها).
+
+    محتوای این پوشه قابل بازسازی است و در .gitignore قرار دارد.
+    """
+    d = app_dir() / "data" / "cache"
+    d.mkdir(parents=True, exist_ok=True)
+    return d
+
+
+def sent_alerts_path() -> Path:
+    """فایل وضعیت هشدارهای ارسال‌شده (تا یک رویداد دو بار هشدار نگیرد)."""
+    return cache_dir() / "sent_alerts.json"
 
 
 def config_path() -> Path:

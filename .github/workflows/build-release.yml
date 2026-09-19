@@ -1,15 +1,50 @@
-name: Build Windows EXE & Release
+name: Tests & Build Windows EXE
 
+# تست‌ها روی هر push و PR اجرا می‌شوند (سریع، بدون ساخت EXE).
+# ساخت و انتشار EXE فقط روی تگ v* یا اجرای دستی.
 on:
   push:
+    branches: [main]
     tags: ["v*"]
+  pull_request:
   workflow_dispatch:
 
 permissions:
   contents: write
 
 jobs:
+  # ── تست‌های سریع (بدون GUI، بدون اینترنت) ───────────────────
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install minimal test dependencies
+        # عمداً سبک: yfinance، tradingview-ta و PySide6 برای خودآزمون لازم نیستند
+        # (هر سه به‌صورت lazy داخل تابع ایمپورت می‌شوند)
+        run: |
+          python -m pip install --upgrade pip
+          pip install pandas numpy PyYAML requests feedparser
+
+      - name: Backend selftest (offline — تقویم، اخبار، وتو، گزارش)
+        run: python main.py --selftest
+
+      - name: Config validation
+        run: python tests/check_config.py
+
+      - name: Byte-compile all sources
+        run: python -m compileall -q src panel.py main.py
+
+  # ── ساخت و انتشار EXE ویندوز ─────────────────────────────────
   build-windows:
+    needs: test
+    if: startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch'
     runs-on: windows-latest
     steps:
       - name: Checkout
@@ -25,6 +60,11 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
           pip install pyinstaller
+
+      - name: Panel selftest (offscreen GUI)
+        env:
+          QT_QPA_PLATFORM: offscreen
+        run: python panel.py --selftest
 
       - name: Build EXE (PyInstaller)
         run: pyinstaller ForexAssistant.spec --noconfirm
@@ -45,13 +85,37 @@ jobs:
           tag_name: ${{ github.ref_name }}
           name: نسخه ${{ github.ref_name }} — پنل ویندوز (ForexAssistant)
           body: |
+            ## 🆕 چه چیزی در این نسخه اضافه شد؟
+
+            ### 🏦 تقویم اقتصادی (منبع: ForexFactory — رایگان، بدون کلید)
+            - رویدادهای پراثر/متوسط با **عنوان فارسی**، زمان UTC، پیش‌بینی و مقدار قبلی
+            - **تفسیر به زبان ساده**: «اگر عدد بالاتر از انتظار باشد → دلار تقویت → EURUSD نزولی»
+            - 🚫 **وتوی خودکار سیگنال**: رویداد پراثر در ۳۰ دقیقه آینده = سیگنال آن نماد ممنوع
+            - 🚨 **هشدار تلگرامی** ۳۰ دقیقه قبل از هر رویداد پراثر (هر رویداد فقط یک بار)
+
+            ### 📰 موتور اخبار (RSS رایگان)
+            - ForexLive · Investing.com (فارکس/اقتصاد/طلا) · FXStreet از مسیر Google News
+            - **امتیاز اهمیت ۰ تا ۶** + **جهت اثر روی هر ارز** (↑/↓)
+            - قاعدهٔ هوشمند: «حرکت قیمت» بر «کلیدواژهٔ سیاستی» اولویت دارد
+              (مثلاً «ین پس از افزایش نرخ بهره سقوط کرد» درست = نزولی خوانده می‌شود)
+            - خبرهای تکراری از منابع مختلف، **یک مدرک** شمرده می‌شوند نه سه تا
+
+            ### 🌅 بریفینگ صبحگاهی
+            - هر روز ساعت ۰۶:۳۰ UTC (قابل تنظیم): تقویم پیش‌رو + پنجره‌های ممنوعه +
+              تیترهای بازار + جهت مورد انتظار هر نماد + جریان قدرت ارزها
+            - دکمهٔ «🌅 بریفینگ صبحگاهی» در پنل برای ساخت دستی
+
+            ### 🖥️ پنل
+            - دو تب جدید: **🏦 تقویم و اخبار** و **🌅 بریفینگ صبحگاهی**
+            - نوار وضعیت: وتوی فعال، تعداد خبرها، هشدارهای ارسال‌شده، زمان بریفینگ بعدی
+
             ## 📥 راهنمای نصب (۲ دقیقه)
 
             1. فایل **`ForexAssistant-...-windows.exe`** را از بخش Assets پایین همین صفحه دانلود کن
-            2. آن را در یک **پوشه اختصاصی** بگذار (مثلاً `Desktop\ForexAssistant`) — برنامه در اولین اجرا `config.yaml` و پوشه `logs` را کنار خودش می‌سازد
+            2. آن را در یک **پوشه اختصاصی** بگذار (مثلاً `Desktop\ForexAssistant`) — برنامه در اولین اجرا `config.yaml` و پوشه‌های `logs` و `data/cache` را کنار خودش می‌سازد
             3. رویش دابل‌کلیک کن. اگر هشدار آبی **SmartScreen** ویندوز آمد: **More info → Run anyway** (برای برنامه‌های امضان‌شده طبیعی است)
             4. در بخش **تلگرام**: توکن بات را از `@BotFather` بگیر و وارد کن → دکمه **«📥 گرفتن خودکار شناسه»** → **«✅ ارسال پیام تست»**
-            5. دکمه **«▶ شروع ربات»** را بزن — از این پس هر ۱۵ دقیقه گزارش کامل تحلیل به تلگرامت می‌رسد 📱
+            5. دکمه **«▶ شروع ربات»** را بزن — از این پس هر ۱۵ دقیقه گزارش کامل (تکنیکال + تقویم + اخبار) به تلگرامت می‌رسد 📱
 
             > ⏳ اجرای اول ۱۰ تا ۲۰ ثانیه طول می‌کشد (استخراج فایل‌های فشرده) — طبیعی است.
             > 🔤 فونت ایران‌سنس: فایل فونت را در پوشه `fonts` کنار EXE بگذار و برنامه را باز کن — خودکار جای وزیرمتن فعال می‌شود.

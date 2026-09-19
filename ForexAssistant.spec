@@ -5,6 +5,9 @@ from PyInstaller.utils.hooks import collect_submodules
 hidden = []
 hidden += collect_submodules("yfinance")
 hidden += collect_submodules("tradingview_ta")
+# feedparser داخل تابع و به‌صورت lazy ایمپورت می‌شود؛ برای اطمینان صریحاً جمع‌آوری می‌کنیم
+# (ماژول‌های src.* همه استاتیک ایمپورت می‌شوند و خود PyInstaller پیدایشان می‌کند)
+hidden += collect_submodules("feedparser")
 
 a = Analysis(
     ["panel.py"],

@@ -28,7 +28,7 @@ from PySide6.QtWidgets import (
 
 from src import app_paths
 from src.config import load_config, save_local_config
-from src.engine import BotLoop, run_cycle
+from src.engine import BotLoop, check_event_alerts, run_briefing, run_cycle
 from src.notify import telegram
 
 # ── ابزارهای کوچک ──────────────────────────────────────────────
@@ -129,6 +129,8 @@ class MainWindow(QMainWindow):
         self.cfg = load_config()
         self.loop = BotLoop(on_log=lambda m: self.q.put(("log", m)),
                             on_report=lambda r: self.q.put(("report", r)),
+                            on_briefing=lambda r: self.q.put(("briefing", r)),
+                            on_fundamental=lambda r: self.q.put(("fundamental", r)),
                             cfg_provider=load_config)
         self._build_ui()
         self._load_tg_fields()
@@ -141,6 +143,8 @@ class MainWindow(QMainWindow):
         self.tick.start(1000)
 
         self._log("👋 سلام! دکمه «▶ شروع ربات» را بزن تا تحلیل خودکار فعال شود.")
+        self._log("🆕 جدید در نسخهٔ ۰٫۳: تقویم اقتصادی + رصد اخبار + بریفینگ صبحگاهی "
+                  "+ هشدار رویداد پراثر + وتوی خودکار سیگنال نزدیک اخبار مهم")
         self._log("💡 برای دریافت گزارش‌ها روی گوشی، بخش تلگرام را تنظیم کن (راهنما: docs/panel-guide-fa.md)")
 
     # ── ساخت رابط ─────────────────────────────────────────────
@@ -164,7 +168,8 @@ class MainWindow(QMainWindow):
         texts.setSpacing(2)
         title = QLabel("دستیار سیگنال فارکس")
         title.setObjectName("title")
-        subtitle = QLabel("تحلیل تکنیکال + تاییدیه تریدینگ‌ویو — گزارش به زبان ساده، مستقیم به تلگرام تو")
+        subtitle = QLabel("تکنیکال + تقویم اقتصادی + اخبار + تاییدیه تریدینگ‌ویو — "
+                          "گزارش به زبان ساده، مستقیم به تلگرام تو")
         subtitle.setObjectName("subtitle")
         texts.addWidget(title)
         texts.addWidget(subtitle)
@@ -194,6 +199,21 @@ class MainWindow(QMainWindow):
         row.addWidget(self.next_run_lbl)
         row.addWidget(self.clock_lbl)
         lay.addLayout(row)
+
+        # ردیف دوم: وتوی خبری + وضعیت فاندامنتال/بریفینگ
+        row2 = QHBoxLayout()
+        self.veto_lbl = QLabel("")
+        self.veto_lbl.setObjectName("sub")
+        self.veto_lbl.setWordWrap(True)
+        self.fund_lbl = QLabel("")
+        self.fund_lbl.setObjectName("sub")
+        self.brief_lbl = QLabel("")
+        self.brief_lbl.setObjectName("sub")
+        row2.addWidget(self.veto_lbl, 2)
+        row2.addWidget(self.fund_lbl, 2)
+        row2.addStretch(1)
+        row2.addWidget(self.brief_lbl)
+        lay.addLayout(row2)
         root.addWidget(card)
 
         # دکمه‌های کنترل
@@ -208,12 +228,19 @@ class MainWindow(QMainWindow):
         self.btn_once = QPushButton("🔄 اجرای یک‌بار تحلیل")
         self.btn_once.setObjectName("accent")
         self.btn_once.setMinimumHeight(44)
+        self.btn_brief = QPushButton("🌅 بریفینگ صبحگاهی")
+        self.btn_brief.setObjectName("ghost")
+        self.btn_brief.setMinimumHeight(44)
+        self.btn_brief.setToolTip("ساخت و ارسال بریفینگ صبحگاهی: تقویم امروز، پنجره‌های ممنوعه، "
+                                  "تیترهای بازار و جهت مورد انتظار هر نماد")
         self.btn_start.clicked.connect(self._on_start)
         self.btn_stop.clicked.connect(self._on_stop)
         self.btn_once.clicked.connect(self._on_once)
+        self.btn_brief.clicked.connect(self._on_briefing)
         ctrl.addWidget(self.btn_start)
         ctrl.addWidget(self.btn_stop)
         ctrl.addWidget(self.btn_once)
+        ctrl.addWidget(self.btn_brief)
         ctrl.addStretch(1)
         root.addLayout(ctrl)
 
@@ -262,13 +289,27 @@ class MainWindow(QMainWindow):
 
         # تب‌های گزارش
         self.tabs = QTabWidget()
-        self.log_view = QPlainTextEdit()
-        self.log_view.setReadOnly(True)
-        self.log_view.setMaximumBlockCount(4000)
-        self.report_view = QPlainTextEdit()
-        self.report_view.setReadOnly(True)
+
+        def _view(max_blocks: int | None = None) -> QPlainTextEdit:
+            v = QPlainTextEdit()
+            v.setReadOnly(True)
+            if max_blocks:
+                v.setMaximumBlockCount(max_blocks)
+            else:
+                v.setPlaceholderText("هنوز چیزی اینجا نیست — «▶ شروع ربات» یا «🔄 اجرای یک‌بار تحلیل» را بزن")
+            return v
+
+        self.log_view = _view(4000)
+        self.report_view = _view()
+        self.fund_view = _view()
+        self.brief_view = _view()
+        self.brief_view.setPlaceholderText("بریفینگ صبحگاهی هنوز ساخته نشده — دکمه «🌅 بریفینگ صبحگاهی» "
+                                           "را بزن یا منتظر ساعت تنظیم‌شده در config.yaml بمان")
+        self.TAB_LOG, self.TAB_REPORT, self.TAB_FUND, self.TAB_BRIEF = 0, 1, 2, 3
         self.tabs.addTab(self.log_view, "🟢 گزارش زنده")
         self.tabs.addTab(self.report_view, "📄 آخرین گزارش کامل")
+        self.tabs.addTab(self.fund_view, "🏦 تقویم و اخبار")
+        self.tabs.addTab(self.brief_view, "🌅 بریفینگ صبحگاهی")
         self.tabs.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         root.addWidget(self.tabs, 1)
 
@@ -319,6 +360,7 @@ class MainWindow(QMainWindow):
         self.btn_start.setEnabled(not running)
         self.btn_stop.setEnabled(running)
         self.btn_once.setEnabled(not once_busy)
+        self.btn_brief.setEnabled(not once_busy)
 
         last = self.loop.state.get("last_run")
         self.last_run_lbl.setText(
@@ -332,6 +374,46 @@ class MainWindow(QMainWindow):
         self.interval_lbl.setText(
             f"⏱ فاصله تحلیل‌های خودکار: {fa(int(self.loop.interval_min))} دقیقه (قابل تغییر در config.yaml)")
 
+        # ── وتوی خبری ────────────────────────────────────────
+        vetoes = self.loop.state.get("last_vetoes") or []
+        if vetoes:
+            self.veto_lbl.setText("🚫 وتوی خبری فعال: " + "، ".join(vetoes)
+                                  + " — تا ۳۰ دقیقه بعد از رویداد پراثر سیگنال صادر نمی‌شود")
+        elif self.loop.state.get("last_run"):
+            self.veto_lbl.setText("✅ وتوی خبری فعال نیست — پنجرهٔ صدور سیگنال باز است")
+        else:
+            self.veto_lbl.setText("")
+
+        # ── وضعیت موتور فاندامنتال ───────────────────────────
+        if self.loop.state.get("last_run"):
+            cal_ok = self.loop.state.get("calendar_ok")
+            n_news = int(self.loop.state.get("news_count") or 0)
+            cal_txt = "تقویم ✅" if cal_ok else ("تقویم ⚠️" if cal_ok is False else "تقویم —")
+            alerts = int(self.loop.state.get("alerts_sent") or 0)
+            self.fund_lbl.setText(f"🏦 {cal_txt} | 📰 {fa(n_news)} خبر"
+                                  + (f" | 🚨 {fa(alerts)} هشدار ارسال شد" if alerts else ""))
+        else:
+            self.fund_lbl.setText("")
+
+        # ── بریفینگ بعدی ─────────────────────────────────────
+        nb = self.loop.state.get("next_briefing")
+        lb = self.loop.state.get("last_briefing")
+        bits = []
+        if lb:
+            bits.append(f"آخرین: {fa(time.strftime('%H:%M', time.localtime(lb)))}")
+        if nb and nb > now:
+            b = time.localtime(nb)
+            bits.append(f"بعدی: {fa(time.strftime('%H:%M', b))} UTC")
+        self.brief_lbl.setText(("🌅 بریفینگ — " + " | ".join(bits)) if bits else "")
+
+    def _fill(self, view: QPlainTextEdit, text: str, label: str,
+              tab_idx: int, tab_text: str) -> None:
+        """پر کردن یک تب و چشمک‌زدن کوتاه آن برای جلب توجه."""
+        stamp = fa(time.strftime("%Y-%m-%d %H:%M:%S"))
+        view.setPlainText(f"⟵ {label} — {stamp}\n\n{text}")
+        self.tabs.setTabText(tab_idx, "🔔 جدید!")
+        QTimer.singleShot(6000, lambda i=tab_idx, t=tab_text: self.tabs.setTabText(i, t))
+
     def _poll_queue(self) -> None:
         for _ in range(200):
             try:
@@ -341,10 +423,14 @@ class MainWindow(QMainWindow):
             if kind == "log":
                 self._log(payload)
             elif kind == "report":
-                stamp = fa(time.strftime("%Y-%m-%d %H:%M"))
-                self.report_view.setPlainText(f"⟵ گزارش {stamp}\n\n{payload}")
-                self.tabs.setTabText(1, "🔔 گزارش جدید!")
-                QTimer.singleShot(6000, lambda: self.tabs.setTabText(1, "📄 آخرین گزارش کامل"))
+                self._fill(self.report_view, payload, "گزارش", self.TAB_REPORT, "📄 آخرین گزارش کامل")
+            elif kind == "fundamental":
+                self._fill(self.fund_view, payload, "تقویم اقتصادی و اخبار",
+                           self.TAB_FUND, "🏦 تقویم و اخبار")
+            elif kind == "briefing":
+                self._fill(self.brief_view, payload, "بریفینگ صبحگاهی 🌅",
+                           self.TAB_BRIEF, "🌅 بریفینگ صبحگاهی")
+                self.tabs.setCurrentIndex(self.TAB_BRIEF)
             elif kind == "tg_msg":
                 self.tg_status.setText(payload)
             elif kind == "tg_chatid":
@@ -361,6 +447,12 @@ class MainWindow(QMainWindow):
     def _on_once(self) -> None:
         if not self.loop.run_once_async():
             self._log("[i] یک تحلیل دیگر در جریان است — کمی صبر کن")
+
+    def _on_briefing(self) -> None:
+        if not self.loop.run_briefing_async():
+            self._log("[i] یک کار دیگر در جریان است — کمی صبر کن")
+        else:
+            self._log("🌅 ساخت بریفینگ صبحگاهی آغاز شد (۱۰ تا ۳۰ ثانیه)...")
 
     def _save_tg_fields(self) -> None:
         save_local_config({"telegram": {
@@ -446,9 +538,30 @@ def _selftest() -> int:
     # بررسی منطق غیرگرافیکی
     from src.notify.telegram import _chunks
     assert len(_chunks("x" * 9000)) >= 3, "تقسیم پیام تلگرام درست کار نمی‌کند"
-    assert callable(run_cycle)
+    assert callable(run_cycle) and callable(run_briefing) and callable(check_event_alerts)
+
+    # تب‌های پنل باید سر جایشان باشند (ایندکس‌ها در کد استفاده می‌شوند)
+    assert win.tabs.count() == 4, f"انتظار ۴ تب، {win.tabs.count()} پیدا شد"
+    assert (win.TAB_LOG, win.TAB_REPORT, win.TAB_FUND, win.TAB_BRIEF) == (0, 1, 2, 3)
+
+    # موتور فاندامنتال باید بدون اینترنت هم پارس/رندر کند
+    from src.fundamental import calendar as cal
+    from src.fundamental import news as nw
+    from src.report.fundamental import render_calendar, render_news
+
+    evs = cal.parse_events([{"country": "USD", "date": "2026-09-16T14:00:00-04:00",
+                             "title": "Federal Funds Rate", "impact": "High",
+                             "forecast": "4.00%", "previous": "3.75%"}])
+    assert len(evs) == 1 and evs[0].when.hour == 18, "پارس/تبدیل زمانی تقویم اشتباه است"
+    sc, direction, _kw, _b, _r = nw.score_text("USDJPY surges as the BOJ hike disappoints")
+    assert direction == {"USD": 1, "JPY": -1}, f"جهت‌دهی اخبار اشتباه: {direction}"
+    assert sc >= 3, f"امتیاز خبر خیلی کم است: {sc}"
+    assert "تقویم اقتصادی" in render_calendar(cal.CalendarSnapshot(events=evs, fetched=True),
+                                              [{"name": "USDJPY", "base": "USD", "quote": "JPY"}])
+    assert "اخبار بازار" in render_news(nw.NewsSnapshot(error="offline"))
+
     win.close()
-    print(f"SELFTEST OK — فونت: {fam} | پنجره: {win.windowTitle()}")
+    print(f"SELFTEST OK — فونت: {fam} | تب‌ها: {win.tabs.count()} | پنجره: {win.windowTitle()}")
     return 0
 
 

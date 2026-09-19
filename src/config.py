@@ -25,6 +25,10 @@ symbols:
 analysis: {ema_fast: 50, ema_slow: 200, adx_period: 14, adx_min_trend: 20,
            rsi_period: 14, atr_period: 14, swing_window: 5, strength_lookback_h1: 24}
 tradingview: {enabled: true, timeframe: 4h}
+fundamental: {enabled: true, cache_ttl_minutes: 30, horizon_hours: 48,
+              veto_minutes_before: 30, alerts_enabled: true, alert_before_minutes: 30}
+news: {enabled: true, max_age_hours: 30, min_score: 2, max_items_per_feed: 12, max_total: 18}
+briefing: {enabled: true, times_utc: ["06:30"], horizon_hours: 24, catchup_window_minutes: 90}
 telegram: {send_reports: true, bot_token: "", chat_id: ""}
 loop: {interval_minutes: 15}
 """
@@ -88,6 +92,28 @@ def load_config(path: str | None = None) -> dict:
     cfg.setdefault("telegram", {"send_reports": True, "bot_token": "", "chat_id": ""})
     cfg.setdefault("loop", {"interval_minutes": 15})
     cfg["loop"].setdefault("interval_minutes", 15)
+
+    # ── مرحله ۲: فاندامنتال، اخبار، بریفینگ ────────────────────
+    f = cfg.setdefault("fundamental", {})
+    for k, v in (("enabled", True),
+                 ("source_url", "https://nfs.faireconomy.media/ff_calendar_thisweek.json"),
+                 ("cache_ttl_minutes", 30), ("horizon_hours", 48),
+                 ("veto_minutes_before", 30), ("alerts_enabled", True),
+                 ("alert_before_minutes", 30), ("alert_grace_minutes", 10)):
+        f.setdefault(k, v)
+
+    n = cfg.setdefault("news", {})
+    for k, v in (("enabled", True), ("max_age_hours", 30), ("min_score", 2),
+                 ("max_items_per_feed", 12), ("max_total", 18)):
+        n.setdefault(k, v)
+
+    b = cfg.setdefault("briefing", {})
+    for k, v in (("enabled", True), ("times_utc", ["06:30"]), ("horizon_hours", 24),
+                 ("catchup_window_minutes", 90)):
+        b.setdefault(k, v)
+    if not isinstance(b["times_utc"], list):
+        b["times_utc"] = [str(b["times_utc"])]
+
     return cfg
 
 
