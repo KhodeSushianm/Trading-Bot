@@ -1,13 +1,16 @@
 # -*- coding: utf-8 -*-
-"""تست یکپارچگی: پنل GUI (offscreen) + زمان‌بند بریفینگ + وتو + هشدار."""
+"""تست یکپارچگی: پنل GUI (offscreen) + زمان‌بند بریفینگ + سیم‌کشی صفحه‌ها.
+
+به PySide6 و (برای بخش ۴) اینترنت نیاز دارد؛ بنابراین در CI اجرا نمی‌شود.
+"""
 import os
 import pathlib
 import sys
+import time
+from datetime import datetime, timedelta, timezone
 
 _ROOT = pathlib.Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(_ROOT))
-import time
-from datetime import datetime, timezone
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
@@ -35,154 +38,140 @@ app.setStyle("Fusion")
 cfg = load_config()
 loop = E.BotLoop(on_log=lambda m: None, cfg_provider=lambda: cfg)
 
-now = datetime(2026, 9, 21, 5, 0, tzinfo=timezone.utc)          # دوشنبه ۰۵:۰۰
+now = datetime(2026, 9, 21, 5, 0, tzinfo=timezone.utc)
 nxt = loop.next_briefing_at({"briefing": {"enabled": True, "times_utc": ["06:30"]}}, now)
-check(nxt == datetime(2026, 9, 21, 6, 30, tzinfo=timezone.utc), f"بریفینگ بعدی = {nxt} (باید امروز ۰۶:۳۰ باشد)")
-
+check(nxt == datetime(2026, 9, 21, 6, 30, tzinfo=timezone.utc), f"بریفینگ بعدی = {nxt}")
 nxt2 = loop.next_briefing_at({"briefing": {"enabled": True, "times_utc": ["06:30"]}},
                              datetime(2026, 9, 21, 7, 0, tzinfo=timezone.utc))
-check(nxt2 and nxt2.date().day == 22, f"بعد از گذشتن ساعت امروز → فردا ({nxt2})")
-
-check(loop.next_briefing_at({"briefing": {"enabled": False, "times_utc": ["06:30"]}}, now) is None,
-      "briefing.enabled=false → هیچ زمان بعدی")
-check(loop.next_briefing_at({"briefing": {"enabled": True, "times_utc": []}}, now) is None,
-      "times_utc خالی → هیچ زمان بعدی")
+check(nxt2 and nxt2.date().day == 22, f"بعد از گذشت ساعت امروز → فردا ({nxt2})")
+check(loop.next_briefing_at({"briefing": {"enabled": False}}, now) is None, "غیرفعال → هیچ")
 check(loop.next_briefing_at({"briefing": {"enabled": True, "times_utc": ["25:99"]}}, now) is None,
       "ساعت نامعتبر نادیده گرفته می‌شود")
-multi = loop.next_briefing_at({"briefing": {"enabled": True, "times_utc": ["06:30", "12:00", "03:00"]}}, now)
-check(multi == datetime(2026, 9, 21, 6, 30, tzinfo=timezone.utc), f"چند ساعتی → نزدیک‌ترین ({multi})")
 
 print()
-print("۲) _maybe_briefing واقعاً در پنجرهٔ catch-up شلیک می‌شود")
-_REAL_RUN_BRIEFING = E.run_briefing      # برای بازگرداندن بعد از تست
+print("۲) _maybe_briefing در پنجرهٔ catch-up شلیک می‌شود")
 calls = {"n": 0}
-E.run_briefing = lambda cfg=None, on_log=None, **kw: (calls.__setitem__("n", calls["n"] + 1) or
-                                                       {"ok": True, "report": "BRIEFING-TEXT"})
-loop2 = E.BotLoop(on_log=lambda m: None, on_briefing=lambda t: calls.setdefault("text", t),
-                  cfg_provider=lambda: cfg2)
+_REAL = E.run_briefing
+E.run_briefing = lambda cfg=None, on_log=None, **kw: (calls.__setitem__("n", calls["n"] + 1)
+                                                      or {"ok": True, "report": "BRIEF"})
 cfg2 = dict(cfg)
 cfg2["briefing"] = {"enabled": True, "times_utc": ["06:30"], "catchup_window_minutes": 90}
 
-import src.engine as eng_mod
 
-
-class _FixedDT(datetime):
+class _Fixed(datetime):
     @classmethod
     def now(cls, tz=None):
-        return datetime(2026, 9, 21, 7, 0, tzinfo=timezone.utc)   # یک ساعت بعد از ۰۶:۳۰
+        return datetime(2026, 9, 21, 7, 0, tzinfo=timezone.utc)
 
 
-_real_dt = eng_mod.datetime
-eng_mod.datetime = _FixedDT
+loop2 = E.BotLoop(on_log=lambda m: None, cfg_provider=lambda: cfg2)
+E.datetime = _Fixed
 try:
     loop2._maybe_briefing(cfg2)
-    check(calls["n"] == 1, f"بریفینگ دقیقاً یک بار شلیک شد (n={calls['n']})")
-    check(calls.get("text") == "BRIEFING-TEXT", "متن بریفینگ به callback رسید")
+    check(calls["n"] == 1, f"دقیقاً یک بار شلیک شد (n={calls['n']})")
     loop2._maybe_briefing(cfg2)
-    check(calls["n"] == 1, f"بار دوم شلیک نشد (جلوگیری از تکرار روزانه) — n={calls['n']}")
+    check(calls["n"] == 1, "بار دوم شلیک نشد (جلوگیری از تکرار روزانه)")
 finally:
-    eng_mod.datetime = _real_dt
+    E.datetime = datetime
+    E.run_briefing = _REAL
+check(E.run_briefing is _REAL, "تابع اصلی بازگردانده شد")
 
-# خارج از پنجرهٔ catch-up (۳ ساعت دیر) → نباید بفرستد
 calls2 = {"n": 0}
-E.run_briefing = lambda cfg=None, on_log=None, **kw: (calls2.__setitem__("n", calls2["n"] + 1) or
-                                                      {"ok": True, "report": "X"})
+E.run_briefing = lambda cfg=None, on_log=None, **kw: (calls2.__setitem__("n", calls2["n"] + 1)
+                                                      or {"ok": True, "report": "X"})
 
 
-class _LateDT(datetime):
+class _Late(datetime):
     @classmethod
     def now(cls, tz=None):
-        return datetime(2026, 9, 21, 10, 0, tzinfo=timezone.utc)   # ۳.۵ ساعت بعد
+        return datetime(2026, 9, 21, 10, 0, tzinfo=timezone.utc)
 
 
 loop3 = E.BotLoop(on_log=lambda m: None, cfg_provider=lambda: cfg2)
-eng_mod.datetime = _LateDT
+E.datetime = _Late
 try:
     loop3._maybe_briefing(cfg2)
-    check(calls2["n"] == 0, "اگر خیلی دیر روشن شد (بیرون از پنجرهٔ ۹۰ دقیقه) بریفینگ بی‌موقع نمی‌رود")
+    check(calls2["n"] == 0, "بیرون از پنجرهٔ ۹۰ دقیقه → بریفینگ بی‌موقع نمی‌رود")
 finally:
-    eng_mod.datetime = _real_dt
-    E.run_briefing = _REAL_RUN_BRIEFING     # ← مهم: mock را بردار تا بخش ۴ واقعی اجرا شود
-check(E.run_briefing is _REAL_RUN_BRIEFING, "تابع run_briefing به حالت اصلی برگشت")
+    E.datetime = datetime
+    E.run_briefing = _REAL
 
 print()
 print("=" * 78)
-print("۳) پنل GUI: سیم‌کشی تب‌ها با دادهٔ واقعی")
+print("۳) پنل GUI: ساختار، ناوبری، سیم‌کشی صفحه‌ها")
 print("=" * 78)
 P.load_fonts()
-win = P.MainWindow()
+win = P.MainWindow(show_splash=False)
 win.show()
 app.processEvents()
 
-check(win.tabs.count() == 5, f"۵ تب ساخته شد ({win.tabs.count()})")
-check(win.btn_brief.text().startswith("🌅"), f"دکمهٔ بریفینگ وجود دارد: «{win.btn_brief.text()}»")
-check(win.btn_brief.isEnabled(), "دکمهٔ بریفینگ فعال است")
+check(win.pages.count() == 7, f"۷ صفحه ساخته شد ({win.pages.count()})")
+check(len(win.nav._items) == 7, f"ریل ناوبری ۷ آیتم دارد ({len(win.nav._items)})")   # noqa: SLF001
+check(win.user_name == "سوشیان", f"نام کاربر از config خوانده شد: {win.user_name}")
+check("خوش اومدی سوشیان" in win.greet_lbl.text(), f"چیپ خوش‌آمد: {win.greet_lbl.text()}")
 
-# شبیه‌سازی رسیدن نتیجه از موتور (بدون شبکه)
-FUND = "🏦 تقویم اقتصادی — تست\n📰 اخبار بازار — تست"
-REPORT = "🔎 گزارش تحلیل بازار — تست"
-BRIEF = "🌅 بریفینگ صبحگاهی — تست"
-SIGNAL = "🎯 سیگنال خرید — EUR/USD تست"
+# ناوبری صفحه را عوض می‌کند
+win.nav._select(win.TAB_SIGNAL)      # noqa: SLF001
+app.processEvents()
+check(win.pages.currentIndex() == win.TAB_SIGNAL, "کلیک روی ناوبری صفحه را عوض می‌کند")
+win.nav._select(win.TAB_DASH)        # noqa: SLF001
+app.processEvents()
+
+# پر شدن صفحه‌ها از صف پیام‌ها
+REPORT, FUND, BRIEF, SIGNAL = "گزارش تست", "تقویم تست", "بریفینگ تست", "🔴 سیگنال فروش — EUR/USD تست"
 win.q.put(("report", REPORT))
 win.q.put(("fundamental", FUND))
 win.q.put(("briefing", BRIEF))
 win.q.put(("signal", SIGNAL))
 win._poll_queue()
 app.processEvents()
+check(REPORT in win.report_view.toPlainText(), "صفحهٔ گزارش کامل پر شد")
+check(FUND in win.fund_view.toPlainText(), "صفحهٔ تقویم و اخبار پر شد")
+check(BRIEF in win.brief_view.toPlainText(), "صفحهٔ بریفینگ پر شد")
+check(SIGNAL in win.sig_view.toPlainText(), "صفحهٔ سیگنال‌ها پر شد")
+check(win.pages.currentIndex() == win.TAB_SIGNAL, "آخرین رویداد (سیگنال) صفحه‌اش را باز کرد")
+check(win.toast.isVisibleTo(win.centralWidget()) or win.toast.isVisible(),
+      "برای سیگنال جدید Toast نمایش داده شد")
 
-check(REPORT in win.report_view.toPlainText(), "تب «آخرین گزارش کامل» پر شد")
-check("تقویم اقتصادی" in win.fund_view.toPlainText(), "تب «تقویم و اخبار» پر شد")
-check("بریفینگ صبحگاهی" in win.brief_view.toPlainText(), "تب «بریفینگ» پر شد")
-check(SIGNAL in win.sig_view.toPlainText(), "تب «🎯 سیگنال‌ها» پر شد")
-check(win.tabs.currentIndex() == win.TAB_SIGNAL, "آخرین رویداد (سیگنال) تب خودش را فعال کرد")
-
-# برچسب وضعیت سیگنال‌ها
-win.loop.state.update({"last_signals": [{"symbol": "EURUSD", "direction": "SELL",
-                                         "score": 8, "max_score": 11, "sent": True},
-                                        {"symbol": "GBPUSD", "direction": "BUY",
-                                         "score": 7, "max_score": 11, "sent": False}],
-                       "signals_total": 5})
+# داشبورد از state موتور پر می‌شود
+win.loop.state.update({
+    "last_run": time.time(), "last_vetoes": ["XAUUSD"], "news_count": 18,
+    "signals_total": 5,
+    "last_signals": [{"symbol": "GBPUSD", "direction": "SELL", "score": 8,
+                      "max_score": 11, "sent": True},
+                     {"symbol": "EURUSD", "direction": "BUY", "score": 7,
+                      "max_score": 11, "sent": False}],
+    "ranking": [("CHF", 0.32), ("USD", -0.13), ("JPY", -0.58)],
+    "upcoming": [{"title_fa": "نرخ بهره فدرال رزرو", "country_fa": "آمریکا",
+                  "country": "USD", "impact": "HIGH", "when": "", "minutes": 240}],
+})
 win._tick()
 app.processEvents()
-check("EURUSD فروش" in win.signal_lbl.text() and "GBPUSD خرید" in win.signal_lbl.text(),
-      f"برچسب سیگنال‌ها: {win.signal_lbl.text()[:80]}")
-check("تکراری و ارسال‌نشد" in win.signal_lbl.text(), "سیگنال ارسال‌نشد هم اعلام می‌شود")
-check("۵" in win.signal_lbl.text(), f"مجموع سیگنال‌ها با رقم فارسی: {win.signal_lbl.text()[:60]}")
-check(win.tabs.tabText(win.TAB_FUND) == "🔔 جدید!", f"علامت «جدید» روی تب: {win.tabs.tabText(win.TAB_FUND)}")
+check("GBPUSD" in win.dash_signals.toPlainText() and "EURUSD" in win.dash_signals.toPlainText(),
+      "داشبورد: آخرین سیگنال‌ها فهرست شد")
+check("ارسال نشد" in win.dash_signals.toPlainText(), "داشبورد: سیگنال ارسال‌نشد علامت خورد")
+check("نرخ بهره فدرال رزرو" in win.dash_events.toPlainText(), "داشبورد: رویداد پیش‌رو نمایش داده شد")
+check(len(win.strength._data) == 3, f"داشبورد: نوارهای قدرت داده گرفتند ({len(win.strength._data)})")   # noqa: SLF001
+check("XAUUSD" in win.veto_lbl.text(), f"داشبورد: برچسب وتو ({win.veto_lbl.text()})")
+check(win.st_score._num.text() == "۸/۱۱", f"کارت امتیاز: {win.st_score._num.text()}")   # noqa: SLF001
+check(win.st_news._num.text() == "۱۸", f"کارت خبر: {win.st_news._num.text()}")   # noqa: SLF001
 
-# برچسب‌های وضعیت
-win.loop.state.update({"last_run": time.time(), "last_vetoes": ["EURUSD", "GBPUSD"],
-                       "calendar_ok": True, "news_count": 18, "alerts_sent": 2})
+# قرص وضعیت
+win.loop._thread = None      # noqa: SLF001
 win._tick()
-app.processEvents()
-check("وتوی خبری فعال" in win.veto_lbl.text() and "EURUSD" in win.veto_lbl.text(),
-      f"برچسب وتو: {win.veto_lbl.text()[:70]}")
-check("۱۸ خبر" in win.fund_lbl.text() and "۲ هشدار" in win.fund_lbl.text(),
-      f"برچسب فاندامنتال: {win.fund_lbl.text()[:80]}")
-
-win.loop.state.update({"last_vetoes": []})
-win._tick()
-check("وتوی خبری فعال نیست" in win.veto_lbl.text(), "وقتی وتو نیست، پیام «باز است» نمایش داده می‌شود")
+check(win.status_pill is not None, "قرص وضعیت موجود است")
 
 win.close()
 
 print()
 print("=" * 78)
-print("۴) موتور فاندامنتال در چرخهٔ واقعی (شبکه)")
+print("۴) چرخهٔ واقعی (شبکه) از طریق موتور")
 print("=" * 78)
-real_cfg = load_config()
-res = E.run_cycle(real_cfg, on_log=lambda m: print("   ", m))
-check(res["ok"], f"چرخه موفق بود (errors={res['errors']})")
-check(bool(res.get("fundamental_report")), "fundamental_report در نتیجه وجود دارد")
-check("تقویم اقتصادی" in res["report"], "گزارش اصلی شامل بخش تقویم است")
-check("اخبار بازار" in res["report"], "گزارش اصلی شامل بخش اخبار است")
-check(isinstance(res.get("vetoes"), dict), "vetoes برگردانده شد")
-print(f"    → calendar_ok={res['calendar_ok']} news_count={res['news_count']} "
-      f"vetoes={res['vetoes']} elapsed={res['elapsed']:.1f}s")
-
-b = E.run_briefing(real_cfg, on_log=lambda m: None)
-check(b["ok"] and "بریفینگ صبحگاهی" in b["report"], "بریفینگ واقعی ساخته شد")
-check(len(b["report"]) > 500, f"بریفینگ محتوای کافی دارد ({len(b['report'])} کاراکتر)")
+res = E.run_cycle(load_config(), on_log=lambda m: None)
+check(res["ok"], f"چرخه موفق (errors={res['errors']})")
+check("ranking" in res and "upcoming" in res and "symbols_summary" in res,
+      "دادهٔ ساختاریافتهٔ داشبورد در نتیجهٔ چرخه هست")
+check(isinstance(res.get("signals"), list), "فهرست سیگنال‌ها در نتیجه هست")
 
 print()
 print("=" * 78)

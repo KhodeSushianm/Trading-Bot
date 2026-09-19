@@ -8,6 +8,8 @@ hidden += collect_submodules("tradingview_ta")
 # feedparser داخل تابع و به‌صورت lazy ایمپورت می‌شود؛ برای اطمینان صریحاً جمع‌آوری می‌کنیم
 # (ماژول‌های src.* همه استاتیک ایمپورت می‌شوند و خود PyInstaller پیدایشان می‌کند)
 hidden += collect_submodules("feedparser")
+# آیکون‌های SVG داخل تابع و به‌صورت lazy ایمپورت می‌شوند
+hidden += ["PySide6.QtSvg"]
 
 a = Analysis(
     ["panel.py"],

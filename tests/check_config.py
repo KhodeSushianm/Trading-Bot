@@ -153,6 +153,13 @@ need(cfg["judge"]["veto"]["high_impact_event"] is True
      f"پنجرهٔ وتوی رویداد = {cfg['fundamental']['veto_minutes_before']} دقیقه "
      f"(داور و موتور فاندامنتال از همین یک عدد استفاده می‌کنند)")
 
+# ── رابط کاربری ───────────────────────────────────────────────
+u = cfg.get("ui", {})
+need(isinstance(u.get("user_name", ""), str) and len(u.get("user_name", "")) > 0,
+     f"ui.user_name = {u.get('user_name')!r} (برای Splash لازم است)")
+need(isinstance(u.get("splash", True), bool), f"ui.splash = {u.get('splash')}")
+need(isinstance(u.get("animations", True), bool), f"ui.animations = {u.get('animations')}")
+
 # ── تلگرام و حلقه ─────────────────────────────────────────────
 tg = cfg["telegram"]
 need("bot_token" in tg and "chat_id" in tg, "کلیدهای تلگرام موجود است")

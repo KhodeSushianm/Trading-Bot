@@ -339,6 +339,22 @@ def run_cycle(cfg: Optional[dict] = None, on_log: LogFn = _noop,
         _save_signal_state(state)
     result["signals"] = sent_signals
 
+    # ── دادهٔ ساختاریافته برای داشبورد پنل ───────────────────
+    result["ranking"] = list(mkt["ranking"])
+    upcoming = []
+    if cal_snap is not None and cal_snap.ok:
+        from .fundamental.calendar import upcoming_events as _up
+        for e in _up(cal_snap, now, hours=_horizon_hours(cfg), limit=6):
+            upcoming.append({"title_fa": e.title_fa, "country_fa": e.country_fa,
+                             "country": e.country, "impact": e.impact,
+                             "when": e.when.isoformat(),
+                             "minutes": int(round(e.minutes_from(now)))})
+    result["upcoming"] = upcoming
+    result["symbols_summary"] = [
+        {"symbol": a.symbol, "verdict": a.verdict, "trend": a.trend,
+         "adx": round(a.adx, 1), "rsi": round(a.rsi, 1), "price": a.price,
+         "pip": a.pip} for a in mkt["analyses"]]
+
     # بخش فاندامنتال به‌صورت مستقل (برای تب جداگانه در پنل)
     fund_parts = []
     if cal_snap is not None:
@@ -506,7 +522,8 @@ class BotLoop:
                             "last_error": None, "last_briefing": None,
                             "next_briefing": None, "alerts_sent": 0, "last_alert": None,
                             "last_vetoes": [], "calendar_ok": None, "news_count": 0,
-                            "last_signals": [], "signals_total": 0, "last_signal": None}
+                            "last_signals": [], "signals_total": 0, "last_signal": None,
+                            "ranking": [], "upcoming": [], "symbols_summary": []}
 
     @property
     def running(self) -> bool:
@@ -573,6 +590,9 @@ class BotLoop:
         self.state["last_vetoes"] = sorted(res.get("vetoes") or {})
         self.state["calendar_ok"] = res.get("calendar_ok")
         self.state["news_count"] = res.get("news_count", 0)
+
+        for key in ("ranking", "upcoming", "symbols_summary"):
+            self.state[key] = res.get(key) or ({} if key == "symbols_summary" else [])
 
         sigs = res.get("signals") or []
         self.state["last_signals"] = [

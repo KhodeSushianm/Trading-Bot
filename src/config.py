@@ -115,6 +115,11 @@ def load_config(path: str | None = None) -> dict:
     if not isinstance(b["times_utc"], list):
         b["times_utc"] = [str(b["times_utc"])]
 
+    # ── رابط کاربری ─────────────────────────────────────────────
+    u = cfg.setdefault("ui", {})
+    for k, v in (("user_name", "سوشیان"), ("splash", True), ("animations", True)):
+        u.setdefault(k, v)
+
     # ── مرحله ۳: داور امتیازدهی ────────────────────────────────
     # مقادیر پیش‌فرض در خود ماژول داور نگه داشته می‌شوند تا دو جا تکرار نشوند
     # (ایمپورت محلی: config.py نباید در سطح ماژول به judge وابسته شود)
