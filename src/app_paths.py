@@ -6,7 +6,7 @@ import sys
 from pathlib import Path
 
 APP_NAME = "ForexAssistant"
-APP_VERSION = "0.7.0"
+APP_VERSION = "0.7.1"
 
 
 def is_frozen() -> bool:

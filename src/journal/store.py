@@ -156,8 +156,10 @@ class Journal:
                     r: float, note: str = "", ts: Optional[datetime] = None) -> None:
         self.append({"kind": "outcome", "id": sid,
                      "ts": (ts or _now()).isoformat(),
-                     "outcome": outcome, "close_price": round(close_price, 6),
-                     "r": round(r, 3), "note": note})
+                     "outcome": outcome,
+                     "close_price": round(close_price, 6) if close_price is not None else None,
+                     "r": round(r, 3) if r is not None else None,
+                     "note": note})
 
     # ── پرس‌وجو ──────────────────────────────────────────────
     def open_entries(self) -> list[Entry]:

@@ -98,16 +98,23 @@ def resolve_open_signals(journal: Journal, datasets: dict,
                 bars.append((ts, float(row["High"]), float(row["Low"])))
             hit = _scan_bars(entry, bars, conservative)
 
+        r_override = None
         if hit is None and (now - entry.ts) > timedelta(hours=expiry_h):
             # منقضی: R واقعی از آخرین قیمت موجود
             close = None
             if md is not None and md.m15 is not None and len(md.m15):
                 close = float(md.m15["Close"].iloc[-1])
-            if close is None:
-                continue            # قیمتی در دسترس نیست؛ هفتهٔ بعد دوباره
             outcome, close_price = EXPIRED, close
-            note = (f"تا {expiry_h:.0f} ساعت نه هدف خورد نه حد ضرر؛ "
-                    f"با قیمت لحظهٔ انقضا بسته شد")
+            if close is None:
+                # قیمتی در دسترس نیست ولی سیگنال قطعاً منقضی شده؛ نگه‌داشتنِ
+                # «باز» برای همیشه کارنامه را خوش‌بینانه نگه می‌داشت.
+                note = (f"تا {expiry_h:.0f} ساعت نه هدف خورد نه حد ضرر؛ "
+                        f"قیمت لحظهٔ انقضا در دسترس نبود پس R صفر ثبت شد")
+                r_override = 0.0
+            else:
+                note = (f"تا {expiry_h:.0f} ساعت نه هدف خورد نه حد ضرر؛ "
+                        f"با قیمت لحظهٔ انقضا بسته شد")
+                r_override = None
         elif hit is not None:
             outcome, close_price = hit
             note = ("هر دو سطح در یک کندل خوردند؛ محتاطانه ضرر شمرده شد"
@@ -115,7 +122,7 @@ def resolve_open_signals(journal: Journal, datasets: dict,
         else:
             continue
 
-        r = _r_for(entry, outcome, close_price)
+        r = r_override if r_override is not None else _r_for(entry, outcome, close_price)
         journal.add_outcome(entry.id, outcome, close_price, r, note, ts=now)
         entry.outcome, entry.close_price, entry.r, entry.note = outcome, close_price, r, note
         entry.outcome_ts = now

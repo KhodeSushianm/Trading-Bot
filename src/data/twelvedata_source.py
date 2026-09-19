@@ -86,6 +86,10 @@ class TwelveDataSource(DataSource):
         df = df.set_index("datetime")[["open", "high", "low", "close"]].astype(float)
         df.columns = ["Open", "High", "Low", "Close"]
         df = df.dropna()
+        # قرارداد پایه: ایندکس UTC و naive (مثل Yahoo). اگر TD منطقهٔ زمانی
+        # برگرداند، تبدیل می‌کنیم؛ اگر naive بود همان UTC فرض می‌شود.
+        if getattr(df.index, "tz", None) is not None:
+            df.index = df.index.tz_convert("UTC").tz_localize(None)
         if self.drop_forming and len(df) > 1:
             df = df.iloc[:-1]
         return df

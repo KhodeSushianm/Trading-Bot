@@ -529,6 +529,10 @@ def compute_levels(direction: str, entry: float, atr: float,
     Returns: (sl, tp, risk_in_price_units, sl_capped)
     """
     sign = 1 if direction == "BUY" else -1
+    if atr <= 0:
+        # ATR صفر/منفی یعنی دادهٔ نوسان خراب است؛ بدون این guard حد ضرر و هدف
+        # دقیقاً روی قیمت ورود می‌نشستند (ریسک صفر) و سیگنال بی‌معنی می‌شد.
+        atr = abs(entry) * 0.001 or float(rcfg.get("fallback_atr", 0.0)) or 1e-9
     buf = float(rcfg.get("level_buffer_atr", 0.3)) * atr
     level = support if direction == "BUY" else resistance
     capped = False

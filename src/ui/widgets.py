@@ -516,6 +516,9 @@ class Toast(QFrame):
         self.show()
         self.raise_()
         effects.fade(self, 0.0, 1.0, effects.DUR_MED)
+        if not effects.ANIMATIONS:
+            self._timer.start(self._ms)
+            return
         target = self.pos()
         self.move(target.x(), target.y() - 14)
         from PySide6.QtCore import QPropertyAnimation

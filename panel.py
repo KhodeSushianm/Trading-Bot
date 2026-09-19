@@ -551,6 +551,14 @@ class MainWindow(QMainWindow):
 
     # ── ناوبری ────────────────────────────────────────────────
     def _on_nav(self, i: int) -> None:
+        if i == self.TAB_SETTINGS:
+            # config ممکن است بیرون برنامه ویرایش شده باشد؛ هنگام بازکردن
+            # صفحهٔ تنظیمات دوباره خوانده می‌شود تا مقادیر کهنه نمایش داده نشود.
+            try:
+                self.cfg = load_config()
+                self._load_tg_fields()
+            except Exception as e:
+                self._log(f"[!] بازخوانی تنظیمات ناموفق: {e}")
         self.pages.setCurrentIndex(i)
         page = self.pages.currentWidget()
         page.update()
@@ -598,6 +606,13 @@ class MainWindow(QMainWindow):
                 self._toast_signal(payload)
             elif kind == "journal":
                 self._fill(self.journal_view, payload, self.TAB_JOURNAL, "کارنامه")
+            elif kind == "tg_msg":
+                # از thread ورکر تلگرام فقط به صف می‌آید؛ دست‌زدن به ویجت از
+                # thread غیر-GUI در Qt تعریف‌نشده/کرش‌خیز است.
+                self.tg_status.setText(payload)
+            elif kind == "tg_chat":
+                self.tg_chat.setText(payload)
+                self._save_tg_fields()
 
     def _toast_signal(self, text: str) -> None:
         first = next((l for l in text.splitlines() if "سیگنال" in l), "سیگنال جدید")
@@ -761,14 +776,14 @@ class MainWindow(QMainWindow):
         def work():
             ok, who = telegram.validate_token(token)
             if not ok:
-                self.q.put(("log", f"[!] توکن نامعتبر: {who}"))
+                self.q.put(("tg_msg", f"❌ توکن نامعتبر: {who}"))
                 return
             cid, msg = telegram.get_chat_id(token)
             if cid:
-                self.tg_chat.setText(cid)
-                self._save_tg_fields()
+                self.q.put(("tg_msg", f"✅ {msg} — شناسه وارد شد"))
+                self.q.put(("tg_chat", cid))
             else:
-                self.tg_status.setText(f"⚠️ {msg}")
+                self.q.put(("tg_msg", f"⚠️ {msg}"))
         threading.Thread(target=work, daemon=True).start()
 
     def _on_test_send(self) -> None:
@@ -784,7 +799,7 @@ class MainWindow(QMainWindow):
                     f"اگر این پیام را می‌بینی، تلگرام درست تنظیم شده است.\n"
                     f"نسخه {app_paths.APP_VERSION}")
             ok, msg = telegram.send_message(token, chat, text)
-            self.tg_status.setText(("✅ ارسال شد! " if ok else "❌ ") + msg)
+            self.q.put(("tg_msg", ("✅ ارسال شد! " if ok else "❌ ") + msg))
         threading.Thread(target=work, daemon=True).start()
 
     def _open_path(self, path: Path) -> None:

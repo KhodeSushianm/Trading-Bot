@@ -38,7 +38,10 @@ SOURCE_FA = {
 
 
 def _fmt_price(v: float, pip: float) -> str:
-    return f"{v:.2f}" if pip >= 0.01 else f"{v:.5f}".rstrip("0")
+    """اعشار بر اساس pip — همان قاعدهٔ report/signal تا JPY سه‌رقمی بماند."""
+    import math
+    dec = max(0, min(6, int(round(-math.log10(pip))) + 1)) if pip and pip > 0 else 2
+    return f"{v:.{dec}f}"
 
 
 def _fmt_dist(v: float, pip: float) -> str:

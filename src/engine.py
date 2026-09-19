@@ -269,23 +269,27 @@ def run_cycle(cfg: Optional[dict] = None, on_log: LogFn = _noop,
         on_log(f"[{datetime.now():%H:%M:%S}] {msg}")
 
     mkt = _collect_market(cfg, log)
-    if not mkt["analyses"]:
-        result["errors"] = max(mkt["errors"], 1)
-        return result
-
-    cal_snap, news_snap = _collect_fundamental(cfg, log)
     now = now_override or datetime.now(timezone.utc)
     simulated = now_override is not None
     if simulated:
         log(f"⚠️ حالت شبیه‌سازی: زمان فرضی {now:%Y-%m-%d %H:%M} UTC "
             f"(دادهٔ بازار واقعی است، ساعت داور عوض شده)")
+
     # ── 📔 ژورنال: بستن خودکار سیگنال‌های باز از روی کندل‌ها ──
+    # عمداً *قبل* از بررسی موفقیت داده آمده: اگر منبع داده کاملاً قطع باشد هم
+    # سیگنال‌های باز باید منقضی/بسته شوند، وگرنه ژورنال برای همیشه می‌خوابد
+    # و کارنامه خوش‌بینانه می‌ماند.
+    # ⚠️ در حالت شبیه‌سازی (--as-of) هرگز نتیجه ثبت نمی‌شود: زمان فرضی برای
+    # «دیدن» است، نه برای نوشتن در سند صداقت. فقط آمارِ موجود خوانده می‌شود.
     journal, stats, resolved = None, None, []
     if (cfg.get("journal") or {}).get("enabled", True):
         journal = Journal()
+        if simulated:
+            log("[i] حالت شبیه‌سازی: ژورنال فقط خوانده می‌شود، نتیجه‌ای ثبت نمی‌شود")
         try:
-            resolved = resolve_open_signals(journal, mkt["datasets"], now=now,
-                                            cfg=cfg, on_log=log)
+            if not simulated:
+                resolved = resolve_open_signals(journal, mkt["datasets"], now=now,
+                                                cfg=cfg, on_log=log)
         except Exception as e:
             log(f"[!] پیگیری ژورنال ناموفق: {str(e)[:90]}")
         try:
@@ -294,7 +298,20 @@ def run_cycle(cfg: Optional[dict] = None, on_log: LogFn = _noop,
             log(f"[!] محاسبهٔ آمار ژورنال ناموفق: {str(e)[:90]}")
     else:
         log("[i] ژورنال در تنظیمات غیرفعال است")
+    result["resolved"] = [{"symbol": e.symbol, "direction": e.direction,
+                           "outcome": e.outcome, "r": e.r} for e in resolved]
+    result["stats"] = stats
+    if stats is not None and journal is not None:
+        try:
+            result["journal_report"] = render_stats(stats, journal.open_entries(), now)
+        except Exception:
+            result["journal_report"] = ""
 
+    if not mkt["analyses"]:
+        result["errors"] = max(mkt["errors"], 1)
+        return result
+
+    cal_snap, news_snap = _collect_fundamental(cfg, log)
     vetoes = _compute_vetoes(cfg, cal_snap, mkt["analyses"], now, log)
 
     # ── ⚖️ داور امتیازدهی (مرحله ۳) ───────────────────────────
@@ -376,14 +393,6 @@ def run_cycle(cfg: Optional[dict] = None, on_log: LogFn = _noop,
                                  "entry": sig.entry, "sl": sig.sl, "tp": sig.tp})
         _save_signal_state(state)
     result["signals"] = sent_signals
-    result["resolved"] = [{"symbol": e.symbol, "direction": e.direction,
-                           "outcome": e.outcome, "r": e.r} for e in resolved]
-    result["stats"] = stats
-    if stats is not None and journal is not None:
-        try:
-            result["journal_report"] = render_stats(stats, journal.open_entries(), now)
-        except Exception:
-            result["journal_report"] = ""
 
     # ── دادهٔ ساختاریافته برای داشبورد پنل ───────────────────
     result["ranking"] = list(mkt["ranking"])
@@ -604,6 +613,7 @@ class BotLoop:
         self._stop = threading.Event()
         self._thread: Optional[threading.Thread] = None
         self._once_running = False
+        self._cycle_lock = threading.Lock()   # جلوگیری از هم‌پوشانی دو چرخه
         self._briefings_done: dict[str, set] = {}
         self.interval_min = 15.0
         self.state: dict = {"last_run": None, "next_run": None, "cycles": 0,
@@ -637,8 +647,10 @@ class BotLoop:
     # ── اجرای دستی از پنل ─────────────────────────────────────
     def run_once_async(self) -> bool:
         """یک چرخه فوری در thread جدا (دکمه «اجرای یک‌بار»). اگر مشغول باشد False."""
-        if self._once_running:
-            return False
+        with self._cycle_lock:
+            if self._once_running:
+                return False
+            self._once_running = True
         threading.Thread(target=self._once, args=(run_cycle, "report"),
                          daemon=True, name="bot-once").start()
         return True
@@ -664,7 +676,6 @@ class BotLoop:
         return True
 
     def _once(self, fn: Callable, kind: str) -> None:
-        self._once_running = True
         try:
             res = fn(self.cfg_provider(), on_log=self.on_log)
             self._publish(res, kind)
@@ -722,7 +733,9 @@ class BotLoop:
 
                 now = time.time()
                 if last_cycle == 0.0 or now - last_cycle >= self.interval_min * 60:
-                    if not self._once_running:
+                    with self._cycle_lock:
+                        busy = self._once_running
+                    if not busy:
                         self._do_cycle(cfg)
                         last_cycle = time.time()
                     else:
