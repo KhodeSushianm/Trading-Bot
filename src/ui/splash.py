@@ -71,10 +71,12 @@ class WelcomeSplash(QWidget):
         self.setAttribute(Qt.WA_TranslucentBackground, True)
         self.setAttribute(Qt.WA_ShowWithoutActivating, False)
 
-        # کارت مرکزی
+        # کارت مرکزی — مشکیِ برند روی شیشه (مستقل از توکن‌های تم)
         card = QFrame(self)
-        card.setObjectName("card")
-        card.setFixedSize(430, 250)
+        card.setFixedSize(440, 260)
+        card.setStyleSheet(
+            "QFrame { background:#101013; border-radius:28px; "
+            "border:1px solid rgba(255,255,255,0.10); }")
         lay = QVBoxLayout(card)
         lay.setContentsMargins(Space.XL, Space.XL, Space.XL, Space.XL)
         lay.setSpacing(Space.MD)

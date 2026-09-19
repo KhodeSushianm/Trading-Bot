@@ -13,4 +13,4 @@
 """
 from __future__ import annotations
 
-from .theme import DARK, Space, Theme, Type, build_qss  # noqa: F401  (re-export)
+from . import backdrop, effects, icons, splash, theme, widgets  # noqa: F401

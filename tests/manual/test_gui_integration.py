@@ -108,7 +108,8 @@ app.processEvents()
 check(win.pages.count() == 7, f"۷ صفحه ساخته شد ({win.pages.count()})")
 check(len(win.nav._items) == 7, f"ریل ناوبری ۷ آیتم دارد ({len(win.nav._items)})")   # noqa: SLF001
 check(win.user_name == "سوشیان", f"نام کاربر از config خوانده شد: {win.user_name}")
-check("خوش اومدی سوشیان" in win.greet_lbl.text(), f"چیپ خوش‌آمد: {win.greet_lbl.text()}")
+check(f"سلام {win.user_name}" in win.greet_lbl.text(),
+      f"سلام بزرگ در هدر: {win.greet_lbl.text()}")
 
 # ناوبری صفحه را عوض می‌کند
 win.nav._select(win.TAB_SIGNAL)      # noqa: SLF001
@@ -144,17 +145,38 @@ win.loop.state.update({
     "ranking": [("CHF", 0.32), ("USD", -0.13), ("JPY", -0.58)],
     "upcoming": [{"title_fa": "نرخ بهره فدرال رزرو", "country_fa": "آمریکا",
                   "country": "USD", "impact": "HIGH", "when": "", "minutes": 240}],
+    "calendar_ok": True,
 })
 win._tick()
 app.processEvents()
-check("GBPUSD" in win.dash_signals.toPlainText() and "EURUSD" in win.dash_signals.toPlainText(),
-      "داشبورد: آخرین سیگنال‌ها فهرست شد")
-check("ارسال نشد" in win.dash_signals.toPlainText(), "داشبورد: سیگنال ارسال‌نشد علامت خورد")
-check("نرخ بهره فدرال رزرو" in win.dash_events.toPlainText(), "داشبورد: رویداد پیش‌رو نمایش داده شد")
-check(len(win.strength._data) == 3, f"داشبورد: نوارهای قدرت داده گرفتند ({len(win.strength._data)})")   # noqa: SLF001
-check("XAUUSD" in win.veto_lbl.text(), f"داشبورد: برچسب وتو ({win.veto_lbl.text()})")
-check(win.st_score._num.text() == "۸/۱۱", f"کارت امتیاز: {win.st_score._num.text()}")   # noqa: SLF001
-check(win.st_news._num.text() == "۱۸", f"کارت خبر: {win.st_news._num.text()}")   # noqa: SLF001
+
+# کارت‌های سیگنال ساخته شدند (۲ سیگنال + کارت خط‌چین که نباید نابود شود)
+sig_widgets = [win.sig_cards_lay.itemAt(i).widget()
+               for i in range(win.sig_cards_lay.count())]
+check(len(sig_widgets) == 2, f"۲ کارت سیگنال ساخته شد ({len(sig_widgets)})")
+check(win.dashed is not None and win.dashed.parent() is not None,
+      "کارت خط‌چینِ «منتظر سیگنال بعدی» بعد از refresh زنده مانده")
+check(not win.dashed.isHidden(), "کارت خط‌چین پنهان نشده است")
+
+# کارت رویداد مشکی
+ev_widgets = [win.ev_cards_lay.itemAt(i).widget()
+              for i in range(win.ev_cards_lay.count())]
+check(len(ev_widgets) == 1, f"۱ کارت رویداد پیش‌رو ساخته شد ({len(ev_widgets)})")
+
+# نمودار و حلقه داده گرفتند
+check(len(win.chart._vals) == 3, f"نمودار خطی داده دارد ({len(win.chart._vals)})")   # noqa: SLF001
+check(abs(win.ring._value - 8 / 11) < 1e-6, f"حلقه = بهترین امتیاز/۱۱ ({win.ring._value:.2f})")  # noqa: SLF001
+
+# اعداد hero و کاشی‌ها
+check(win.hero_signals.text() == "۵", f"hero سیگنال کل: {win.hero_signals.text()}")
+check(win.hero_veto.text() == "۱", f"hero وتو: {win.hero_veto.text()}")
+check("XAUUSD" in win.veto_lbl.text(), f"برچسب وتو: {win.veto_lbl.text()}")
+check(win.st_score._num.text() == "۸/۱۱", f"کاشی امتیاز: {win.st_score._num.text()}")  # noqa: SLF001
+check(win.st_news._num.text() == "۱۸", f"کاشی خبر: {win.st_news._num.text()}")  # noqa: SLF001
+
+# چک‌لیست موتورها
+check(win.goal_checks["cal"].isChecked(), "چک‌لیست: تقویم فعال")
+check(not win.goal_checks["tg"].isChecked(), "چک‌لیست: تلگرام وصل نیست")
 
 # قرص وضعیت
 win.loop._thread = None      # noqa: SLF001
