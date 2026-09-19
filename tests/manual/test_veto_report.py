@@ -5,7 +5,7 @@ import sys
 
 _ROOT = pathlib.Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(_ROOT))
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 
 
 from src.analysis.technical import SymbolAnalysis
@@ -56,7 +56,7 @@ print()
 check("🚫 وتو فعال" in rep, "خط وتو داخل گزارش چاپ شد")
 check("وتوی خبری فعال" in rep, "جمع‌بندی نماد وتوشده عوض شد")
 check("نرخ بهره فدرال رزرو" in rep, "عنوان فارسی رویداد در گزارش است")
-check("۱۰ دقیقه دیگر" in rep, f"شمارش معکوس فارسی درست است")
+check("۱۰ دقیقه دیگر" in rep, "شمارش معکوس فارسی درست است")
 check("🏦 تقویم اقتصادی" in rep, "بخش تقویم در گزارش است")
 check("تورم سالانه" in rep, "عنوان‌ها به فارسی ترجمه شده‌اند")
 check("رویداد پراثر یا متوسطی در این بازه نیست" not in rep,

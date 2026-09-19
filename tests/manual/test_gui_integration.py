@@ -7,17 +7,15 @@ import sys
 _ROOT = pathlib.Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(_ROOT))
 import time
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
-from PySide6.QtCore import QTimer
 from PySide6.QtWidgets import QApplication
 
 import panel as P
 from src import engine as E
 from src.config import load_config
-from src.fundamental import calendar as cal
 
 FAILS = []
 
