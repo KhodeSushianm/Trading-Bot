@@ -1,0 +1,95 @@
+# ══════════════════════════════════════════════════════════════
+#  پیکربندی دستیار سیگنال فارکس
+#  این فایل را می‌توانید با هر ویرایشگر متنی تغییر دهید
+# ══════════════════════════════════════════════════════════════
+
+# منبع داده:  mt5 = متاتریدر ۵ خودتان (روی ویندوز)  |  yahoo = داده آنلاین رایگان (تست)
+data_source: yahoo
+
+# ── نمادهای تحت پوشش ──────────────────────────────────────────
+symbols:
+  - name: EURUSD
+    fa: "یورو به دلار آمریکا"
+    mt5: EURUSD
+    yahoo: "EURUSD=X"
+    base: EUR
+    quote: USD
+    pip: 0.0001
+
+  - name: GBPUSD
+    fa: "پوند به دلار آمریکا"
+    mt5: GBPUSD
+    yahoo: "GBPUSD=X"
+    base: GBP
+    quote: USD
+    pip: 0.0001
+
+  - name: USDJPY
+    fa: "دلار به ین ژاپن"
+    mt5: USDJPY
+    yahoo: "USDJPY=X"
+    base: USD
+    quote: JPY
+    pip: 0.01
+
+  - name: USDCAD
+    fa: "دلار آمریکا به دلار کانادا"
+    mt5: USDCAD
+    yahoo: "USDCAD=X"
+    base: USD
+    quote: CAD
+    pip: 0.0001
+
+  - name: AUDUSD
+    fa: "دلار استرالیا به دلار آمریکا"
+    mt5: AUDUSD
+    yahoo: "AUDUSD=X"
+    base: AUD
+    quote: USD
+    pip: 0.0001
+
+  - name: USDCHF
+    fa: "دلار آمریکا به فرانک سوئیس"
+    mt5: USDCHF
+    yahoo: "USDCHF=X"
+    base: USD
+    quote: CHF
+    pip: 0.0001
+
+  - name: XAUUSD
+    fa: "طلا به دلار آمریکا (انس)"
+    mt5: XAUUSD
+    yahoo: "GC=F"        # Yahoo اسپات طلا ندارد؛ در نسخه MT5 داده واقعی XAUUSD است
+    base: XAU
+    quote: USD
+    pip: 1.0             # برای طلا هر واحد = ۱ دلار (در گزارش با $ نمایش داده می‌شود)
+
+# ── تنظیمات موتور تکنیکال ─────────────────────────────────────
+analysis:
+  ema_fast: 50            # میانگین متحرک سریع (تشخیص روند)
+  ema_slow: 200           # میانگین متحرک کند
+  adx_period: 14
+  adx_min_trend: 20       # زیر این مقدار = بازار بی‌روند (وتو)
+  adx_strong: 25
+  rsi_period: 14
+  atr_period: 14
+  swing_window: 5         # پنجره تشخیص قله/کف (سطوح حمایت و مقاومت)
+  strength_lookback_h1: 24   # بازه محاسبه قدرت ارزها (کندل یک‌ساعته ≈ ۲۴ ساعت)
+
+# ── تعداد کندل تاریخچه ────────────────────────────────────────
+history:
+  yahoo_h1_days: 60       # برای yahoo: چند روز داده یک‌ساعته (H4 از آن ساخته می‌شود)
+  yahoo_m15_days: 5
+  mt5_h4_bars: 400
+  mt5_h1_bars: 300
+  mt5_m15_bars: 200
+  drop_forming_candle: true   # کندل در حال تشکیل نادیده گرفته شود (سیگنال فقط روی کندل بسته)
+
+# ── اتصال MT5 (مرحله ۵) ───────────────────────────────────────
+mt5:
+  symbol_suffix: ""       # بعضی بروکرها پسوند دارند: "EURUSD.m" → suffix: ".m"
+  # login / password / server فقط اگر ترمینال لاگین نیست لازم است (معمولاً خالی بگذارید)
+  login: null
+  password: null
+  server: null
+  terminal_path: null     # اگر MT5 در مسیر پیش‌فرض نصب نیست
