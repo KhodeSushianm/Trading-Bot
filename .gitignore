@@ -1,0 +1,28 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+env/
+
+# Secrets & local config — هرگز کامیت نشوند
+.env
+*.secret
+secrets.*
+config.local.yaml
+telegram_token.txt
+
+# Data & databases (ژورنال و کش داده محلی است)
+*.sqlite
+*.sqlite3
+*.db
+data/cache/
+logs/
+*.log
+
+# IDE / OS
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
