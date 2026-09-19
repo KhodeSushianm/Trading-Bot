@@ -1,65 +1,76 @@
 # ══════════════════════════════════════════════════════════════
-#  پیکربندی دستیار سیگنال فارکس
-#  این فایل را می‌توانید با هر ویرایشگر متنی تغییر دهید
+#  پیکربندی دستیار سیگنال فارکس  (نسخه وب — بدون وابستگی به متاتریدر)
+#  این فایل را می‌توانید با هر ویرایشگر متنی (مثل Notepad) تغییر دهید
 # ══════════════════════════════════════════════════════════════
 
-# منبع داده:  mt5 = متاتریدر ۵ خودتان (روی ویندوز)  |  yahoo = داده آنلاین رایگان (تست)
-data_source: yahoo
+# منبع داده:
+#   auto        = Yahoo (اصلی) و در صورت شکست، Twelve Data (اگر کلید داشته باشد)  ← پیشنهاد
+#   yahoo       = فقط Yahoo Finance (بدون کلید)
+#   twelvedata  = فقط Twelve Data (نیاز به کلید رایگان)
+data_source: auto
 
 # ── نمادهای تحت پوشش ──────────────────────────────────────────
+# yahoo: نماد در Yahoo Finance | td: نماد در Twelve Data | tv: نماد در تریدینگ‌ویو
 symbols:
   - name: EURUSD
     fa: "یورو به دلار آمریکا"
-    mt5: EURUSD
     yahoo: "EURUSD=X"
+    td: "EUR/USD"
+    tv: {screener: forex, exchange: FX, symbol: EURUSD}
     base: EUR
     quote: USD
     pip: 0.0001
 
   - name: GBPUSD
     fa: "پوند به دلار آمریکا"
-    mt5: GBPUSD
     yahoo: "GBPUSD=X"
+    td: "GBP/USD"
+    tv: {screener: forex, exchange: FX, symbol: GBPUSD}
     base: GBP
     quote: USD
     pip: 0.0001
 
   - name: USDJPY
-    fa: "دلار به ین ژاپن"
-    mt5: USDJPY
+    fa: "دلار آمریکا به ین ژاپن"
     yahoo: "USDJPY=X"
+    td: "USD/JPY"
+    tv: {screener: forex, exchange: FX, symbol: USDJPY}
     base: USD
     quote: JPY
     pip: 0.01
 
   - name: USDCAD
     fa: "دلار آمریکا به دلار کانادا"
-    mt5: USDCAD
     yahoo: "USDCAD=X"
+    td: "USD/CAD"
+    tv: {screener: forex, exchange: FX, symbol: USDCAD}
     base: USD
     quote: CAD
     pip: 0.0001
 
   - name: AUDUSD
     fa: "دلار استرالیا به دلار آمریکا"
-    mt5: AUDUSD
     yahoo: "AUDUSD=X"
+    td: "AUD/USD"
+    tv: {screener: forex, exchange: FX, symbol: AUDUSD}
     base: AUD
     quote: USD
     pip: 0.0001
 
   - name: USDCHF
     fa: "دلار آمریکا به فرانک سوئیس"
-    mt5: USDCHF
     yahoo: "USDCHF=X"
+    td: "USD/CHF"
+    tv: {screener: forex, exchange: FX, symbol: USDCHF}
     base: USD
     quote: CHF
     pip: 0.0001
 
   - name: XAUUSD
     fa: "طلا به دلار آمریکا (انس)"
-    mt5: XAUUSD
-    yahoo: "GC=F"        # Yahoo اسپات طلا ندارد؛ در نسخه MT5 داده واقعی XAUUSD است
+    yahoo: "GC=F"        # فیوچرز طلا (Yahoo اسپات ندارد) — اختلاف جزئی با اسپات طبیعی است
+    td: "XAU/USD"        # با کلید Twelve Data: اسپات واقعی
+    tv: {screener: cfd, exchange: OANDA, symbol: XAUUSD}
     base: XAU
     quote: USD
     pip: 1.0             # برای طلا هر واحد = ۱ دلار (در گزارش با $ نمایش داده می‌شود)
@@ -76,20 +87,24 @@ analysis:
   swing_window: 5         # پنجره تشخیص قله/کف (سطوح حمایت و مقاومت)
   strength_lookback_h1: 24   # بازه محاسبه قدرت ارزها (کندل یک‌ساعته ≈ ۲۴ ساعت)
 
-# ── تعداد کندل تاریخچه ────────────────────────────────────────
+# ── تاریخچه مورد نیاز ─────────────────────────────────────────
 history:
-  yahoo_h1_days: 60       # برای yahoo: چند روز داده یک‌ساعته (H4 از آن ساخته می‌شود)
+  yahoo_h1_days: 60       # Yahoo: چند روز داده یک‌ساعته (H4 از آن ساخته می‌شود)
   yahoo_m15_days: 5
-  mt5_h4_bars: 400
-  mt5_h1_bars: 300
-  mt5_m15_bars: 200
-  drop_forming_candle: true   # کندل در حال تشکیل نادیده گرفته شود (سیگنال فقط روی کندل بسته)
+  td_m15_bars: 200        # Twelve Data: تعداد کندل هر تایم‌فریم
+  td_h1_bars: 300
+  td_h4_bars: 400
+  drop_forming_candle: true   # کندل در حال تشکیل نادیده گرفته شود (تحلیل فقط روی کندل بسته)
 
-# ── اتصال MT5 (مرحله ۵) ───────────────────────────────────────
-mt5:
-  symbol_suffix: ""       # بعضی بروکرها پسوند دارند: "EURUSD.m" → suffix: ".m"
-  # login / password / server فقط اگر ترمینال لاگین نیست لازم است (معمولاً خالی بگذارید)
-  login: null
-  password: null
-  server: null
-  terminal_path: null     # اگر MT5 در مسیر پیش‌فرض نصب نیست
+# ── تاییدیه تریدینگ‌ویو ────────────────────────────────────────
+# API غیررسمی (بدون لاگین) — اگر از دسترس خارج شد، برنامه بدون آن به کارش ادامه می‌دهد
+tradingview:
+  enabled: true
+  timeframe: 4h           # تایم‌فریم تاییدیه: 15m | 1h | 4h | 1D
+
+# ── Twelve Data (زاپاس اختیاری) ────────────────────────────────
+# کلید رایگان: در https://twelvedata.com ثبت‌نام کنید (فقط ایمیل) و کلید را اینجا بگذارید
+# بدون کلید، این منبع به‌صورت خودکار غیرفعال است و برنامه با Yahoo کار می‌کند
+twelvedata:
+  api_key: ""
+  min_request_gap_sec: 8  # محدودیت tier رایگان: ۸ درخواست در دقیقه

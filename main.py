@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""نقطه ورود دستیار سیگنال فارکس.
+"""نقطه ورود دستیار سیگنال فارکس — نسخه وب (بدون وابستگی به متاتریدر).
 
 استفاده:
-    python main.py                # یک تحلیل کامل و چاپ گزارش (مرحله ۱)
-    python main.py --config my.yaml
-    python main.py --source mt5   # overriding منبع داده بدون ویرایش config
+    python main.py                       # تحلیل کامل + تاییدیه تریدینگ‌ویو + گزارش فارسی
+    python main.py --source yahoo        # فقط Yahoo (بدون زاپاس)
+    python main.py --source twelvedata   # فقط Twelve Data (نیاز به کلید در config.yaml)
+    python main.py --config my.yaml      # فایل پیکربندی دیگر
 """
 from __future__ import annotations
 
@@ -16,11 +17,12 @@ from src.analysis.strength import currency_strength
 from src.analysis.technical import analyze_symbol
 from src.config import load_config
 from src.data import get_source
+from src.data.tradingview import fetch_tv_snapshot
 from src.report.console import render_report
 
 
 def run_once(cfg: dict) -> int:
-    """یک چرخه کامل: داده ← تحلیل تکنیکال ← قدرت ارزها ← گزارش. کد خروج = تعداد خطاها."""
+    """یک چرخه کامل: داده ← تحلیل تکنیکال ← قدرت ارزها ← تاییدیه TV ← گزارش."""
     source = get_source(cfg)
     try:
         source.connect()
@@ -45,13 +47,23 @@ def run_once(cfg: dict) -> int:
         source.disconnect()
 
     if not analyses:
-        print("❌ هیچ نمادی تحلیل نشد — تنظیمات و اتصال را بررسی کنید")
+        print("❌ هیچ نمادی تحلیل نشد — تنظیمات و اتصال اینترنت را بررسی کنید")
         return max(errors, 1)
 
     ranking = currency_strength(
         datasets, lookback_h1=int(cfg["analysis"].get("strength_lookback_h1", 24))
     )
-    print(render_report(analyses, ranking, source.name))
+
+    # ── تاییدیه تریدینگ‌ویو (اختیاری — در صورت خطا، گزارش بدون آن چاپ می‌شود) ──
+    tv_cfg = cfg.get("tradingview") or {}
+    tv_map, tv_tf = {}, str(tv_cfg.get("timeframe", "4h"))
+    if tv_cfg.get("enabled", True):
+        try:
+            tv_map = fetch_tv_snapshot(cfg["symbols"], timeframe=tv_tf)
+        except Exception as e:
+            print(f"[!] تاییدیه تریدینگ‌ویو ناموفق بود: {str(e)[:120]}")
+
+    print(render_report(analyses, ranking, source.name, tv_map=tv_map, tv_tf=tv_tf))
     return 0
 
 
@@ -67,9 +79,9 @@ def _fix_windows_console() -> None:
 
 def main() -> None:
     _fix_windows_console()
-    parser = argparse.ArgumentParser(description="دستیار سیگنال فارکس — موتور تکنیکال")
+    parser = argparse.ArgumentParser(description="دستیار سیگنال فارکس — موتور تکنیکال + تاییدیه تریدینگ‌ویو")
     parser.add_argument("--config", default=None, help="مسیر فایل پیکربندی YAML")
-    parser.add_argument("--source", default=None, choices=["mt5", "yahoo"],
+    parser.add_argument("--source", default=None, choices=["auto", "yahoo", "twelvedata"],
                         help="تغییر موقت منبع داده (بدون ویرایش config)")
     args = parser.parse_args()
 

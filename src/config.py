@@ -25,5 +25,6 @@ def load_config(path: str | None = None) -> dict:
             if field not in sym:
                 raise ValueError(f"نماد {sym.get('name', '?')} فیلد «{field}» ندارد")
     cfg.setdefault("history", {})
-    cfg.setdefault("mt5", {})
+    cfg.setdefault("twelvedata", {})
+    cfg.setdefault("tradingview", {})
     return cfg

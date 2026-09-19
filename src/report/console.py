@@ -24,6 +24,18 @@ VERDICT_FA = {
 
 TREND_FA = {"bullish": "صعودی 📈", "bearish": "نزولی 📉", "none": "نامشخص ❔"}
 
+RECOMMENDATION_FA = {
+    "STRONG_BUY": "خرید قوی 🟢🟢", "BUY": "خرید 🟢", "NEUTRAL": "خنثی ⚪",
+    "SELL": "فروش 🔴", "STRONG_SELL": "فروش قوی 🔴🔴",
+}
+TV_DIR = {"STRONG_BUY": 2, "BUY": 1, "NEUTRAL": 0, "SELL": -1, "STRONG_SELL": -2}
+
+SOURCE_FA = {
+    "yahoo": "Yahoo Finance",
+    "twelvedata": "Twelve Data",
+    "auto": "خودکار (Yahoo — زاپاس: Twelve Data)",
+}
+
 
 def _fmt_price(v: float, pip: float) -> str:
     return f"{v:.2f}" if pip >= 0.01 else f"{v:.5f}".rstrip("0")
@@ -56,7 +68,27 @@ def _momentum_line(a: SymbolAnalysis) -> str:
     return f"RSI={a.rsi:.0f} — وضعیت خنثی"
 
 
-def render_symbol(a: SymbolAnalysis) -> str:
+def _tv_line(a: SymbolAnalysis, tv, tf_label: str) -> str:
+    """خط تاییدیه تریدینگ‌ویو — مقایسه امتیاز رسمی TV با تحلیل خودمان."""
+    if tv is None:
+        return f"   🔍 تاییدیه تریدینگ‌ویو ({tf_label}): در دسترس نبود ⚠️"
+    rec_fa = RECOMMENDATION_FA.get(tv.recommendation, tv.recommendation)
+    rsi_s = f" | RSI={tv.rsi:.0f}" if tv.rsi is not None else ""
+    line = (f"   🔍 تاییدیه تریدینگ‌ویو ({tf_label}): {rec_fa} "
+            f"({tv.buy} خرید / {tv.sell} فروش / {tv.neutral} خنثی){rsi_s}")
+    our = {"BUY_SETUP": 1, "SELL_SETUP": -1}.get(a.verdict, 0)
+    tv_dir = TV_DIR.get(tv.recommendation, 0)
+    if our != 0:
+        if tv_dir == our:
+            line += " — هم‌جهت با تحلیل ما ✅ (پشتوانه قوی‌تر)"
+        elif tv_dir == 0:
+            line += " — تریدینگ‌ویو خنثی است ➖"
+        else:
+            line += " — خلاف جهت تحلیل ما ⚠️ (با احتیاط!)"
+    return line
+
+
+def render_symbol(a: SymbolAnalysis, tv=None, tv_tf: str = "4h") -> str:
     lines = [
         SEP,
         f"📊 {a.symbol} — {a.fa_name}",
@@ -78,6 +110,7 @@ def render_symbol(a: SymbolAnalysis) -> str:
            if a.resistance else "مقاومت نزدیکی پیدا نشد")
     lines.append(f"   🎚️ {sup} | {res}")
     lines.append(f"   🌊 نوسان متوسط ساعتی: ATR={_fmt_dist(a.atr, a.pip)}")
+    lines.append(_tv_line(a, tv, tv_tf))
     lines.append(f"   🧾 جمع‌بندی: {VERDICT_FA.get(a.verdict, a.verdict)}")
     return "\n".join(lines)
 
@@ -108,25 +141,33 @@ def render_strength(ranking: List[Tuple[str, float]],
 
 def render_report(analyses: List[SymbolAnalysis],
                   ranking: List[Tuple[str, float]],
-                  source_name: str) -> str:
+                  source_name: str,
+                  tv_map: dict | None = None,
+                  tv_tf: str = "4h") -> str:
     """گزارش کامل کنسول."""
     now = datetime.now(timezone.utc)
     stamps = [a.last_candle for a in analyses if a.last_candle]
     last = max(stamps).strftime("%Y-%m-%d %H:%M") if stamps else "—"
-    src_fa = "متاتریدر ۵ (MT5)" if source_name == "mt5" else "Yahoo Finance (حالت تست)"
+    src_fa = SOURCE_FA.get(source_name, source_name)
+    tv_map = tv_map or {}
+    tv_on = bool(tv_map)
 
     parts = [
         DSEP,
         "🔎 گزارش موتور تکنیکال — دستیار سیگنال فارکس",
         f"🕒 زمان اجرا: {now:%Y-%m-%d %H:%M} UTC | منبع داده: {src_fa}",
-        f"📅 آخرین کندل بسته‌شده: {last} UTC",
+        f"📅 آخرین کندل بسته‌شده: {last} UTC"
+        + ("" if tv_on else " | ⚠️ تاییدیه تریدینگ‌ویو این بار در دسترس نبود"),
         DSEP,
     ]
     for a in analyses:
-        parts.append(render_symbol(a))
+        parts.append(render_symbol(a, tv=tv_map.get(a.symbol), tv_tf=tv_tf))
     strength = render_strength(ranking, analyses)
     if strength:
         parts.append(strength)
+    if any(a.symbol == "XAUUSD" for a in analyses):
+        parts.append(SEP)
+        parts.append("📎 طلا از Yahoo به‌صورت فیوچرز (GC=F) است — اختلاف چند دلاری با قیمت اسپات طبیعی است")
     parts.append("")
     parts.append("⚠️ این گزارش فقط تحلیل است، نه دستور معامله — تصمیم نهایی با شماست")
     parts.append(DSEP)
