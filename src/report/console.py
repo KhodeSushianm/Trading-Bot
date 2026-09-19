@@ -167,7 +167,9 @@ def render_report(analyses: List[SymbolAnalysis],
                   symbols_cfg: list | None = None,
                   vetoes: dict | None = None,
                   cal_horizon: float = 48.0,
-                  now=None) -> str:
+                  now=None,
+                  judge_summary: str = "",
+                  simulated: bool = False) -> str:
     """گزارش کامل (تکنیکال + تاییدیه تریدینگ‌ویو + تقویم اقتصادی + اخبار).
 
     Args:
@@ -175,6 +177,7 @@ def render_report(analyses: List[SymbolAnalysis],
         news_snap:   NewsSnapshot از موتور اخبار (اختیاری)
         symbols_cfg: فهرست نمادها از config (برای تفسیر رویدادها به جفت‌ارزها)
         vetoes:      نگاشت نام نماد → فهرست رویدادهای وتوکننده
+        judge_summary: بخش آمادهٔ «⚖️ داور امتیازدهی» (خالی = بدون این بخش)
     """
     now = now or datetime.now(timezone.utc)
     stamps = [a.last_candle for a in analyses if a.last_candle]
@@ -189,6 +192,15 @@ def render_report(analyses: List[SymbolAnalysis],
     parts = [
         DSEP,
         "🔎 گزارش تحلیل بازار — دستیار سیگنال فارکس",
+    ]
+    if simulated:
+        parts += [
+            "⚠️⚠️ حالت شبیه‌سازی ⚠️⚠️",
+            f"   زمان فرضی {now:%Y-%m-%d %H:%M} UTC است — دادهٔ بازار واقعی است ولی",
+            "   سشن/تقویم/داور بر اساس این زمان فرضی سنجیده شده‌اند.",
+            "   هیچ سیگنالی در این حالت به تلگرام ارسال یا در ژورنال ثبت نمی‌شود.",
+        ]
+    parts += [
         f"🕒 زمان اجرا: {now:%Y-%m-%d %H:%M} UTC | منبع داده: {src_fa}",
         f"📅 آخرین کندل بسته‌شده: {last} UTC"
         + ("" if tv_on else " | ⚠️ تاییدیه تریدینگ‌ویو این بار در دسترس نبود"),
@@ -215,6 +227,10 @@ def render_report(analyses: List[SymbolAnalysis],
     if news_snap is not None:
         from .fundamental import render_news
         parts.append(render_news(news_snap))
+
+    # ── ⚖️ داور امتیازدهی (مرحله ۳) — قبل از پابرگ، چون نتیجهٔ نهایی است ──
+    if judge_summary:
+        parts.append(judge_summary)
 
     if any(a.symbol == "XAUUSD" for a in analyses):
         parts.append(SEP)

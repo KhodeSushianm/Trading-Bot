@@ -131,6 +131,7 @@ class MainWindow(QMainWindow):
                             on_report=lambda r: self.q.put(("report", r)),
                             on_briefing=lambda r: self.q.put(("briefing", r)),
                             on_fundamental=lambda r: self.q.put(("fundamental", r)),
+                            on_signal=lambda r: self.q.put(("signal", r)),
                             cfg_provider=load_config)
         self._build_ui()
         self._load_tg_fields()
@@ -143,8 +144,10 @@ class MainWindow(QMainWindow):
         self.tick.start(1000)
 
         self._log("👋 سلام! دکمه «▶ شروع ربات» را بزن تا تحلیل خودکار فعال شود.")
-        self._log("🆕 جدید در نسخهٔ ۰٫۳: تقویم اقتصادی + رصد اخبار + بریفینگ صبحگاهی "
-                  "+ هشدار رویداد پراثر + وتوی خودکار سیگنال نزدیک اخبار مهم")
+        self._log("🆕 جدید در نسخهٔ ۰٫۴: ⚖️ داور امتیازدهی — سیگنال با ورود/حد ضرر/هدف "
+                  "و دلایل کامل، فقط با پشتوانهٔ ≥ ۷ از ۱۱ و عبور از ۷ دروازهٔ وتو")
+        self._log("🔎 برای دیدن اینکه چرا یک نماد سیگنال نگرفت، بخش «⚖️ داور امتیازدهی» "
+                  "در گزارش را بخوان — دلیل هر رد شدن نوشته می‌شود")
         self._log("💡 برای دریافت گزارش‌ها روی گوشی، بخش تلگرام را تنظیم کن (راهنما: docs/panel-guide-fa.md)")
 
     # ── ساخت رابط ─────────────────────────────────────────────
@@ -168,8 +171,8 @@ class MainWindow(QMainWindow):
         texts.setSpacing(2)
         title = QLabel("دستیار سیگنال فارکس")
         title.setObjectName("title")
-        subtitle = QLabel("تکنیکال + تقویم اقتصادی + اخبار + تاییدیه تریدینگ‌ویو — "
-                          "گزارش به زبان ساده، مستقیم به تلگرام تو")
+        subtitle = QLabel("تکنیکال + تقویم + اخبار → ⚖️ داور امتیازدهی → "
+                          "سیگنال با دلایل کامل، مستقیم به تلگرام تو")
         subtitle.setObjectName("subtitle")
         texts.addWidget(title)
         texts.addWidget(subtitle)
@@ -209,9 +212,13 @@ class MainWindow(QMainWindow):
         self.fund_lbl.setObjectName("sub")
         self.brief_lbl = QLabel("")
         self.brief_lbl.setObjectName("sub")
+        self.signal_lbl = QLabel("")
+        self.signal_lbl.setObjectName("sub")
+        self.signal_lbl.setWordWrap(True)
         row2.addWidget(self.veto_lbl, 2)
         row2.addWidget(self.fund_lbl, 2)
         row2.addStretch(1)
+        row2.addWidget(self.signal_lbl)
         row2.addWidget(self.brief_lbl)
         lay.addLayout(row2)
         root.addWidget(card)
@@ -305,11 +312,18 @@ class MainWindow(QMainWindow):
         self.brief_view = _view()
         self.brief_view.setPlaceholderText("بریفینگ صبحگاهی هنوز ساخته نشده — دکمه «🌅 بریفینگ صبحگاهی» "
                                            "را بزن یا منتظر ساعت تنظیم‌شده در config.yaml بمان")
-        self.TAB_LOG, self.TAB_REPORT, self.TAB_FUND, self.TAB_BRIEF = 0, 1, 2, 3
+        self.sig_view = _view()
+        self.sig_view.setPlaceholderText(
+            "هنوز سیگنالی صادر نشده — و این طبیعی است.\n"
+            "داور فقط وقتی سیگنال می‌دهد که هیچ وتویی فعال نباشد و امتیاز ≥ ۷ از ۱۱ شود.\n"
+            "برای دیدن دلیل رد شدن هر نماد، تب «📄 آخرین گزارش کامل» ← بخش «⚖️ داور» را ببین.")
+        (self.TAB_LOG, self.TAB_REPORT, self.TAB_FUND,
+         self.TAB_BRIEF, self.TAB_SIGNAL) = 0, 1, 2, 3, 4
         self.tabs.addTab(self.log_view, "🟢 گزارش زنده")
         self.tabs.addTab(self.report_view, "📄 آخرین گزارش کامل")
         self.tabs.addTab(self.fund_view, "🏦 تقویم و اخبار")
         self.tabs.addTab(self.brief_view, "🌅 بریفینگ صبحگاهی")
+        self.tabs.addTab(self.sig_view, "🎯 سیگنال‌ها")
         self.tabs.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         root.addWidget(self.tabs, 1)
 
@@ -395,6 +409,21 @@ class MainWindow(QMainWindow):
         else:
             self.fund_lbl.setText("")
 
+        # ── سیگنال‌ها ───────────────────────────────────────
+        sigs = self.loop.state.get("last_signals") or []
+        if sigs:
+            names = "، ".join(f"{x['symbol']} {'خرید' if x['direction'] == 'BUY' else 'فروش'}"
+                              for x in sigs)
+            tot = int(self.loop.state.get("signals_total") or 0)
+            not_sent = [x for x in sigs if not x.get("sent")]
+            self.signal_lbl.setText(
+                fa(f"🎯 {len(sigs)} سیگنال: {names} (مجموعاً {tot})")
+                + (fa(f" — {len(not_sent)} مورد تکراری و ارسال‌نشد") if not_sent else ""))
+        elif self.loop.state.get("last_run"):
+            self.signal_lbl.setText("🎯 سیگنالی صادر نشد")
+        else:
+            self.signal_lbl.setText("")
+
         # ── بریفینگ بعدی ─────────────────────────────────────
         nb = self.loop.state.get("next_briefing")
         lb = self.loop.state.get("last_briefing")
@@ -431,6 +460,10 @@ class MainWindow(QMainWindow):
                 self._fill(self.brief_view, payload, "بریفینگ صبحگاهی 🌅",
                            self.TAB_BRIEF, "🌅 بریفینگ صبحگاهی")
                 self.tabs.setCurrentIndex(self.TAB_BRIEF)
+            elif kind == "signal":
+                self._fill(self.sig_view, payload, "سیگنال‌های صادرشده 🎯",
+                           self.TAB_SIGNAL, "🎯 سیگنال‌ها")
+                self.tabs.setCurrentIndex(self.TAB_SIGNAL)
             elif kind == "tg_msg":
                 self.tg_status.setText(payload)
             elif kind == "tg_chatid":
@@ -542,8 +575,9 @@ def _selftest() -> int:
     assert callable(run_cycle) and callable(run_briefing) and callable(check_event_alerts)
 
     # تب‌های پنل باید سر جایشان باشند (ایندکس‌ها در کد استفاده می‌شوند)
-    assert win.tabs.count() == 4, f"انتظار ۴ تب، {win.tabs.count()} پیدا شد"
-    assert (win.TAB_LOG, win.TAB_REPORT, win.TAB_FUND, win.TAB_BRIEF) == (0, 1, 2, 3)
+    assert win.tabs.count() == 5, f"انتظار ۵ تب، {win.tabs.count()} پیدا شد"
+    assert (win.TAB_LOG, win.TAB_REPORT, win.TAB_FUND,
+            win.TAB_BRIEF, win.TAB_SIGNAL) == (0, 1, 2, 3, 4)
 
     # موتور فاندامنتال باید بدون اینترنت هم پارس/رندر کند
     from src.fundamental import calendar as cal

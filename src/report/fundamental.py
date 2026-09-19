@@ -18,23 +18,9 @@ from ..fundamental.calendar import (CalendarEvent, CalendarSnapshot, IMPACT_FA,
 from ..fundamental.news import NewsSnapshot
 from .console import DSEP, SEP, SOURCE_FA, TREND_FA, VERDICT_FA, _fmt_price
 
-_FA_DIGITS = str.maketrans("0123456789", "۰۱۲۳۴۵۶۷۸۹")
-
-WEEKDAY_FA = {0: "دوشنبه", 1: "سه‌شنبه", 2: "چهارشنبه", 3: "پنجشنبه",
-              4: "جمعه", 5: "شنبه", 6: "یکشنبه"}
-MONTH_FA = {1: "ژانویه", 2: "فوریه", 3: "مارس", 4: "آوریل", 5: "مه", 6: "ژوئن",
-            7: "ژوئیه", 8: "اوت", 9: "سپتامبر", 10: "اکتبر", 11: "نوامبر", 12: "دسامبر"}
-
-
-def fa_num(v) -> str:
-    """تبدیل ارقام به فارسی."""
-    return str(v).translate(_FA_DIGITS)
-
-
-def fa_date(dt: datetime, with_time: bool = True) -> str:
-    """«شنبه ۱۹ سپتامبر ۲۰۲۶ — ۱۴:۳۰»"""
-    s = f"{WEEKDAY_FA[dt.weekday()]} {fa_num(dt.day)} {MONTH_FA[dt.month]} {fa_num(dt.year)}"
-    return f"{s} — {fa_num(f'{dt:%H:%M}')}" if with_time else s
+# ابزار مشترک متن فارسی از src/fa.py — این re-export برای سازگاری
+# با فراخوانی‌های قبلی (from .fundamental import fa_num) نگه داشته شده است
+from ..fa import MONTH_FA, WEEKDAY_FA, fa_date, fa_num  # noqa: F401
 
 
 def _countdown(minutes: float) -> str:

@@ -114,7 +114,7 @@ win = P.MainWindow()
 win.show()
 app.processEvents()
 
-check(win.tabs.count() == 4, f"۴ تب ساخته شد ({win.tabs.count()})")
+check(win.tabs.count() == 5, f"۵ تب ساخته شد ({win.tabs.count()})")
 check(win.btn_brief.text().startswith("🌅"), f"دکمهٔ بریفینگ وجود دارد: «{win.btn_brief.text()}»")
 check(win.btn_brief.isEnabled(), "دکمهٔ بریفینگ فعال است")
 
@@ -122,16 +122,32 @@ check(win.btn_brief.isEnabled(), "دکمهٔ بریفینگ فعال است")
 FUND = "🏦 تقویم اقتصادی — تست\n📰 اخبار بازار — تست"
 REPORT = "🔎 گزارش تحلیل بازار — تست"
 BRIEF = "🌅 بریفینگ صبحگاهی — تست"
+SIGNAL = "🎯 سیگنال خرید — EUR/USD تست"
 win.q.put(("report", REPORT))
 win.q.put(("fundamental", FUND))
 win.q.put(("briefing", BRIEF))
+win.q.put(("signal", SIGNAL))
 win._poll_queue()
 app.processEvents()
 
 check(REPORT in win.report_view.toPlainText(), "تب «آخرین گزارش کامل» پر شد")
 check("تقویم اقتصادی" in win.fund_view.toPlainText(), "تب «تقویم و اخبار» پر شد")
 check("بریفینگ صبحگاهی" in win.brief_view.toPlainText(), "تب «بریفینگ» پر شد")
-check(win.tabs.currentIndex() == win.TAB_BRIEF, "بعد از بریفینگ، تب بریفینگ فعال می‌شود")
+check(SIGNAL in win.sig_view.toPlainText(), "تب «🎯 سیگنال‌ها» پر شد")
+check(win.tabs.currentIndex() == win.TAB_SIGNAL, "آخرین رویداد (سیگنال) تب خودش را فعال کرد")
+
+# برچسب وضعیت سیگنال‌ها
+win.loop.state.update({"last_signals": [{"symbol": "EURUSD", "direction": "SELL",
+                                         "score": 8, "max_score": 11, "sent": True},
+                                        {"symbol": "GBPUSD", "direction": "BUY",
+                                         "score": 7, "max_score": 11, "sent": False}],
+                       "signals_total": 5})
+win._tick()
+app.processEvents()
+check("EURUSD فروش" in win.signal_lbl.text() and "GBPUSD خرید" in win.signal_lbl.text(),
+      f"برچسب سیگنال‌ها: {win.signal_lbl.text()[:80]}")
+check("تکراری و ارسال‌نشد" in win.signal_lbl.text(), "سیگنال ارسال‌نشد هم اعلام می‌شود")
+check("۵" in win.signal_lbl.text(), f"مجموع سیگنال‌ها با رقم فارسی: {win.signal_lbl.text()[:60]}")
 check(win.tabs.tabText(win.TAB_FUND) == "🔔 جدید!", f"علامت «جدید» روی تب: {win.tabs.tabText(win.TAB_FUND)}")
 
 # برچسب‌های وضعیت

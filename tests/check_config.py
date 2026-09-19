@@ -26,6 +26,13 @@ def need(cond: bool, msg: str) -> None:
         errors.append(msg)
 
 
+def need_keys(keys, d: dict, where: str) -> None:
+    """همهٔ کلیدهای لازم در یک بخش config حاضر باشند."""
+    missing = [k for k in keys if k not in d]
+    need(not missing, f"{where}: همهٔ زیربخش‌ها حاضرند"
+         + (f" (کم دارد: {missing})" if missing else f" ({len(keys)} کلید)"))
+
+
 cfg = load_config()
 
 print("─" * 62)
@@ -88,6 +95,64 @@ need(float(b.get("horizon_hours", 0)) > 0, f"briefing.horizon_hours = {b.get('ho
 need(float(b.get("catchup_window_minutes", 0)) > 0,
      f"briefing.catchup_window_minutes = {b.get('catchup_window_minutes')}")
 
+# ── مرحله ۳: داور امتیازدهی ────────────────────────────────────
+j = cfg["judge"]
+need_keys(("veto", "risk", "level", "news", "fundamental", "volatility"), j, "judge")
+need(isinstance(j.get("enabled"), bool), f"judge.enabled = {j.get('enabled')}")
+mx = 11                                    # جمع جدول امتیاز طبق طراحی
+need(1 <= int(j.get("min_score", 0)) <= mx,
+     f"judge.min_score = {j.get('min_score')} (بین ۱ و {mx})")
+need(int(j.get("max_signals_per_cycle", 0)) >= 1,
+     f"judge.max_signals_per_cycle = {j.get('max_signals_per_cycle')}")
+need(float(j.get("resend_cooldown_minutes", 0)) >= 15,
+     f"judge.resend_cooldown_minutes = {j.get('resend_cooldown_minutes')} "
+     f"(حداقل ۱۵ = یک چرخه، وگرنه اسپم می‌شود)")
+need(int(j.get("resend_score_gain", 0)) >= 1,
+     f"judge.resend_score_gain = {j.get('resend_score_gain')}")
+
+v = j["veto"]
+for key in ("weekend", "high_impact_event", "timeframe_conflict", "range_market",
+            "volatility_spike", "breaking_news"):
+    need(isinstance(v.get(key), bool), f"judge.veto.{key} = {v.get(key)}")
+
+r = j["risk"]
+need(0 < float(r.get("min_sl_atr", 0)) < float(r.get("sl_atr_multiplier", 0))
+     <= float(r.get("max_sl_atr", 0)),
+     f"ترتیب آستانه‌های حد ضرر درست است: min={r.get('min_sl_atr')} ≤ "
+     f"sl={r.get('sl_atr_multiplier')} ≤ max={r.get('max_sl_atr')}")
+need(float(r.get("reward_risk", 0)) >= 1.0,
+     f"judge.risk.reward_risk = {r.get('reward_risk')} (زیر ۱ یعنی هدف کوچک‌تر از ریسک!)")
+need(float(r.get("level_buffer_atr", -1)) >= 0,
+     f"judge.risk.level_buffer_atr = {r.get('level_buffer_atr')}")
+need(0 < float(r.get("max_risk_percent", 0)) <= 5,
+     f"judge.risk.max_risk_percent = {r.get('max_risk_percent')} (بیش از ۵٪ پرخطر است)")
+
+lv = j["level"]
+need(0 < float(lv.get("close_atr", 0)) < float(lv.get("near_atr", 0)),
+     f"judge.level: close_atr={lv.get('close_atr')} < near_atr={lv.get('near_atr')}")
+
+vo = j["volatility"]
+need(float(vo.get("spike_multiplier", 0)) >= 1.0,
+     f"judge.volatility.spike_multiplier = {vo.get('spike_multiplier')} (زیر ۱ = وتوی همیشگی)")
+need(int(vo.get("lookback_bars", 0)) >= 20,
+     f"judge.volatility.lookback_bars = {vo.get('lookback_bars')} (برای میانگین معتبر)")
+
+jf = j["fundamental"]
+need(0 < float(jf.get("clean_med_hours", 0)) < float(jf.get("clean_high_hours", 0)),
+     f"judge.fundamental: clean_med_hours={jf.get('clean_med_hours')} < "
+     f"clean_high_hours={jf.get('clean_high_hours')}")
+
+jn = j["news"]
+need(0 <= int(jn.get("min_score", -1)) <= 6, f"judge.news.min_score = {jn.get('min_score')}")
+need(int(jn.get("breaking_min_score", 0)) >= int(jn.get("min_score", 0)),
+     "judge.news.breaking_min_score ≥ min_score (وتو باید سخت‌گیرانه‌تر از امتیاز باشد)")
+
+# پنجرهٔ وتوی رویداد باید بین داور و موتور فاندامنتال یکی باشد (یک منبع حقیقت)
+need(cfg["judge"]["veto"]["high_impact_event"] is True
+     or cfg["fundamental"]["veto_minutes_before"] > 0,
+     f"پنجرهٔ وتوی رویداد = {cfg['fundamental']['veto_minutes_before']} دقیقه "
+     f"(داور و موتور فاندامنتال از همین یک عدد استفاده می‌کنند)")
+
 # ── تلگرام و حلقه ─────────────────────────────────────────────
 tg = cfg["telegram"]
 need("bot_token" in tg and "chat_id" in tg, "کلیدهای تلگرام موجود است")
@@ -102,4 +167,4 @@ if errors:
     for e in errors:
         print("   -", e)
     sys.exit(1)
-print(f"✅ config.yaml معتبر است — {len(syms)} نماد، موتور فاندامنتال/اخبار/بریفینگ آماده")
+print(f"✅ config.yaml معتبر است — {len(syms)} نماد، فاندامنتال/اخبار/بریفینگ/داور آماده")

@@ -6,6 +6,9 @@
     python main.py                     # یک چرخهٔ کامل: تکنیکال + تقویم + اخبار + گزارش
     python main.py --briefing          # فقط بریفینگ صبحگاهی 🌅
     python main.py --alerts            # فقط بررسی/ارسال هشدار رویدادهای پراثر 🚨
+    python main.py --signals           # فقط سیگنال‌های صادرشده را چاپ کن 🎯
+    python main.py --as-of "2026-09-23 14:00"   # ⚠️ شبیه‌سازی: داور را در یک
+                                                #    زمان فرضی بسنج (بازار بسته/تعطیل)
     python main.py --no-fundamental    # بدون تقویم و اخبار (فقط تکنیکال)
     python main.py --source yahoo      # فقط Yahoo
     python main.py --selftest          # خودآزمون بدون اینترنت (برای CI)
@@ -172,9 +175,158 @@ def _selftest() -> int:
     got = buf.getvalue().decode("utf-8", "replace")
     assert "فارسی" in got and "🚫" in got, f"خروجی باید UTF-8 باشد، شد: {got!r}"
 
-    print(f"SELFTEST OK — {len(evs)} رویداد پارس شد، {len(cases)} حالت جهت‌دهی درست، "
-          f"۱ هشدار رویداد در پنجرهٔ درست، کدگذاری کنسول سالم، گزارش‌ها {len(rep)} کاراکتر")
+    # ۷) ⚖️ داور امتیازدهی (مرحله ۳) — مسیر سیگنال، وتوها و ریاضی حد ضرر
+    from src.analysis.technical import SymbolAnalysis
+    from src.data.tradingview import TVSnapshot
+    from src.fundamental.news import NewsItem, NewsSnapshot
+    from src.judge.scoring import JudgeContext, compute_levels, judge_symbol
+    from src.judge.session import market_status
+    from src.report.signal import render_judge_summary, render_signal
+
+    jcfg = judge_cfg_default()
+    wed = datetime(2026, 9, 23, 14, 0, tzinfo=timezone.utc)     # چهارشنبه، هم‌پوشانی لندن/NY
+    sat = datetime(2026, 9, 19, 12, 0, tzinfo=timezone.utc)     # شنبه، بازار بسته
+    acfg = {"ema_fast": 50, "ema_slow": 200, "adx_period": 14, "adx_min_trend": 20,
+            "adx_strong": 25, "rsi_period": 14, "atr_period": 14, "swing_window": 5}
+
+    def _ana(**kw):
+        d = dict(symbol="EURUSD", fa_name="یورو به دلار", base="EUR", quote="USD",
+                 price=1.1490, pip=0.0001, trend="bullish", h1_agrees=True, adx=32.0,
+                 rsi=38.0, rsi_rising=True, atr=0.0010, support=1.1486, resistance=1.1560,
+                 last_candle=wed, verdict="BUY_SETUP")
+        d.update(kw)
+        return SymbolAnalysis(**d)
+
+    def _ctx(now=wed, cal=None, news=None, **over):
+        c = dict(jcfg)
+        c.update(over)
+        return JudgeContext(jcfg=c, acfg=acfg, symbols_cfg=syms,
+                            ranking=[("EUR", 0.3), ("GBP", 0.1), ("USD", -0.2), ("JPY", -0.4)],
+                            tv_map={"EURUSD": TVSnapshot("EURUSD", 1.149, 41.0, 32.0,
+                                                         "BUY", 13, 4, 9)},
+                            cal_snap=cal, news_snap=news, now=now,
+                            status=market_status(now), event_veto_minutes=30.0)
+
+    clean = cal.CalendarSnapshot(events=cal.parse_events([
+        {"country": "USD", "date": "2026-09-28T14:00:00-04:00", "title": "CPI y/y",
+         "impact": "High", "forecast": "2.1%", "previous": "2.0%"}]), fetched=True)
+    supportive = NewsSnapshot(items=[NewsItem(
+        title="Euro rallies as ECB turns hawkish", score=5,
+        direction={"EUR": 1, "USD": -1}, source="test", published=wed)], feeds_ok=1)
+
+    # الف) مسیر طلایی → سیگنال با همهٔ مدارک
+    jg = judge_symbol(_ana(), {}, None, _ctx(cal=clean, news=supportive))
+    assert jg.signal is not None, f"باید سیگنال بدهد، reject={jg.reject_reason} vetoes={[v.key for v in jg.vetoes]}"
+    sg = jg.signal
+    assert sg.max_score == 11, f"حداکثر امتیاز باید ۱۱ باشد، {sg.max_score} شد"
+    assert sg.score >= int(jcfg["min_score"]), f"امتیاز {sg.score} زیر آستانه است"
+    assert sg.sl < sg.entry < sg.tp, "در سیگنال خرید: SL < ورود < TP"
+    assert abs(sg.reward_pips - sg.rr * sg.risk_pips) < 0.6, "هدف باید rr برابر ریسک باشد"
+    assert 1 <= sg.stars <= 5, f"ستاره‌ها {sg.stars}"
+
+    msg = render_signal(sg)
+    for needle in ("سیگنال خرید", "پشتوانه:", "📍 ورود", "🛑 حد ضرر", "🎯 هدف",
+                   "ریسک پیشنهادی", "نه دستور معامله"):
+        assert needle in msg, f"«{needle}» در پیام سیگنال نیست"
+    assert "= ۷ پیپ" not in msg and msg.count("پیپ فاصله") == 2, \
+        "فاصلهٔ حد ضرر/هدف باید یک‌بار و بدون تکرار چاپ شود"
+
+    # ب) هر وتو باید جداگانه سیگنال را متوقف کند
+    veto_cases = {
+        "WEEKEND": (_ctx(now=sat, cal=clean, news=supportive), _ana()),
+        "TF_CONFLICT": (_ctx(cal=clean, news=supportive), _ana(h1_agrees=False)),
+        "RANGE": (_ctx(cal=clean, news=supportive), _ana(adx=14.0)),
+        "DATA": (_ctx(cal=clean, news=supportive), _ana(verdict="DATA")),
+        "EVENT": (_ctx(cal=cal.CalendarSnapshot(events=[cal.CalendarEvent(
+            when=wed + timedelta(minutes=12), country="USD", title="Federal Funds Rate",
+            title_fa="نرخ بهره", impact="HIGH", forecast="4.00%", previous="3.75%")],
+            fetched=True), news=supportive), _ana()),
+        "BREAKING_NEWS": (_ctx(cal=clean, news=NewsSnapshot(items=[NewsItem(
+            title="BREAKING: ECB surprise", score=6, direction={"EUR": -1},
+            breaking=True, source="t", published=wed)], feeds_ok=1)), _ana()),
+    }
+    for key, (c, aa) in veto_cases.items():
+        r = judge_symbol(aa, {}, None, c)
+        assert r.signal is None, f"وتوی {key} جلوی سیگنال را نگرفت"
+        assert r.reject_reason == "VETO", f"reject_reason برای {key} = {r.reject_reason}"
+        assert key in [v.key for v in r.vetoes], f"{key} در فهرست وتوها نیست: {[v.key for v in r.vetoes]}"
+
+    # وتوها باید از config قابل خاموش‌کردن باشند
+    r = judge_symbol(_ana(), {}, None, _ctx(now=sat, cal=clean, news=supportive,
+                                            veto={**jcfg["veto"], "weekend": False}))
+    assert "WEEKEND" not in [v.key for v in r.vetoes], "وتو باید تنظیم‌پذیر باشد"
+
+    # پ) امتیاز ناکافی → رد با دلیل روشن، بدون بادکردن امتیاز
+    weak = JudgeContext(jcfg=jcfg, acfg=acfg, symbols_cfg=syms,
+                        ranking=[("USD", 0.4), ("JPY", 0.2), ("GBP", 0.0), ("EUR", -0.3)],
+                        tv_map={"EURUSD": TVSnapshot("EURUSD", 1.149, 62.0, 32.0, "SELL", 3, 14, 9)},
+                        cal_snap=cal.CalendarSnapshot(error="timeout"),
+                        news_snap=NewsSnapshot(error="down"),
+                        now=datetime(2026, 9, 23, 3, 0, tzinfo=timezone.utc),
+                        status=market_status(datetime(2026, 9, 23, 3, 0, tzinfo=timezone.utc)),
+                        event_veto_minutes=30.0)
+    r = judge_symbol(_ana(), {}, None, weak)
+    assert r.signal is None and r.reject_reason == "LOW_SCORE", f"reject={r.reject_reason}"
+    assert r.score < int(jcfg["min_score"]), f"امتیاز {r.score} باید زیر آستانه باشد"
+    for e in r.evidences:
+        if e.key in ("fundamental", "news", "tv", "session", "strength"):
+            assert e.points == 0, f"مدرک {e.key} با دادهٔ نامناسب {e.points} امتیاز گرفت"
+    assert any(e.unavailable for e in r.evidences), \
+        "مدرکِ بدون داده باید unavailable علامت بخورد، نه اینکه صفرِ بی‌دلیل بگیرد"
+
+    # ت) ستاپ نبودن → دلیل انسانی
+    r = judge_symbol(_ana(verdict="WAIT"), {}, None, _ctx(cal=clean, news=supportive))
+    assert r.signal is None and r.reject_reason == "NO_SETUP", f"reject={r.reject_reason}"
+    assert r.reject_detail, "رد شدن باید دلیل داشته باشد"
+
+    # ث) ریاضی حد ضرر
+    rc = jcfg["risk"]
+    sl, tp, risk, capped = compute_levels("BUY", 1.1490, 0.0010, 1.1486, 1.1560, rc)
+    assert sl < 1.1486 and tp > 1.1490 and not capped, "SL زیر حمایت، TP بالای ورود"
+    assert abs((tp - 1.1490) / (1.1490 - sl) - float(rc["reward_risk"])) < 1e-6, "نسبت R:R دقیق"
+    sl2, tp2, _, _ = compute_levels("SELL", 1.1490, 0.0010, 1.1440, 1.1495, rc)
+    assert sl2 > 1.1495 and tp2 < 1.1490, "در فروش: SL بالای مقاومت، TP زیر ورود"
+    _, _, r3, _ = compute_levels("BUY", 1.1490, 0.0010, None, None, rc)
+    assert abs(r3 - float(rc["sl_atr_multiplier"]) * 0.0010) < 1e-9, "بدون سطح: fallback بر پایهٔ ATR"
+    _, _, r4, cap4 = compute_levels("BUY", 1.1490, 0.0010, 1.1400, None, rc)
+    assert cap4 and abs(r4 - float(rc["max_sl_atr"]) * 0.0010) < 1e-9, "سطح دور → سقف max_sl_atr"
+    _, _, r5, _ = compute_levels("BUY", 1.1490, 0.0010, 1.14895, None, rc)
+    assert abs(r5 - float(rc["min_sl_atr"]) * 0.0010) < 1e-9, "سطح چسبیده → کف min_sl_atr"
+
+    # ج) سقف تعداد سیگنال + خلاصهٔ داور
+    many = [_ana(symbol="EURUSD"), _ana(symbol="GBPUSD", base="GBP", quote="USD"),
+            _ana(symbol="AUDUSD", base="AUD", quote="USD", adx=21.0)]
+    from src.judge.scoring import judge_all
+    out = judge_all(many, {}, _ctx(cal=clean, news=supportive, max_signals_per_cycle=1))
+    assert sum(1 for o in out if o.signal) == 1, "سقف ۱ سیگنال باید رعایت شود"
+    assert sum(1 for o in out if o.reject_reason == "CAPPED") == 2, "بقیه باید CAPPED شوند"
+    kept = [o for o in out if o.signal][0]
+    assert kept.score == max(o.score for o in out), "بهترین سیگنال باید نگه داشته شود"
+    summ = render_judge_summary(out, min_score=int(jcfg["min_score"]), now=wed)
+    assert "⚖️ داور امتیازدهی" in summ and "سرنوشت بقیهٔ نمادها" in summ
+    nosig = render_judge_summary([judge_symbol(_ana(verdict="WAIT", adx=15.0), {}, None,
+                                               _ctx(cal=clean, news=supportive))])
+    assert "هیچ سیگنالی صادر نشد" in nosig, "حالت بدون سیگنال باید صادقانه اعلام شود"
+
+    # چ) ژورنال سیگنال (پایهٔ مرحله ۴)
+    import json as _json
+    rec = sg.to_journal(sent=True)
+    need = {"ts", "symbol", "direction", "entry", "sl", "tp", "pip", "atr", "risk_pips",
+            "reward_pips", "rr", "score", "max_score", "session", "evidences", "sent", "outcome"}
+    assert need <= set(rec), f"فیلدهای ژورنال ناقص: {need - set(rec)}"
+    assert rec["outcome"] is None, "outcome را مرحلهٔ ۴ پر می‌کند"
+    assert _json.loads(_json.dumps(rec, ensure_ascii=False))["symbol"] == sg.symbol
+
+    print(f"SELFTEST OK — {len(evs)} رویداد پارس شد، {len(cases)} حالت جهت‌دهی، "
+          f"{len(veto_cases)} وتو، سیگنال {sg.score}/{sg.max_score}، "
+          f"ریاضی SL/TP، ژورنال و کدگذاری کنسول سالم")
     return 0
+
+
+def judge_cfg_default() -> dict:
+    """پیش‌فرض‌های داور بدون خواندن config.yaml (تا خودآزمون مستقل بماند)."""
+    from src.judge.scoring import judge_config
+    return judge_config({})
 
 
 def main() -> None:
@@ -189,6 +341,11 @@ def main() -> None:
                         help="با --alerts: هشدارها را فقط چاپ کن، به تلگرام نفرست")
     parser.add_argument("--no-fundamental", action="store_true",
                         help="تقویم اقتصادی و اخبار را موقتاً خاموش کن")
+    parser.add_argument("--signals", action="store_true",
+                        help="فقط پیام سیگنال‌ها را چاپ کن (بدون گزارش کامل)")
+    parser.add_argument("--as-of", default=None, metavar="YYYY-MM-DD HH:MM",
+                        help="⚠️ شبیه‌سازی: زمان فرضی (UTC) برای داور/سشن/تقویم. "
+                             "در این حالت سیگنالی به تلگرام نمی‌رود.")
     parser.add_argument("--selftest", action="store_true", help="خودآزمون بدون اینترنت")
     args = parser.parse_args()
 
@@ -215,11 +372,35 @@ def main() -> None:
             print("✅ رویداد پراثری در پنجرهٔ هشدار نیست (یا قبلاً هشدار داده شده)")
         sys.exit(0)
     else:
-        res = run_cycle(cfg, on_log=log)
+        res = run_cycle(cfg, on_log=log, now_override=_parse_as_of(args.as_of))
 
-    if res["report"]:
+    if args.signals and not args.briefing:
+        sigs = res.get("signals") or []
+        if not sigs:
+            print("⛔ سیگنالی صادر نشد. برای دیدن دلیل رد شدن هر نماد، "
+                  "بخش «⚖️ داور امتیازدهی» در گزارش کامل را بخوان (بدون --signals).")
+        for x in sigs:
+            print(x["text"])
+            if not x.get("sent"):
+                print("ℹ️ (این سیگنال به تلگرام ارسال نشد: تکراری یا حالت شبیه‌سازی)")
+    elif res["report"]:
         print(res["report"])
     sys.exit(0 if res["ok"] else 1)
+
+
+def _parse_as_of(txt: str | None):
+    """تجزیهٔ «YYYY-MM-DD HH:MM» به datetime UTC؛ در صورت خطا، پیام روشن و خروج."""
+    if not txt:
+        return None
+    from datetime import datetime, timezone
+    for fmt in ("%Y-%m-%d %H:%M", "%Y-%m-%dT%H:%M", "%Y-%m-%d %H:%M:%S", "%Y-%m-%d"):
+        try:
+            return datetime.strptime(txt.strip(), fmt).replace(tzinfo=timezone.utc)
+        except ValueError:
+            continue
+    print(f"❌ زمان «{txt}» قابل خواندن نیست. قالب درست: 2026-09-23 14:00  (UTC)",
+          file=sys.stderr)
+    sys.exit(2)
 
 
 if __name__ == "__main__":
