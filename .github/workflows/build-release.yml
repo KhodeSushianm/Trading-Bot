@@ -34,6 +34,10 @@ jobs:
           QT_QPA_PLATFORM: offscreen
         run: .\dist\ForexAssistant.exe --selftest
 
+      - name: Rename artifact with version
+        shell: pwsh
+        run: Rename-Item -Path dist/ForexAssistant.exe -NewName "ForexAssistant-${{ github.ref_name }}-windows.exe"
+
       - name: Publish GitHub Release
         if: startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v2
@@ -52,6 +56,6 @@ jobs:
             > ⏳ اجرای اول ۱۰ تا ۲۰ ثانیه طول می‌کشد (استخراج فایل‌های فشرده) — طبیعی است.
             > 🔤 فونت ایران‌سنس: فایل فونت را در پوشه `fonts` کنار EXE بگذار و برنامه را باز کن — خودکار جای وزیرمتن فعال می‌شود.
             > ⚠️ این ابزار فقط تحلیل و سیگنال می‌دهد و هیچ معامله‌ای انجام نمی‌دهد؛ تصمیم با شماست.
-          files: dist/ForexAssistant.exe|ForexAssistant-${{ github.ref_name }}-windows.exe
+          files: dist/ForexAssistant-*.exe
           draft: false
           prerelease: false
