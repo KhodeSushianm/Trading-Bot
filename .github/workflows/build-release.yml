@@ -1,7 +1,7 @@
 name: Tests & Build Windows EXE
 
 # تست‌ها روی هر push و PR اجرا می‌شوند (سریع، بدون ساخت EXE).
-# ساخت و انتشار EXE فقط روی تگ v* یا اجرای دستی.
+# ساخت و انتشار (نصب‌کننده + EXE پرتابل) فقط روی تگ v* یا اجرای دستی.
 on:
   push:
     branches: [main]
@@ -38,10 +38,13 @@ jobs:
       - name: Config validation
         run: python tests/check_config.py
 
+      - name: Data-dir logic test (پرتابل vs نصب‌شده)
+        run: python tests/manual/test_paths_install.py
+
       - name: Byte-compile all sources
         run: python -m compileall -q src panel.py main.py
 
-  # ── ساخت و انتشار EXE ویندوز ─────────────────────────────────
+  # ── ساخت و انتشار نصب‌کننده + EXE ویندوز ────────────────────
   build-windows:
     needs: test
     if: startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch'
@@ -61,85 +64,99 @@ jobs:
           pip install -r requirements.txt
           pip install pyinstaller
 
+      - name: Resolve version & stamp Windows file info
+        id: ver
+        shell: pwsh
+        run: |
+          $ref = "${{ github.ref_name }}"
+          if ($ref -match '^v?(\d+\.\d+\.\d+(?:[.\-+][0-9A-Za-z.\-]+)?)$') { $v = $Matches[1] }
+          else { $v = (python -c "from src import app_paths; print(app_paths.APP_VERSION)").Trim() }
+          python installer/stamp_version.py $v
+          "version=$v" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+
       - name: Panel selftest (offscreen GUI)
         env:
           QT_QPA_PLATFORM: offscreen
         run: python panel.py --selftest
 
       - name: Build EXE (PyInstaller)
-        run: pyinstaller ForexAssistant.spec --noconfirm
+        run: pyinstaller ODINAssistant.spec --noconfirm
 
       - name: Smoke test (offscreen GUI + engine selftest)
         env:
           QT_QPA_PLATFORM: offscreen
-        run: .\dist\ForexAssistant.exe --selftest
+        run: .\dist\ODINAssistant.exe --selftest
 
-      - name: Rename artifact with version
+      - name: Rename portable artifact with version
         shell: pwsh
-        run: Rename-Item -Path dist/ForexAssistant.exe -NewName "ForexAssistant-${{ github.ref_name }}-windows.exe"
+        run: Rename-Item -Path dist/ODINAssistant.exe -NewName "ODINAssistant-v${{ steps.ver.outputs.version }}-windows.exe"
+
+      - name: Locate (or install) Inno Setup
+        id: iscc
+        shell: pwsh
+        run: |
+          $p = "C:\Program Files (x86)\Inno Setup 6\ISCC.exe"
+          if (-not (Test-Path $p)) {
+            choco install innosetup -y --no-progress | Out-Null
+          }
+          if (-not (Test-Path $p)) { throw "Inno Setup (ISCC.exe) not found" }
+          "path=$p" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+
+      - name: Build installer (Inno Setup)
+        shell: pwsh
+        run: & "${{ steps.iscc.outputs.path }}" /DAppVersion=${{ steps.ver.outputs.version }} installer\odin.iss
+
+      - name: Installer smoke test (silent install + uninstall)
+        shell: pwsh
+        run: |
+          $setup = Get-ChildItem installer\Output\*-setup.exe | Select-Object -First 1
+          if (-not $setup) { throw "installer output missing" }
+          & $setup.FullName /VERYSILENT /SUPPRESSMSGBOXES /NORESTART /NOICONS /DIR=C:\OdinSmokeTest
+          if ($LASTEXITCODE -ne 0) { throw "silent install failed ($LASTEXITCODE)" }
+          if (-not (Test-Path C:\OdinSmokeTest\ODINAssistant.exe)) { throw "installed EXE missing" }
+          if (-not (Test-Path C:\OdinSmokeTest\.installed)) { throw ".installed marker missing (installed-mode broken)" }
+          & C:\OdinSmokeTest\unins000.exe /VERYSILENT /NORESTART
+          if ($LASTEXITCODE -ne 0) { throw "silent uninstall failed ($LASTEXITCODE)" }
+          Start-Sleep -Seconds 3
+          if (Test-Path C:\OdinSmokeTest\ODINAssistant.exe) { throw "uninstall left the EXE behind" }
 
       - name: Publish GitHub Release
         if: startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ github.ref_name }}
-          name: نسخه ${{ github.ref_name }} — پنل ویندوز (ForexAssistant)
+          name: "ODIN Assistant ${{ github.ref_name }} — نصب‌کنندهٔ ویندوز + نسخهٔ پرتابل"
           body: |
-            ## 🆕 چه چیزی در این نسخه اضافه شد؟
+            ## 🪪 نام جدید: ODIN Assistant
+            از این نسخه نام برنامه رسماً **ODIN Assistant** شد: عنوان پنجره، Splash،
+            آیکون جدید (مونوگرام Ø)، نام فایل‌ها و پوشهٔ نصب — همه با برند جدید.
 
-            ### ⚖️ داور امتیازدهی (Confluence) — مغز تصمیم‌گیر پروژه
-            همهٔ مدارک (تکنیکال، تریدینگ‌ویو، تقویم اقتصادی، اخبار، قدرت ارزها، سشن)
-            حالا در یک داور جمع‌بندی می‌شوند. سیگنال فقط وقتی صادر می‌شود که
-            **هیچ وتویی فعال نباشد** و **امتیاز ≥ ۷ از ۱۱** شود.
+            ## 📦 دو خروجی در Assets (پایین همین صفحه)
+            ### ۱) `ODINAssistant-...-windows-setup.exe` — نصب‌کنندهٔ رسمی (پیشنهادی) 
+            - نصب تمیز ویندوزی: منوی استارت + آیکون دسکتاپ (اختیاری) + حذف از Settings → Apps
+            - انتخاب بین «نصب برای همهٔ کاربران» (Program Files) یا «فقط کاربر جاری»
+            - داده‌ها (config، توکن تلگرام، لاگ‌ها، ژورنال) در پوشهٔ استاندارد
+              `%APPDATA%\ODIN Assistant` — نه داخل Program Files
+            ### ۲) `ODINAssistant-...-windows.exe` — نسخهٔ پرتابل تک‌فایلی (مثل قبل)
+            - در هر پوشه‌ای بگذارید و اجرا کنید؛ همهٔ داده‌ها کنار خودش می‌ماند
 
-            ### 🚫 ۷ دروازهٔ وتو (بدون استثنا — حتی با امتیاز کامل)
-            🔒 بازار بسته (شنبه/یکشنبه) · 📅 رویداد پراثر در ۳۰ دقیقه آینده ·
-            🔀 تضاد جهت تایم‌فریم‌ها · 😴 بازار بی‌روند (ADX پایین) ·
-            📈 جهش غیرعادی نوسان · 🚨 خبر فوری · ⚠️ دادهٔ ناکافی
+            ## 🧭 مهاجرت از نسخهٔ پرتابل قدیمی (ForexAssistant ≤ v0.7.2)
+            ژورنال و تنظیمات تلگرام شما باارزش‌اند؛ بعد از نصب، این دو فایل را از پوشهٔ
+            قدیمی به `%APPDATA%\ODIN Assistant` کپی کنید:
+            `config.local.yaml` (توکن/شناسه تلگرام) و `logs\signals.jsonl` (ژورنال).
+            بقیهٔ فایل‌ها (config.yaml، کش) خودکار ساخته می‌شوند.
 
-            ### 🎯 سیگنال کامل با دلایل
-            - 📍 ورود · 🛑 حد ضرر (از روی **سطح کلیدی** + ATR، با کف و سقف امن) · 🎯 هدف با نسبت ۱:۲
-            - ✅ فهرست مدارکی که امتیاز گرفتند **و** مدارکی که نگرفتند (شفافیت کامل)
-            - ⚠️ هشدارهای هوشمند، مثلاً «حمایت سر راه هدف است»
+            ## 🗂️ چه چیزی عوض شد (v0.8.0)
+            - 🆕 نصب‌کنندهٔ رسمی اینو‌ستاپ + اسمارت‌اسکرین‌پسند (بدون امضا: More info → Run anyway)
+            - 🆕 منطق «پوشهٔ داده‌ها»: حالت نصب‌شده → `%APPDATA%`؛ حالت پرتابل → کنار EXE
+              (با فایل اختیاری `.portable` می‌توان حتی داخل Program Files پرتابل ماند)
+            - 🆕 آیکون و منابع VERSIONINFO ویندوز (Properties → Details حالا نسخه دارد)
+            - 🔒 همهٔ رفع‌باگ‌های ظاهری v0.7.2 سر جایشان‌اند (تست رگرسیون دارند)
 
-            ### 🔕 ضداسپم
-            حلقه هر ۱۵ دقیقه است؛ یک ستاپ چندساعته قبلاً ۱۶ بار می‌رفت!
-            حالا همان سیگنال تا ۱۸۰ دقیقه تکرار نمی‌شود، مگر اینکه امتیازش
-            حداقل ۲ واحد بهتر شده باشد.
-
-            ### 🔎 «چرا سیگنال نداد؟»
-            در گزارش، سرنوشت **همهٔ ۷ نماد** نوشته می‌شود — حتی آن‌هایی که رد شدند.
-            اگر امتیاز ناکافی بود، فهرست «✅ داشت / ➖ نداشت» را می‌بینی.
-            سیگنال ندادن یک خروجی معتبر است، نه خرابی.
-
-            ### 🖥️ پنل
-            - تب جدید **«🎯 سیگنال‌ها»** (جمعاً ۵ تب)
-            - نوار وضعیت: سیگنال‌های این چرخه، مجموع، و موارد تکراریِ ارسال‌نشد
-
-            ### 🧪 حالت شبیه‌سازی (خط فرمان)
-            `python main.py --as-of "2026-09-17 14:00"` — داور را در یک روز کاری
-            بسنج حتی وقتی بازار بسته است. **هیچ پیامی به تلگرام نمی‌رود** و
-            بنر «حالت شبیه‌سازی» بالای گزارش چاپ می‌شود.
-
-            ### 📔 زیرساخت ژورنال (برای مرحله ۴)
-            هر سیگنال در `logs/signals.jsonl` ثبت می‌شود (ورود/SL/TP/امتیاز/مدارک،
-            با `outcome: null`). مرحلهٔ بعد نتیجه‌شان را پیگیری و آمار دقت را می‌سازد.
-
-            > ⚠️ **مهم و صادقانه:** آستانهٔ ۷ از ۱۱ یک عدد **بهینه‌شده نیست** —
-            > یک نقطهٔ شروع محتاطانه است. برای فهمیدن اینکه واقعاً چقدر دقیق است،
-            > باید ژورنال (مرحله ۴) چند هفته داده جمع کند. این ابزار مشاور مالی نیست.
-
-                        ## 📥 راهنمای نصب (۲ دقیقه)
-
-            1. فایل **`ForexAssistant-...-windows.exe`** را از بخش Assets پایین همین صفحه دانلود کن
-            2. آن را در یک **پوشه اختصاصی** بگذار (مثلاً `Desktop\ForexAssistant`) — برنامه در اولین اجرا `config.yaml` و پوشه‌های `logs` و `data/cache` را کنار خودش می‌سازد
-            3. رویش دابل‌کلیک کن. اگر هشدار آبی **SmartScreen** ویندوز آمد: **More info → Run anyway** (برای برنامه‌های امضان‌شده طبیعی است)
-            4. در بخش **تلگرام**: توکن بات را از `@BotFather` بگیر و وارد کن → دکمه **«📥 گرفتن خودکار شناسه»** → **«✅ ارسال پیام تست»**
-            5. دکمه **«▶ شروع ربات»** را بزن — از این پس هر ۱۵ دقیقه گزارش کامل (تکنیکال + تقویم + اخبار) به تلگرامت می‌رسد 📱
-
-            > ⏳ اجرای اول ۱۰ تا ۲۰ ثانیه طول می‌کشد (استخراج فایل‌های فشرده) — طبیعی است.
-            > 🔤 فونت ایران‌سنس: فایل فونت را در پوشه `fonts` کنار EXE بگذار و برنامه را باز کن — خودکار جای وزیرمتن فعال می‌شود.
-            > ⚠️ این ابزار فقط تحلیل و سیگنال می‌دهد و هیچ معامله‌ای انجام نمی‌دهد؛ تصمیم با شماست.
-          files: dist/ForexAssistant-*.exe
+            > ⚠️ هشدار آبی SmartScreen برای برنامه‌های امضانشده طبیعی است:
+            > **More info → Run anyway**. این ابزار فقط تحلیل/سیگنال می‌دهد و معامله نمی‌کند.
+          files: |
+            dist/ODINAssistant-*.exe
+            installer/Output/ODINAssistant-*-setup.exe
           draft: false
           prerelease: false

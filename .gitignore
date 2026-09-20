@@ -26,3 +26,8 @@ logs/
 .vscode/
 .DS_Store
 Thumbs.db
+
+# PyInstaller / Inno Setup artifacts
+build/
+dist/
+installer/Output/

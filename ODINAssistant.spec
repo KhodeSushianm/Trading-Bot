@@ -1,5 +1,5 @@
 # -*- mode: python ; coding: utf-8 -*-
-# PyInstaller spec — ساخت ForexAssistant.exe (تک‌فایلی، بدون کنسول)
+# PyInstaller spec — ساخت ODINAssistant.exe (تک‌فایلی، بدون کنسول)
 from PyInstaller.utils.hooks import collect_submodules
 
 hidden = []
@@ -32,7 +32,8 @@ exe = EXE(
     a.binaries,
     a.datas,
     [],
-    name="ForexAssistant",
+    name="ODINAssistant",
+    version="installer/version_info.txt",
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,

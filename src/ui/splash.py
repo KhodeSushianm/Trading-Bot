@@ -62,7 +62,8 @@ class WelcomeSplash(QWidget):
     """پنجرهٔ خوش‌آمد. `finished` وقتی صدا زده می‌شود که محو شدن تمام شد."""
 
     def __init__(self, user_name: str = "", version: str = "",
-                 tagline: str = "", t: Theme = DARK, hold_ms: int = 1500):
+                 app_name: str = "", tagline: str = "",
+                 t: Theme = DARK, hold_ms: int = 1500):
         super().__init__(None)
         self.setObjectName("splash")
         self._t = t
@@ -73,9 +74,12 @@ class WelcomeSplash(QWidget):
 
         # کارت مرکزی — مشکیِ برند روی شیشه (مستقل از توکن‌های تم)
         card = QFrame(self)
+        card.setObjectName("splash_card")
         card.setFixedSize(440, 260)
+        # انتخابگر محدوده‌دار (scoped): شکل سادهٔ «QFrame {...» به QLabelهای
+        # فرزند هم می‌افتاد (QLabel زیرکلاس QFrame است) و دور هر برچسب حاشیه می‌کشید!
         card.setStyleSheet(
-            "QFrame { background:#101013; border-radius:28px; "
+            "QFrame#splash_card { background:#101013; border-radius:28px; "
             "border:1px solid rgba(255,255,255,0.10); }")
         lay = QVBoxLayout(card)
         lay.setContentsMargins(Space.XL, Space.XL, Space.XL, Space.XL)
@@ -98,7 +102,13 @@ class WelcomeSplash(QWidget):
         self._bar = _ProgressLine(t.accent_ink)
         self._bar.setFixedWidth(180)
 
-        ver = QLabel(f"v{version}" if version else "")
+        if app_name and version:
+            ver_txt = f"{app_name}  ·  v{version}"
+        elif version:
+            ver_txt = f"v{version}"
+        else:
+            ver_txt = app_name
+        ver = QLabel(ver_txt)
         ver.setObjectName("splash_ver")
         ver.setAlignment(Qt.AlignCenter)
 

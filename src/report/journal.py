@@ -42,7 +42,7 @@ def render_stats(stats: Stats, open_entries: list[Entry] | None = None,
     o = stats.overall
     lines = [
         DSEP,
-        "📊 کارنامهٔ دقت — دستیار سیگنال فارکس",
+        "📊 کارنامهٔ دقت — ODIN Assistant",
         f"🕒 {fa_num(f'{now:%Y-%m-%d %H:%M}')} UTC",
         DSEP,
         "─── کلی ───",

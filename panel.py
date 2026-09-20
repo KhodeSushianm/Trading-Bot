@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""پنل کنترل دستیار سیگنال فارکس — نسخهٔ ۰٫۶ (تم روشن شیشه‌ای).
+"""پنل کنترل ODIN Assistant — دستیار تحلیل و سیگنال فارکس (تم روشن شیشه‌ای).
 
 زبان بصری (الگو: داشبوردهای مدرن ۲۰۲۶ / رفرنس iDraft):
   • پس‌زمینهٔ خاکستری محو + پنل شیشه‌ای نیمه‌شفاف (بدون blur effect — procedural)
@@ -215,6 +215,7 @@ class MainWindow(QMainWindow):
         try:
             self._splash = WelcomeSplash(user_name=self.user_name,
                                          version=app_paths.APP_VERSION,
+                                         app_name=app_paths.APP_NAME,
                                          tagline="دستیار تحلیل و سیگنال فارکس",
                                          t=T, hold_ms=1500)
             self._splash.show_and_run(self._after_splash)
@@ -231,7 +232,7 @@ class MainWindow(QMainWindow):
 
     # ── ساخت ──────────────────────────────────────────────────
     def _build_ui(self) -> None:
-        self.setWindowTitle(f"دستیار سیگنال فارکس — {app_paths.APP_VERSION}")
+        self.setWindowTitle(f"{app_paths.APP_NAME} — {app_paths.APP_VERSION}")
         self.resize(1280, 900)
         self.setMinimumSize(1020, 700)
         ico = app_paths.bundled_dir() / "assets" / "icon.ico"
@@ -565,17 +566,24 @@ class MainWindow(QMainWindow):
         self.btn_cfg.clicked.connect(lambda: self._open_path(app_paths.config_path()))
         self.btn_logs = _btn("پوشهٔ لاگ‌ها", "ghost", "folder")
         self.btn_logs.clicked.connect(lambda: self._open_path(app_paths.logs_dir()))
-        fl.addWidget(self.btn_cfg); fl.addWidget(self.btn_logs); fl.addStretch(1)
+        self.btn_data = _btn("پوشهٔ داده‌ها", "ghost", "folder")
+        self.btn_data.clicked.connect(lambda: self._open_path(app_paths.data_dir()))
+        fl.addWidget(self.btn_cfg); fl.addWidget(self.btn_logs)
+        fl.addWidget(self.btn_data); fl.addStretch(1)
         files.add_layout(fl)
-        note = QLabel("توکن و شناسهٔ تلگرام در config.local.yaml کنار برنامه ذخیره می‌شوند "
-                      "و هرگز به گیت‌هاب نمی‌روند.")
+        note = QLabel("توکن و شناسهٔ تلگرام در config.local.yaml داخل پوشهٔ داده‌ها "
+                      "ذخیره می‌شوند و هرگز به گیت‌هاب نمی‌روند.")
         note.setObjectName("hint"); note.setWordWrap(True)
         files.add_widget(note)
+        dpath = QLabel(str(app_paths.data_dir()))
+        dpath.setObjectName("hint"); dpath.setWordWrap(True)
+        dpath.setTextInteractionFlags(Qt.TextSelectableByMouse)
+        files.add_widget(dpath)
         lay.addWidget(files)
 
         about = Card("درباره", "", "info", t=T)
-        av = QLabel(f"نسخه {fa(app_paths.APP_VERSION)}  ·  تم روشن شیشه‌ای مونوکروم  ·  "
-                    f"طراحی Fluent/2026\n"
+        av = QLabel(f"{app_paths.APP_NAME} — نسخه {fa(app_paths.APP_VERSION)}  ·  "
+                    f"تم روشن شیشه‌ای مونوکروم  ·  طراحی Fluent/2026\n"
                     "این ابزار فقط تحلیل و سیگنال می‌دهد و هیچ معامله‌ای انجام نمی‌دهد؛ "
                     "تصمیم نهایی با شماست.")
         av.setObjectName("label"); av.setWordWrap(True)
@@ -846,7 +854,7 @@ class MainWindow(QMainWindow):
         self.tg_status.setText("⏳ در حال ارسال پیام تست…")
 
         def work():
-            text = (f"✅ پیام تست دستیار سیگنال فارکس\n"
+            text = (f"✅ پیام تست {app_paths.APP_NAME}\n"
                     f"اگر این پیام را می‌بینی، تلگرام درست تنظیم شده است.\n"
                     f"نسخه {app_paths.APP_VERSION}")
             ok, msg = telegram.send_message(token, chat, text)
@@ -903,6 +911,8 @@ def _selftest() -> int:
             win.TAB_SETTINGS) == tuple(range(8))
     assert len(win.nav._items) == 8, "ریل ناوبری باید ۸ آیتم داشته باشد"   # noqa: SLF001
     assert win.user_name, "نام کاربر برای Splash باید مقدار داشته باشد"
+    assert win.windowTitle().startswith("ODIN Assistant"), \
+        f"عنوان پنجره باید با برند شروع شود: {win.windowTitle()!r}"
     assert f"سلام {win.user_name}" in win.greet_lbl.text(), "سلام بزرگ در هدر"
 
     # رگرسیون باگ «صفحه سیاه تا درگ»
@@ -969,12 +979,12 @@ def main() -> None:
     app.setLayoutDirection(Qt.RightToLeft)
 
     from PySide6.QtCore import QSharedMemory
-    guard = QSharedMemory("ForexAssistant_SingleInstance_Guard_v2")
+    guard = QSharedMemory("ODINAssistant_SingleInstance_Guard_v3")
     if not guard.create(1):
         if guard.attach():
             guard.detach()
         if not guard.create(1):
-            QMessageBox.warning(None, "دستیار سیگنال فارکس",
+            QMessageBox.warning(None, app_paths.APP_NAME,
                                 "برنامه از قبل در حال اجراست! (یک پنجرهٔ دیگر باز است)")
             sys.exit(0)
     app._single_instance_guard = guard    # noqa: SLF001

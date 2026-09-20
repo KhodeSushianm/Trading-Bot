@@ -1,10 +1,11 @@
 @echo off
 chcp 65001 >nul
-title Build ForexAssistant EXE
+title Build ODIN Assistant EXE
 echo ============================================================
-echo   Building ForexAssistant.exe (Windows)
-echo   NOTE: The official EXE is also published on GitHub Releases
-echo         (repo page ^> Releases) - you can just download it.
+echo   Building ODINAssistant.exe (Windows)
+echo   NOTE: The official installer + portable EXE are published on
+echo         GitHub Releases (repo page ^> Releases) - you can just
+echo         download and install them.
 echo ============================================================
 echo.
 
@@ -15,7 +16,7 @@ if errorlevel 1 (
     exit /b 1
 )
 
-echo [1/3] Installing dependencies (may take a few minutes)...
+echo [1/4] Installing dependencies (may take a few minutes)...
 python -m pip install --upgrade pip >nul
 pip install -r requirements.txt pyinstaller
 if errorlevel 1 (
@@ -25,8 +26,15 @@ if errorlevel 1 (
 )
 
 echo.
-echo [2/3] Building EXE (3-8 minutes, one time)...
-pyinstaller ForexAssistant.spec --noconfirm
+echo [2/4] Stamping Windows version info...
+python installer\stamp_version.py
+if errorlevel 1 (
+    echo [!] Version stamp skipped (non-fatal).
+)
+
+echo.
+echo [3/4] Building EXE (3-8 minutes, one time)...
+pyinstaller ODINAssistant.spec --noconfirm
 if errorlevel 1 (
     echo [X] Build failed.
     pause
@@ -34,9 +42,22 @@ if errorlevel 1 (
 )
 
 echo.
-echo [3/3] Done!
+echo [4/4] Installer (optional - needs Inno Setup 6)...
+set ISCC=
+if exist "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" set "ISCC=C:\Program Files (x86)\Inno Setup 6\ISCC.exe"
+if exist "C:\Program Files\Inno Setup 6\ISCC.exe" set "ISCC=C:\Program Files\Inno Setup 6\ISCC.exe"
+if defined ISCC (
+    "%ISCC%" /DAppVersion=0.8.0 installer\odin.iss
+    echo   Installer: installer\Output\ODINAssistant-v0.8.0-windows-setup.exe
+) else (
+    echo   [i] Inno Setup not found - portable EXE only. Get it from jrsoftware.org
+    echo       or download the official installer from GitHub Releases.
+)
+
 echo.
-echo   EXE file:  %CD%\dist\ForexAssistant.exe
+echo Done!
+echo.
+echo   Portable EXE:  %CD%\dist\ODINAssistant.exe
 echo   First launch takes 10-20 seconds (unpacking) - this is normal.
 echo.
 pause
