@@ -8,6 +8,10 @@ on:
     tags: ["v*"]
   pull_request:
   workflow_dispatch:
+    inputs:
+      debug_smoke:
+        description: "1 = اسموک‌تست به‌جای شکست، شواهد کامل چاپ می‌کند"
+        default: ""
 
 permissions:
   contents: write
@@ -103,6 +107,8 @@ jobs:
         run: '& "${{ steps.iscc.outputs.path }}" /DAppVersion=${{ steps.ver.outputs.version }} installer\odin.iss'
 
       - name: Installer smoke test (silent install + uninstall)
+        env:
+          DEBUG_SMOKE: ${{ github.event.inputs.debug_smoke }}
         shell: pwsh
         run: |
           # /CURRENTUSER: در سشن بدون UAC رانر، نصب elevation نمی‌خواهد؛
@@ -120,7 +126,27 @@ jobs:
               Select-Object -First 60 -ExpandProperty FullName
             "---- evidence: setup.log ----"
             Get-Content "$dir\setup.log" -ErrorAction SilentlyContinue | Select-Object -Last 50
-            throw "silent install failed (exit $($p.ExitCode))"
+            if ($env:DEBUG_SMOKE -eq "1") {
+              "---- evidence: elevation / OS ----"
+              ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
+              [System.Environment]::OSVersion.VersionString
+              "---- evidence: defender threats ----"
+              Get-MpThreatDetection -ErrorAction SilentlyContinue | Format-List -Property Resources, ActionSuccess
+              "---- evidence: application event log (errors, 10min) ----"
+              Get-WinEvent -FilterHashtable @{LogName='Application'; Level=1,2; StartTime=(Get-Date).AddMinutes(-10)} -ErrorAction SilentlyContinue |
+                Select-Object -First 15 TimeCreated, ProviderName, Id, Message | Format-List
+              "---- evidence: second attempt via cmd ----"
+              $dir2 = Join-Path $env:RUNNER_TEMP "OdinSmoke2"
+              cmd /c "`"$($setup.FullName)`" /VERYSILENT /SUPPRESSMSGBOXES /NORESTART /NOICONS /DIR=$dir2 /LOG=$dir2\setup.log & echo CMD_EXIT=%ERRORLEVEL%"
+              Get-Content "$dir2\setup.log" -ErrorAction SilentlyContinue | Select-Object -Last 50
+              "---- evidence: minimal args attempt ----"
+              $dir3 = Join-Path $env:RUNNER_TEMP "OdinSmoke3"
+              $p3 = Start-Process -FilePath $setup.FullName -Wait -PassThru -ArgumentList "/VERYSILENT","/DIR=$dir3","/LOG=$dir3\setup.log"
+              "exit3=$($p3.ExitCode)"
+              Get-Content "$dir3\setup.log" -ErrorAction SilentlyContinue | Select-Object -Last 50
+            } else {
+              throw "silent install failed (exit $($p.ExitCode))"
+            }
           }
           if (-not (Test-Path "$dir\ODINAssistant.exe")) { throw "installed EXE missing" }
           if (-not (Test-Path "$dir\.installed")) { throw ".installed marker missing (installed-mode broken)" }
