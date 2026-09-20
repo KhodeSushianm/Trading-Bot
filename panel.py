@@ -18,8 +18,10 @@ from __future__ import annotations
 
 import os
 import queue
+import shutil
 import subprocess
 import sys
+import tempfile
 import threading
 import time
 from pathlib import Path
@@ -32,7 +34,7 @@ from PySide6.QtWidgets import (QApplication, QCheckBox, QFrame, QHBoxLayout, QLa
                                QVBoxLayout, QWidget)
 
 from src import app_paths
-from src.config import load_config, save_local_config
+from src.config import load_config, prune_local_config, save_local_config
 from src.engine import BotLoop, check_event_alerts, run_briefing, run_cycle
 from src.fa import fa_countdown
 from src.notify import telegram
@@ -41,7 +43,7 @@ from src.ui.backdrop import paint_glass, render_backdrop
 from src.ui.splash import WelcomeSplash
 from src.ui.theme import DARK, Space, build_qss
 from src.ui.widgets import (Card, DashedCard, InkCard, LineChart, NavRail, RingGauge,
-                            StatTile, StatusPill, Toast)
+                            StatTile, StatusPill, Stepper, Toast, ToggleSwitch)
 
 _FA_DIGITS = str.maketrans("0123456789", "۰۱۲۳۴۵۶۷۸۹")
 T = DARK
@@ -49,6 +51,23 @@ T = DARK
 # به برچسب‌های فرزند القا نمی‌شود و متن سیاه روی سیاه نامرئی می‌ماند.
 _INK_TITLE = f"color: {T.on_ink};"
 _INK_CAP = f"color: {T.rgba('#FFFFFF', 0.55)};"
+
+# ── تنظیمات مدیریت‌شدهٔ پنل (آینهٔ نسخهٔ اندروید) ────────────────
+# این کلیدها از صفحهٔ تنظیماتِ پنل در config.local.yaml ذخیره می‌شوند
+# (بیرون از گیت و با اولویت بر config.yaml) و «بازنشانی تنظیمات» فقط
+# همین‌ها را از فایل محلی حذف می‌کند — تلگرام/ژورنال دست‌نخورده می‌مانند.
+VETO_KEYS = ("weekend", "high_impact_event", "timeframe_conflict",
+             "range_market", "volatility_spike", "breaking_news")
+MANAGED_SETTINGS: dict[str, tuple[str, ...]] = {
+    "ui": ("user_name", "splash", "animations"),
+    "judge": ("enabled", "min_score", "max_signals_per_cycle", "veto"),
+    "fundamental": ("enabled", "alerts_enabled"),
+    "news": ("enabled",),
+    "tradingview": ("enabled",),
+    "loop": ("interval_minutes",),
+    "briefing": ("enabled",),
+    "journal": ("enabled", "conservative_both_touch"),
+}
 
 
 def fa(text) -> str:
@@ -135,6 +154,40 @@ def _circle(icon_name: str, tip: str) -> QPushButton:
     b.setToolTip(tip)
     b.setCursor(Qt.PointingHandCursor)
     return b
+
+
+def _set_row(label: str, sub: str, widget: QWidget | None = None) -> QWidget:
+    """یک ردیف تنظیمات: عنوان+توضیح در یک سو، کنترل در سوی دیگر.
+
+    آینهٔ `.set-row` نسخهٔ اندروید — در چیدمان RTL، متن سمت راست و
+    سوئیچ/قدم‌شمار سمت چپ می‌نشیند (دقیقاً مثل موبایل).
+    """
+    row = QWidget()
+    row.setObjectName("setrow")
+    h = QHBoxLayout(row)
+    h.setContentsMargins(2, 10, 2, 10)
+    h.setSpacing(Space.MD)
+    col = QVBoxLayout()
+    col.setSpacing(2)
+    lbl = QLabel(label)
+    lbl.setObjectName("setlabel")
+    sb = QLabel(sub)
+    sb.setObjectName("setsub")
+    sb.setWordWrap(True)
+    col.addWidget(lbl)
+    col.addWidget(sb)
+    h.addLayout(col, 1)
+    if widget is not None:
+        h.addWidget(widget, 0, Qt.AlignVCenter)
+    return row
+
+
+def _set_divider() -> QFrame:
+    """خط جداکنندهٔ ظریف بین ردیف‌های تنظیمات (مثل border-bottom اندروید)."""
+    d = QFrame()
+    d.setObjectName("setdivider")
+    d.setFixedHeight(1)
+    return d
 
 
 def _clear_layout(lay) -> None:
@@ -525,8 +578,127 @@ class MainWindow(QMainWindow):
         return w
 
     def _page_settings(self) -> QWidget:
-        w, lay = self._page_frame("تنظیمات", "تلگرام، فایل‌ها و دربارهٔ برنامه")
+        w, lay = self._page_frame(
+            "تنظیمات",
+            "نام نمایشی، داور، وتوها، موتورها، حلقه و ظاهر — تغییرها فوری ذخیره "
+            "می‌شوند و در تحلیل بعدی اثر می‌کنند")
 
+        self._set_guard = False
+        self.set_switches: dict[str, ToggleSwitch] = {}
+        self.set_steppers: dict[str, Stepper] = {}
+
+        def sw(key: str) -> ToggleSwitch:
+            s = ToggleSwitch(t=T)
+            s.toggled.connect(self._on_setting_changed)
+            self.set_switches[key] = s
+            return s
+
+        def step(key: str, lo: int, hi: int, st: int = 1, unit: str = "") -> Stepper:
+            sp = Stepper(lo, hi, step=st, unit=unit, t=T)
+            sp.valueChanged.connect(self._on_setting_changed)
+            self.set_steppers[key] = sp
+            return sp
+
+        def rows_into(card: Card, rows: list) -> None:
+            for i, r in enumerate(rows):
+                if i:
+                    card.add_widget(_set_divider())
+                card.add_widget(r)
+
+        # ── شخصی‌سازی (آینهٔ «👤 شخصی» اندروید) ─────────────────
+        prof = Card("شخصی‌سازی", "", "user", t=T)
+        rows_into(prof, [
+            _set_row("نام نمایشی",
+                     "در خوش‌آمدگویی، هدر و Splash استفاده می‌شود — فوری اعمال می‌شود"),
+        ])
+        self.set_name = QLineEdit()
+        self.set_name.setMaxLength(24)
+        self.set_name.setPlaceholderText("مثلاً سوشیان")
+        self.set_name.editingFinished.connect(self._on_name_edited)
+        prof.add_widget(self.set_name)
+        lay.addWidget(prof)
+
+        # ── داور امتیازدهی (آینهٔ اندروید + سقف سیگنال) ─────────
+        judge = Card("داور امتیازدهی", "", "target", t=T)
+        rows_into(judge, [
+            _set_row("داور فعال است",
+                     "خاموش = هیچ سیگنالی داوری/صادر نمی‌شود",
+                     sw("judge_enabled")),
+            _set_row("آستانهٔ صدور سیگنال",
+                     "حداکثر ممکن ۱۱ امتیاز است — پیش‌فرض ۷",
+                     step("min_score", 4, 10)),
+            _set_row("حداکثر سیگنال در هر چرخه",
+                     "جلوگیری از رگبار سیگنال — پیش‌فرض ۳",
+                     step("max_signals_per_cycle", 1, 5)),
+        ])
+        lay.addWidget(judge)
+
+        # ── دروازه‌های وتو (آینهٔ اندروید) ───────────────────────
+        veto = Card("دروازه‌های وتو",
+                    "وتوها بدون استثنا هستند: حتی با امتیاز کامل، سیگنال صادر نمی‌شود.",
+                    "shield", t=T)
+        rows_into(veto, [
+            _set_row("بازار بسته", "شنبه/یکشنبه و جمعه بعد از ۲۱ UTC",
+                     sw("veto.weekend")),
+            _set_row("رویداد پراثر تقویم", "رویداد پراثر تا ۳۰ دقیقهٔ آینده",
+                     sw("veto.high_impact_event")),
+            _set_row("تضاد تایم‌فریم", "H4 و H1 هم‌جهت نباشند",
+                     sw("veto.timeframe_conflict")),
+            _set_row("بازار بی‌روند", "ADX زیر آستانهٔ ۲۰",
+                     sw("veto.range_market")),
+            _set_row("جهش غیرعادی نوسان", "ATR فعلی بیش از ۲ برابر میانگین",
+                     sw("veto.volatility_spike")),
+            _set_row("خبر فوری", "خبر فوریِ مرتبط با نماد",
+                     sw("veto.breaking_news")),
+        ])
+        lay.addWidget(veto)
+
+        # ── موتورها (آینهٔ اندروید + هشدار رویداد) ───────────────
+        eng = Card("موتورها", "", "zap", t=T)
+        rows_into(eng, [
+            _set_row("تقویم اقتصادی", "ForexFactory — کش ۳۰ دقیقه‌ای",
+                     sw("fund_enabled")),
+            _set_row("هشدار رویداد نزدیک",
+                     "اعلان تلگرامی کمی قبل از رویدادهای پراثر (بدون تکرار)",
+                     sw("alerts_enabled")),
+            _set_row("موتور اخبار", "RSS فارکس — دریافت زنده در هر تحلیل",
+                     sw("news_enabled")),
+            _set_row("تأییدیهٔ تریدینگ‌ویو",
+                     "API غیررسمی — اگر قطع باشد، آن مدرک «ناموجود» می‌گیرد",
+                     sw("tv_enabled")),
+        ])
+        lay.addWidget(eng)
+
+        # ── حلقهٔ خودکار و گزارش‌ها (بیشتر از اندروید) ────────────
+        loopc = Card("حلقهٔ خودکار و گزارش‌ها", "", "clock", t=T)
+        rows_into(loopc, [
+            _set_row("فاصلهٔ تحلیل خودکار",
+                     "بین ۵ تا ۱۲۰ دقیقه — از چرخهٔ بعد اعمال می‌شود",
+                     step("interval_minutes", 5, 120, 5, "دقیقه")),
+            _set_row("بریفینگ صبحگاهی",
+                     "گزارش روزانه در ساعت مقرر (بر پایهٔ UTC) ساخته و ارسال شود",
+                     sw("briefing_enabled")),
+            _set_row("کارنامه (ژورنال)",
+                     "ثبت سیگنال‌ها و پیگیری خودکار نتایج روی کندل‌های M15",
+                     sw("journal_enabled")),
+            _set_row("قانون محافظه‌کارانهٔ «هر دو لمس»",
+                     "در یک کندل هم TP و هم SL لمس شود → شکست حساب می‌شود",
+                     sw("both_touch")),
+        ])
+        lay.addWidget(loopc)
+
+        # ── ظاهر ─────────────────────────────────────────────────
+        appear = Card("ظاهر", "", "eye", t=T)
+        rows_into(appear, [
+            _set_row("صفحهٔ خوش‌آمدگویی",
+                     "هنگام شروع برنامه — از اجرای بعدی اعمال می‌شود",
+                     sw("splash")),
+            _set_row("انیمیشن‌ها", "محو شدن صفحه‌ها و حرکت ظریف اجزا",
+                     sw("animations")),
+        ])
+        lay.addWidget(appear)
+
+        # ── تلگرام ───────────────────────────────────────────────
         tg = Card("تلگرام — دریافت گزارش‌ها روی گوشی", "", "send", t=T)
         self.tg_token = QLineEdit()
         self.tg_token.setPlaceholderText("توکن بات از BotFather (مثلاً 123456:ABC-DEF…)")
@@ -560,6 +732,29 @@ class MainWindow(QMainWindow):
         tg.add_widget(hint)
         lay.addWidget(tg)
 
+        # ── داده‌ها (آینهٔ «🗄️ داده‌ها» اندروید) ──────────────────
+        data = Card("داده‌ها", "", "refresh", t=T)
+        self.btn_clear_cache = _btn("پاک‌کردن", "ghost", "refresh",
+                                    "کش تقویم اقتصادی را پاک کن")
+        self.btn_clear_cache.clicked.connect(self._on_clear_cache)
+        self.btn_reset_settings = _btn("بازنشانی", "ghost", "alert",
+                                       "همهٔ تنظیمات پنل به حالت پیش‌فرض")
+        self.btn_reset_settings.clicked.connect(self._on_reset_settings)
+        rows_into(data, [
+            _set_row("پاک‌کردن کش تقویم اقتصادی",
+                     "دادهٔ بازار و اخبار همیشه تازه دریافت می‌شوند؛ کش فقط برای تقویم است",
+                     self.btn_clear_cache),
+            _set_row("بازنشانی همهٔ تنظیمات",
+                     "به حالت پیش‌فرض برمی‌گردند — تلگرام، ژورنال و سیگنال‌ها پاک نمی‌شوند",
+                     self.btn_reset_settings),
+        ])
+        dnote = QLabel("این تنظیمات در config.local.yaml داخل پوشهٔ داده‌ها ذخیره می‌شوند "
+                       "(بیرون از گیت) و بر config.yaml اولویت دارند — آینهٔ رفتار نسخهٔ اندروید.")
+        dnote.setObjectName("hint"); dnote.setWordWrap(True)
+        data.add_widget(dnote)
+        lay.addWidget(data)
+
+        # ── فایل‌ها ──────────────────────────────────────────────
         files = Card("فایل‌ها", "", "folder", t=T)
         fl = QHBoxLayout(); fl.setSpacing(Space.SM)
         self.btn_cfg = _btn("بازکردن config.yaml", "ghost", "file_cfg")
@@ -581,6 +776,7 @@ class MainWindow(QMainWindow):
         files.add_widget(dpath)
         lay.addWidget(files)
 
+        # ── درباره ───────────────────────────────────────────────
         about = Card("درباره", "", "info", t=T)
         av = QLabel(f"{app_paths.APP_NAME} — نسخه {fa(app_paths.APP_VERSION)}  ·  "
                     f"تم روشن شیشه‌ای مونوکروم  ·  طراحی Fluent/2026\n"
@@ -589,8 +785,20 @@ class MainWindow(QMainWindow):
         av.setObjectName("label"); av.setWordWrap(True)
         about.add_widget(av)
         lay.addWidget(about)
+
+        self._load_settings_fields()
         lay.addStretch(1)
-        return w
+
+        # ظرف اسکرول: صفحهٔ تنظیمات حالا بلند است؛ در پنجره‌های کوچک/مقیاس
+        # DPI مثل داشبورد عمودی اسکرول می‌شود (افقی هرگز).
+        w.setObjectName("page")
+        scroll = QScrollArea()
+        scroll.setObjectName("pagescroll")
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QFrame.NoFrame)
+        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        scroll.setWidget(w)
+        return scroll
 
     # ── ناوبری ────────────────────────────────────────────────
     def _on_nav(self, i: int) -> None:
@@ -600,6 +808,7 @@ class MainWindow(QMainWindow):
             try:
                 self.cfg = load_config()
                 self._load_tg_fields()
+                self._load_settings_fields()
             except Exception as e:
                 self._log(f"[!] بازخوانی تنظیمات ناموفق: {e}")
         self.pages.setCurrentIndex(i)
@@ -825,6 +1034,146 @@ class MainWindow(QMainWindow):
         self.tg_chat.setText(str(tg.get("chat_id") or ""))
         self.chk_send.setChecked(bool(tg.get("send_reports", True)))
 
+    # ── تنظیمات پنل (آینهٔ نسخهٔ اندروید) ────────────────────────
+    def _load_settings_fields(self) -> None:
+        """ویجت‌های تنظیمات را از cfg پر کن — بدون برانگیختن ذخیره (guard)."""
+        self._set_guard = True
+        try:
+            cfg = self.cfg
+            u = cfg.get("ui") or {}
+            j = cfg.get("judge") or {}
+            v = j.get("veto") or {}
+            f = cfg.get("fundamental") or {}
+            n = cfg.get("news") or {}
+            tv = cfg.get("tradingview") or {}
+            lp = cfg.get("loop") or {}
+            br = cfg.get("briefing") or {}
+            jn = cfg.get("journal") or {}
+            self.set_name.setText(str(u.get("user_name") or "سوشیان"))
+            vals = {
+                "judge_enabled": bool(j.get("enabled", True)),
+                "fund_enabled": bool(f.get("enabled", True)),
+                "alerts_enabled": bool(f.get("alerts_enabled", True)),
+                "news_enabled": bool(n.get("enabled", True)),
+                "tv_enabled": bool(tv.get("enabled", True)),
+                "briefing_enabled": bool(br.get("enabled", True)),
+                "journal_enabled": bool(jn.get("enabled", True)),
+                "both_touch": bool(jn.get("conservative_both_touch", True)),
+                "splash": bool(u.get("splash", True)),
+                "animations": bool(u.get("animations", True)),
+            }
+            for k in VETO_KEYS:
+                vals[f"veto.{k}"] = bool(v.get(k, True))
+            for key, on in vals.items():
+                s = self.set_switches.get(key)
+                if s is not None:
+                    s.setChecked(on)
+            self.set_steppers["min_score"].setValue(
+                int(j.get("min_score", 7)), silent=True)
+            self.set_steppers["max_signals_per_cycle"].setValue(
+                int(j.get("max_signals_per_cycle", 3)), silent=True)
+            self.set_steppers["interval_minutes"].setValue(
+                int(lp.get("interval_minutes", 15)), silent=True)
+        finally:
+            self._set_guard = False
+
+    def _collect_settings_block(self) -> dict:
+        """بلوک کاملِ تنظیماتِ مدیریت‌شده را از ویجت‌ها بگیر."""
+        s = self.set_switches
+        st = self.set_steppers
+        return {
+            "ui": {"user_name": self.set_name.text().strip() or "سوشیان",
+                   "splash": s["splash"].isChecked(),
+                   "animations": s["animations"].isChecked()},
+            "judge": {"enabled": s["judge_enabled"].isChecked(),
+                      "min_score": int(st["min_score"].value()),
+                      "max_signals_per_cycle": int(st["max_signals_per_cycle"].value()),
+                      "veto": {k: s[f"veto.{k}"].isChecked() for k in VETO_KEYS}},
+            "fundamental": {"enabled": s["fund_enabled"].isChecked(),
+                            "alerts_enabled": s["alerts_enabled"].isChecked()},
+            "news": {"enabled": s["news_enabled"].isChecked()},
+            "tradingview": {"enabled": s["tv_enabled"].isChecked()},
+            "loop": {"interval_minutes": int(st["interval_minutes"].value())},
+            "briefing": {"enabled": s["briefing_enabled"].isChecked()},
+            "journal": {"enabled": s["journal_enabled"].isChecked(),
+                        "conservative_both_touch": s["both_touch"].isChecked()},
+        }
+
+    def _on_setting_changed(self, *_a) -> None:
+        """هر تغییر = ذخیرهٔ فوری (دقیقاً رفتار نسخهٔ اندروید).
+
+        مسیر اثر: config.local.yaml ← load_config ← BotLoop که هر چرخه
+        cfg_provider() را صدا می‌زند → تغییرها بدون ری‌استارت اعمال می‌شوند.
+        """
+        if getattr(self, "_set_guard", False):
+            return
+        try:
+            save_local_config(self._collect_settings_block())
+            self.cfg = load_config()
+        except Exception as e:
+            self._log(f"[!] ذخیرهٔ تنظیمات ناموفق: {e}")
+            return
+        uicfg = self.cfg.get("ui") or {}
+        self.user_name = str(uicfg.get("user_name") or "سوشیان")
+        self._apply_user_name()
+        effects.set_animations(bool(uicfg.get("animations", True)))
+        self.toast.show_message("ذخیره شد ✓", "", "check")
+
+    def _apply_user_name(self) -> None:
+        """نام نمایشی تازه را آنی در هدر بنشان (سلام + آواتار)."""
+        _set_text(self.greet_lbl, f"سلام {self.user_name}!")
+        self.avatar.setText(self.user_name[:1] if self.user_name else "•")
+
+    def _on_name_edited(self) -> None:
+        if getattr(self, "_set_guard", False):
+            return
+        txt = self.set_name.text().strip() or "سوشیان"
+        if txt != self.set_name.text():
+            self.set_name.setText(txt)
+        self._on_setting_changed()
+
+    def _on_clear_cache(self) -> None:
+        from src.fundamental.calendar import CACHE_FILE
+        p = app_paths.cache_dir() / CACHE_FILE
+        try:
+            if p.exists():
+                p.unlink()
+                self._log("🧹 کش تقویم اقتصادی پاک شد — دریافت بعدی تازه است")
+                self.toast.show_message("کش پاک شد", "تحلیل بعدی کاملاً تازه است",
+                                        "refresh")
+            else:
+                self.toast.show_message("کشی وجود نداشت",
+                                        "دادهٔ بازار و اخبار هر چرخه تازه دریافت می‌شوند",
+                                        "info")
+        except OSError as e:
+            self._log(f"[!] پاک‌کردن کش ناموفق: {e}")
+
+    def _on_reset_settings(self) -> None:
+        r = QMessageBox.question(
+            self, "بازنشانی تنظیمات",
+            "همهٔ تنظیمات پنل (نام، داور، وتوها، موتورها، حلقه و ظاهر) به حالت\n"
+            "پیش‌فرض برمی‌گردند.\n\n"
+            "تلگرام، ژورنال و سیگنال‌های ثبت‌شده پاک نمی‌شوند.",
+            QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
+        if r == QMessageBox.Yes:
+            self._reset_settings_now()
+
+    def _reset_settings_now(self) -> None:
+        """بازنشانی بدون پرسش (selftest هم همین را صدا می‌زند)."""
+        try:
+            prune_local_config(MANAGED_SETTINGS)
+            self.cfg = load_config()
+        except Exception as e:
+            self._log(f"[!] بازنشانی تنظیمات ناموفق: {e}")
+            return
+        self._load_settings_fields()
+        uicfg = self.cfg.get("ui") or {}
+        self.user_name = str(uicfg.get("user_name") or "سوشیان")
+        self._apply_user_name()
+        effects.set_animations(bool(uicfg.get("animations", True)))
+        self._log("♻️ تنظیمات به حالت پیش‌فرض بازنشانی شد")
+        self.toast.show_message("تنظیمات بازنشانی شد", "", "refresh")
+
     def _on_get_chat_id(self) -> None:
         token = self.tg_token.text().strip()
         if not token:
@@ -889,8 +1238,29 @@ class MainWindow(QMainWindow):
 #  خودآزمون و ورودی
 # ══════════════════════════════════════════════════════════════
 def _selftest() -> int:
+    """ورودی خودآزمون — پوشهٔ داده‌ها را موقت می‌کند.
+
+    آزمون‌های تازهٔ «تنظیمات» در config.local.yaml می‌نویسند؛ فایل واقعیِ
+    کاربر (که توکن تلگرام دارد) هرگز نباید لمس شود. پس داده‌ها به پوشهٔ
+    temp می‌روند و config.yaml پروژه داخلش کپی می‌شود.
+    """
     app_paths.fix_console_encoding()
     os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+    tmp_data = tempfile.mkdtemp(prefix="odin-selftest-")
+    repo_cfg = Path(app_paths.app_dir()) / "config.yaml"
+    if repo_cfg.exists():
+        shutil.copyfile(repo_cfg, str(Path(tmp_data) / "config.yaml"))
+    os.environ[app_paths.DATA_DIR_ENV] = tmp_data
+    app_paths.clear_data_dir_cache()
+    try:
+        return _selftest_body()
+    finally:
+        shutil.rmtree(tmp_data, ignore_errors=True)
+        os.environ.pop(app_paths.DATA_DIR_ENV, None)
+        app_paths.clear_data_dir_cache()
+
+
+def _selftest_body() -> int:
     app = QApplication(sys.argv[:1])
     app.setStyle("Fusion")
     fam = load_fonts()
@@ -962,9 +1332,80 @@ def _selftest() -> int:
     sl, tp, risk, capped = compute_levels("BUY", 1.149, 0.001, 1.1486, 1.156, jc["risk"])
     assert sl < 1.1486 < 1.149 < tp and not capped
 
+    # ── صفحهٔ تنظیمات — آینهٔ نسخهٔ اندروید (v0.8.1) ──────────────
+    assert win.pages.widget(win.TAB_SETTINGS).objectName() == "pagescroll", \
+        "صفحهٔ تنظیمات باید ظرف اسکرول داشته باشد (محتوای بلند)"
+    base_cfg = load_config()
+    expect_sw = {"judge_enabled", "fund_enabled", "alerts_enabled", "news_enabled",
+                 "tv_enabled", "briefing_enabled", "journal_enabled", "both_touch",
+                 "splash", "animations",
+                 *(f"veto.{k}" for k in VETO_KEYS)}
+    assert expect_sw <= set(win.set_switches), "سوئیچ‌های تنظیمات ناقص‌اند"
+    assert {"min_score", "max_signals_per_cycle",
+            "interval_minutes"} <= set(win.set_steppers), "قدم‌شمارها ناقص‌اند"
+
+    # صفحهٔ تنظیمات واقعاً رندر می‌شود (رگرسیون صفحهٔ خالی)
+    win.nav._select(win.TAB_SETTINGS)       # noqa: SLF001
+    deadline = _time.time() + 2.0
+    while (_time.time() < deadline
+           and win.pages.currentWidget().graphicsEffect() is not None):
+        app.processEvents()
+        app.thread().msleep(10)
+    img = win.pages.currentWidget().grab().toImage()
+    bg = img.pixelColor(4, 4)
+    diff = sum(1 for y in range(0, img.height(), 6) for x in range(0, img.width(), 6)
+               if img.pixelColor(x, y) != bg)
+    assert diff > 30, f"صفحهٔ تنظیمات خالی رندر کرد ({diff})"
+
+    # نام نمایشی → اثر آنی در هدر + ماندگاری در config.local.yaml
+    win.set_name.setText("نام‌تست")
+    win._on_name_edited()                   # noqa: SLF001
+    assert win.user_name == "نام‌تست"
+    assert "سلام نام‌تست" in win.greet_lbl.text(), "نام تازه باید آنی در هدر بنشیند"
+    assert win.avatar.text() == "ن", "حرف اول نام در آواتار"
+    assert load_config()["ui"]["user_name"] == "نام‌تست", "نام باید ذخیره شود"
+
+    # سوئیچ داور → خاموش؛ بارگذاری تازهٔ config همان را ببیند
+    win.set_switches["judge_enabled"].setChecked(False)
+    app.processEvents()
+    cfg2 = load_config()
+    assert cfg2["judge"]["enabled"] is False, "خاموش‌کردن داور باید ذخیره شود"
+    assert cfg2["judge"]["min_score"] == base_cfg["judge"]["min_score"], \
+        "بقیهٔ تنظیمات داور نباید دست بخورد"
+
+    # قدم‌شمار: clamp در بازه + ذخیره
+    win.set_steppers["min_score"].setValue(99)
+    assert win.set_steppers["min_score"].value() == 10, "clamp در سقف ۱۰"
+    win.set_steppers["min_score"].setValue(9)
+    app.processEvents()
+    assert load_config()["judge"]["min_score"] == 9
+
+    # وتوها هم ذخیره می‌شوند
+    win.set_switches["veto.weekend"].setChecked(False)
+    app.processEvents()
+    assert load_config()["judge"]["veto"]["weekend"] is False
+    assert load_config()["judge"]["veto"]["breaking_news"] is True
+
+    # پاک‌کردن کش تقویم
+    cache_f = app_paths.cache_dir() / "calendar.json"
+    cache_f.write_text("[]", encoding="utf-8")
+    win._on_clear_cache()                   # noqa: SLF001
+    assert not cache_f.exists(), "کش تقویم باید پاک شود"
+
+    # بازنشانی: تنظیمات مدیریت‌شده → پیش‌فرض؛ تلگرام دست‌نخورده
+    save_local_config({"telegram": {"bot_token": "TOKEN-BAYAD-BEMUNAD"}})
+    win._reset_settings_now()               # noqa: SLF001
+    cfg3 = load_config()
+    assert cfg3["judge"]["enabled"] is True and cfg3["judge"]["min_score"] == 7
+    assert cfg3["judge"]["veto"]["weekend"] is True
+    assert cfg3["ui"]["user_name"] == base_cfg["ui"]["user_name"]
+    assert win.user_name == base_cfg["ui"]["user_name"], "هدر باید به نام پیش‌فرض برگردد"
+    assert cfg3["telegram"]["bot_token"] == "TOKEN-BAYAD-BEMUNAD", \
+        "بازنشانی نباید تلگرام را پاک کند"
+
     win.close()
     print(f"SELFTEST OK — فونت: {fam} | صفحات: {win.pages.count()} | "
-          f"آیکون‌ها/داور/رندر سالم | نسخه {app_paths.APP_VERSION}")
+          f"آیکون‌ها/داور/رندر/تنظیمات سالم | نسخه {app_paths.APP_VERSION}")
     return 0
 
 

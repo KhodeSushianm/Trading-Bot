@@ -31,3 +31,12 @@ Thumbs.db
 build/
 dist/
 installer/Output/
+
+# باقی‌ماندهٔ ساخت اندروید (شاخهٔ android فایل .gitignore خودش را دارد؛
+# این قاعده‌ها برای وقتی است که پوشهٔ android/ در workspace باز است)
+.gradle/
+android/.gradle/
+android/keystore/
+android/keystore.properties
+android/local.properties
+tests/js/fixtures.json

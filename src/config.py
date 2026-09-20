@@ -156,3 +156,37 @@ def save_local_config(updates: dict) -> None:
     _deep_merge(data, updates)
     with open(lp, "w", encoding="utf-8") as f:
         yaml.safe_dump(data, f, allow_unicode=True, sort_keys=False)
+
+
+def prune_local_config(managed: dict) -> None:
+    """حذف کلیدهای مدیریت‌شده از config.local.yaml — برای «بازنشانی تنظیمات».
+
+    `managed` نگاشتِ بخش → فهرست کلیدهاست، مثلاً:
+        {"ui": ["user_name", "splash"], "judge": ["enabled", "veto"], ...}
+
+    فقط همان کلیدها حذف می‌شوند (بقیهٔ محتوا — مثل توکن تلگرام — دست‌نخورده
+    می‌ماند) و بخش‌هایی که خالی شوند در سطح بالا پاک می‌شوند. بعد از حذف،
+    مقادیر config.yaml (یا پیش‌فرض‌ها) دوباره اثر می‌کنند.
+    """
+    lp = app_paths.local_config_path()
+    if not lp.exists():
+        return
+    try:
+        with open(lp, encoding="utf-8") as f:
+            data = yaml.safe_load(f) or {}
+    except Exception:
+        return
+    changed = False
+    for section, keys in (managed or {}).items():
+        sec = data.get(section)
+        if not isinstance(sec, dict):
+            continue
+        for k in keys:
+            if k in sec:
+                del sec[k]
+                changed = True
+        if not sec:
+            del data[section]
+    if changed:
+        with open(lp, "w", encoding="utf-8") as f:
+            yaml.safe_dump(data, f, allow_unicode=True, sort_keys=False)

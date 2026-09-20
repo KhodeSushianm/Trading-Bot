@@ -11,6 +11,8 @@
   LineChart   نمودار خطی نرم با حبابِ نقطهٔ اوج
   DashedCard  جای‌نگهدار خط‌چین (مثل + Add task)
   Toast       اعلان تیره به سبک منوی kontekstی رفرنس
+  ToggleSwitch  سوئیچ روشن/خاموش مونوکروم (آینهٔ سوئیچ‌های نسخهٔ اندروید)
+  Stepper       قدم‌شمار عددی −/+ با ارقام فارسی (آینهٔ نسخهٔ اندروید)
 
 ⚠️ سایه‌ها عمداً با نقاشی لایه‌لایه ساخته می‌شوند، نه با QGraphicsDropShadowEffect:
    اثرهای گرافیکیِ باقی‌مانده قبلاً عامل باگ «صفحه سیاه تا درگ» بودند.
@@ -20,10 +22,11 @@ from __future__ import annotations
 import math
 from typing import Optional
 
-from PySide6.QtCore import (QPoint, QPointF, QRect, QRectF, QSize, Qt, QTimer,
-                            Signal)
+from PySide6.QtCore import (QEasingCurve, QPoint, QPointF, QRect, QRectF, QSize,
+                            Qt, QTimer, QVariantAnimation, Signal)
 from PySide6.QtGui import QColor, QFont, QPainter, QPainterPath, QPen
-from PySide6.QtWidgets import (QFrame, QHBoxLayout, QLabel, QSizePolicy, QToolButton,
+from PySide6.QtWidgets import (QAbstractButton, QFrame, QHBoxLayout, QLabel,
+                               QPushButton, QSizePolicy, QToolButton,
                                QVBoxLayout, QWidget)
 
 from . import effects, icons
@@ -583,3 +586,154 @@ class Toast(QFrame):
 
     def dismiss(self) -> None:
         effects.fade(self, 1.0, 0.0, effects.DUR_FAST, on_finished=self.hide)
+
+
+# ══════════════════════════════════════════════════════════════
+#  کنترل‌های تنظیمات (آینهٔ نسخهٔ اندروید)
+# ══════════════════════════════════════════════════════════════
+def _mix(a: QColor, b: QColor, t: float) -> QColor:
+    """مخلوط خطی دو رنگ (t=0 → a، t=1 → b) — برای انیمیشن سوئیچ."""
+    t = max(0.0, min(1.0, t))
+    return QColor(int(a.red() + (b.red() - a.red()) * t),
+                  int(a.green() + (b.green() - a.green()) * t),
+                  int(a.blue() + (b.blue() - a.blue()) * t))
+
+
+class ToggleSwitch(QAbstractButton):
+    """سوئیچ روشن/خاموش مونوکروم — آینهٔ دقیق سوئیچ CSS نسخهٔ اندروید.
+
+    خاموش = ریل خاکستری با دستگیره در سمت راست؛ روشن = ریل مشکی با دستگیره‌ای
+    که به سمت چپ سر می‌خورد (همان جهت فیزیکی در RTL). حرکت دستگیره انیمیشن
+    کوتاه ۱۸۰ms است و با `ui.animations=false` آنی می‌شود.
+
+    مثل QCheckBox با `setChecked`/`isChecked`/سیگنال `toggled` کار می‌کند، پس
+    کد پنل هیچ تفاوتی با یک چک‌باکس معمولی نمی‌بیند.
+    """
+
+    W, H = 46, 27          # هم‌اندازهٔ .switch در style.css اندروید
+    KNOB = 21
+    PAD = 3
+
+    def __init__(self, parent=None, t: Theme = DARK, checked: bool = False):
+        super().__init__(parent)
+        self._t = t
+        self.setCheckable(True)
+        self.setFixedSize(self.W, self.H)
+        self.setCursor(Qt.PointingHandCursor)
+        self._pos = 1.0 if checked else 0.0
+        self.setChecked(checked)
+        self._anim = QVariantAnimation(self)
+        self._anim.setDuration(180)                       # مانند transition .18s
+        self._anim.setEasingCurve(QEasingCurve.Type.OutCubic)
+        self._anim.valueChanged.connect(self._on_anim)
+        self.toggled.connect(self._animate)
+
+    # ── انیمیشن ──────────────────────────────────────────────
+    def _on_anim(self, v) -> None:
+        self._pos = float(v)
+        self.update()
+
+    def _animate(self, _checked: bool) -> None:
+        target = 1.0 if self.isChecked() else 0.0
+        self._anim.stop()
+        if not effects.ANIMATIONS:
+            self._pos = target
+            self.update()
+            return
+        self._anim.setStartValue(self._pos)
+        self._anim.setEndValue(target)
+        self._anim.start()
+
+    # ── نقاشی ────────────────────────────────────────────────
+    def paintEvent(self, ev) -> None:      # noqa: N802
+        p = QPainter(self)
+        p.setRenderHint(QPainter.Antialiasing, True)
+        t = self._pos
+        # ریل: خاکستری (خاموش) → مشکی جوهری (روشن)
+        track = _mix(QColor(self._t.border_strong), QColor(self._t.ink_card), t)
+        r = QRectF(self.rect()).adjusted(0.5, 0.5, -0.5, -0.5)
+        p.setPen(QPen(track, 1))
+        p.setBrush(track)
+        p.drawRoundedRect(r, r.height() / 2, r.height() / 2)
+        # دستگیره: دایرهٔ سفید با سایهٔ ظریف؛ از راست (خاموش) به چپ (روشن)
+        d = float(self.KNOB)
+        x0 = self.W - self.PAD - d                        # جای خاموش (سمت راست)
+        x1 = float(self.PAD)                              # جای روشن (سمت چپ)
+        x = x0 + (x1 - x0) * t
+        y = (self.H - d) / 2.0
+        p.setPen(Qt.NoPen)
+        p.setBrush(QColor(0, 0, 0, 45))
+        p.drawEllipse(QRectF(x, y + 1.0, d, d))
+        p.setBrush(QColor("#FFFFFF"))
+        p.drawEllipse(QRectF(x, y, d, d))
+        p.end()
+
+
+class Stepper(QWidget):
+    """قدم‌شمار عددی −/+ — آینهٔ `.stepper` نسخهٔ اندروید.
+
+    مقدار همیشه در بازهٔ [lo, hi] clamp می‌شود و نمایش با ارقام فارسی است.
+    هر تغییر واقعی، سیگنال `valueChanged(int)` را منتشر می‌کند. `unit`
+    برچسب کوچک واحد (مثل «دقیقه») کنار دکمه‌ها اضافه می‌کند.
+    """
+
+    valueChanged = Signal(int)
+
+    _BTN_QSS = ("QPushButton {{ background:{bg}; border:1px solid {bd};"
+                " border-radius:{r}px; color:{fg}; font-size:17px;"
+                " font-weight:700; padding:0; }}"
+                " QPushButton:hover {{ color:{hov}; background:{hbg}; }}"
+                " QPushButton:pressed {{ background:{pbg}; }}")
+
+    def __init__(self, lo: int, hi: int, value: Optional[int] = None, step: int = 1,
+                 unit: str = "", parent=None, t: Theme = DARK):
+        super().__init__(parent)
+        self._t = t
+        self._lo, self._hi = int(lo), int(hi)
+        self._step = max(1, int(step))
+        self._value = self._lo if value is None else self._clamp(value)
+        h = QHBoxLayout(self)
+        h.setContentsMargins(0, 0, 0, 0)
+        h.setSpacing(4)
+        self._minus = self._mk_btn("−")
+        self._plus = self._mk_btn("+")
+        self._label = QLabel(fa_num(self._value))
+        self._label.setMinimumWidth(34)
+        self._label.setAlignment(Qt.AlignCenter)
+        self._label.setStyleSheet(
+            f"color:{t.text}; font-size:15px; font-weight:700; background:transparent;")
+        h.addWidget(self._minus)
+        h.addWidget(self._label)
+        h.addWidget(self._plus)
+        if unit:
+            u = QLabel(unit)
+            u.setStyleSheet(f"color:{t.text_3}; font-size:{Type.CAPTION}px;"
+                            " background:transparent;")
+            h.addWidget(u)
+        self._minus.clicked.connect(lambda: self.setValue(self._value - self._step))
+        self._plus.clicked.connect(lambda: self.setValue(self._value + self._step))
+
+    def _mk_btn(self, text: str) -> QPushButton:
+        b = QPushButton(text)
+        b.setFixedSize(34, 34)
+        b.setCursor(Qt.PointingHandCursor)
+        t = self._t
+        b.setStyleSheet(self._BTN_QSS.format(
+            bg=t.card, bd=t.border_strong, r=17, fg=t.text_2,
+            hov=t.text, hbg=t.card_hover, pbg=t.raised))
+        return b
+
+    def _clamp(self, v) -> int:
+        return max(self._lo, min(self._hi, int(v)))
+
+    # ── API ──────────────────────────────────────────────────
+    def value(self) -> int:
+        return self._value
+
+    def setValue(self, v, silent: bool = False) -> None:
+        v = self._clamp(v)
+        changed = v != self._value
+        self._value = v
+        self._label.setText(fa_num(v))
+        if changed and not silent:
+            self.valueChanged.emit(v)

@@ -161,6 +161,12 @@ QScrollArea#pagescroll > QWidget > QWidget {{ background: transparent; }}
 /* ── کارت‌ها (بدنه توسط SoftCard کشیده می‌شود؛ QSS فقط محتوای متنی) ── */
 QLabel#cardtitle {{ color: {t.text}; font-size: {Type.SECTION}px; font-weight: 700; }}
 QLabel#cardsub {{ color: {t.text_3}; font-size: {Type.CAPTION}px; }}
+
+/* ── ردیف‌های تنظیمات (آینهٔ .set-row نسخهٔ اندروید) ─────────── */
+QWidget#setrow {{ background: transparent; }}
+QLabel#setlabel {{ color: {t.text}; font-size: {Type.BODY}px; font-weight: 600; }}
+QLabel#setsub {{ color: {t.text_3}; font-size: {Type.CAPTION}px; }}
+QFrame#setdivider {{ background-color: {t.divider}; border: none; }}
 QLabel#ink_title {{ color: {t.on_ink}; font-size: {Type.SECTION}px; font-weight: 700; }}
 QLabel#ink_sub {{ color: {t.rgba("#FFFFFF", 0.55)}; font-size: {Type.CAPTION}px; }}
 QLabel#ink_num {{ color: {t.on_ink}; font-size: {Type.STAT}px; font-weight: 800; }}

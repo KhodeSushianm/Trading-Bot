@@ -57,6 +57,8 @@ ICONS: dict[str, tuple[str, bool]] = {
     "user":      ('<path d="M19.5 20.5v-1.8a4 4 0 0 0-4-4h-7a4 4 0 0 0-4 4v1.8"/>'
                   '<circle cx="12" cy="7.3" r="3.9"/>', False),
     "x":         ('<path d="M17.5 6.5 6.5 17.5M6.5 6.5l11 11"/>', False),
+    "eye":       ('<path d="M2.5 12S6 5.8 12 5.8 21.5 12 21.5 12 18 18.2 12 18.2 2.5 12 2.5 12z"/>'
+                  '<circle cx="12" cy="12" r="3.1"/>', False),
     "file_cfg":  ('<path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/>'
                   '<path d="M14 3v5h5"/><path d="M10.2 14.6a2 2 0 1 0 3.6 0M12 12.6v-1"/>', False),
     # لوگو — دایره با خط صعودی داخلش (نماد تحلیل)
@@ -73,6 +75,7 @@ _FALLBACK_GLYPHS = {
     "send": "➤", "shield": "⛨", "bell": "🔔", "folder": "🗁", "chart": "▮",
     "trend_up": "↗", "trend_down": "↘", "clock": "◷", "zap": "⚡", "info": "ⓘ",
     "check": "✓", "alert": "⚠", "user": "◉", "x": "✕", "file_cfg": "⚙", "logo": "◍",
+    "eye": "⊙",
 }
 
 
