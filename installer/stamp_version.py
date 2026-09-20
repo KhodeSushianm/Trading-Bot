@@ -59,6 +59,11 @@ def read_app_version() -> str:
 
 
 def main(argv: list[str]) -> int:
+    # کنسول ویندوز cp1252 است؛ بدون این خط، چاپ نویسه‌های غیرلاتین کرش می‌کند
+    try:
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    except Exception:
+        pass
     v = (argv[1] if len(argv) > 1 else "").strip().lstrip("vV")
     if not re.fullmatch(r"\d+\.\d+\.\d+(?:[.\-+][0-9A-Za-z.\-]+)?", v):
         v = read_app_version()
@@ -68,7 +73,7 @@ def main(argv: list[str]) -> int:
         nums.append(0)
     tup = ", ".join(str(n) for n in nums)
     OUT.write_text(_TEMPLATE.format(ver=v, tup=tup), encoding="utf-8")
-    print(f"[stamp_version] version_info.txt ← {v}  ({tup})")
+    print(f"[stamp_version] version_info.txt <- {v}  ({tup})")
     return 0
 
 
