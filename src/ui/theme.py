@@ -128,7 +128,9 @@ QToolTip {{
 QFrame#header {{ background: transparent; border: none; }}
 QLabel#greet {{ color: {t.text}; font-size: {Type.GREET}px; font-weight: 800; }}
 QLabel#appsub {{ color: {t.text_3}; font-size: {Type.CAPTION}px; }}
-QLabel#clock {{ color: {t.text_3}; font-size: {Type.CAPTION}px; font-family: {mono}; }}
+/* ساعت ارقام فارسی دارد؛ خانوادهٔ mono روی ویندوز برای گلیف‌های فارسی
+   قابل اتکا نیست → فونت برنامه (Vazirmatn) کافی است. */
+QLabel#clock {{ color: {t.text_3}; font-size: {Type.CAPTION}px; }}
 
 /* ── سایدبار شناور ───────────────────────────────────────── */
 QFrame#navcard {{ background: transparent; border: none; }}
@@ -152,12 +154,16 @@ QLabel#navsection {{
 QLabel#pagetitle {{ color: {t.text}; font-size: {Type.TITLE}px; font-weight: 800; }}
 QLabel#pagesub {{ color: {t.text_3}; font-size: {Type.CAPTION}px; }}
 
+/* اسکرول‌-area شفاف داشبورد (ضد سرریز چیدمان در پنجره‌های کوچک) */
+QScrollArea#pagescroll {{ background: transparent; border: none; }}
+QScrollArea#pagescroll > QWidget > QWidget {{ background: transparent; }}
+
 /* ── کارت‌ها (بدنه توسط SoftCard کشیده می‌شود؛ QSS فقط محتوای متنی) ── */
 QLabel#cardtitle {{ color: {t.text}; font-size: {Type.SECTION}px; font-weight: 700; }}
 QLabel#cardsub {{ color: {t.text_3}; font-size: {Type.CAPTION}px; }}
 QLabel#ink_title {{ color: {t.on_ink}; font-size: {Type.SECTION}px; font-weight: 700; }}
 QLabel#ink_sub {{ color: {t.rgba("#FFFFFF", 0.55)}; font-size: {Type.CAPTION}px; }}
-QLabel#ink_num {{ color: {t.on_ink}; font-size: {Type.STAT}px; font-weight: 800; font-family: {mono}; }}
+QLabel#ink_num {{ color: {t.on_ink}; font-size: {Type.STAT}px; font-weight: 800; }}
 QLabel#ink_cap {{ color: {t.rgba("#FFFFFF", 0.55)}; font-size: {Type.CAPTION}px; }}
 
 /* ── کاشی‌های خاکستری داخل کارت مشکی (مثل 28/14/11 رفرنس) ─── */
@@ -165,11 +171,11 @@ QFrame#inktile {{
     background-color: {t.ink_tile};
     border: none; border-radius: 14px;
 }}
-QLabel#tile_num {{ color: {t.on_ink}; font-size: 20px; font-weight: 800; font-family: {mono}; }}
+QLabel#tile_num {{ color: {t.on_ink}; font-size: 20px; font-weight: 800; }}
 QLabel#tile_cap {{ color: {t.rgba("#FFFFFF", 0.5)}; font-size: {Type.CAPTION - 1}px; }}
 
 /* ── کارت آمار روشن ──────────────────────────────────────── */
-QLabel#statnum {{ color: {t.text}; font-size: 24px; font-weight: 800; font-family: {mono}; }}
+QLabel#statnum {{ color: {t.text}; font-size: 24px; font-weight: 800; }}
 QLabel#statnum[tone="green"] {{ color: {t.green_text}; }}
 QLabel#statnum[tone="red"]   {{ color: {t.red_text}; }}
 QLabel#statlabel {{ color: {t.text_3}; font-size: {Type.CAPTION}px; }}

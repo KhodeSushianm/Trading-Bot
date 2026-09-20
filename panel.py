@@ -25,14 +25,16 @@ import time
 from pathlib import Path
 
 from PySide6.QtCore import QSize, Qt, QTimer
-from PySide6.QtGui import QFont, QFontDatabase, QIcon, QPainter, QPixmap
-from PySide6.QtWidgets import (QApplication, QCheckBox, QHBoxLayout, QLabel,
+from PySide6.QtGui import QColor, QFont, QFontDatabase, QIcon, QPainter, QPixmap
+from PySide6.QtWidgets import (QApplication, QCheckBox, QFrame, QHBoxLayout, QLabel,
                                QLineEdit, QMainWindow, QMessageBox, QPlainTextEdit,
-                               QPushButton, QStackedWidget, QVBoxLayout, QWidget)
+                               QPushButton, QScrollArea, QStackedWidget,
+                               QVBoxLayout, QWidget)
 
 from src import app_paths
 from src.config import load_config, save_local_config
 from src.engine import BotLoop, check_event_alerts, run_briefing, run_cycle
+from src.fa import fa_countdown
 from src.notify import telegram
 from src.ui import dwm, effects, icons
 from src.ui.backdrop import paint_glass, render_backdrop
@@ -43,10 +45,27 @@ from src.ui.widgets import (Card, DashedCard, InkCard, LineChart, NavRail, RingG
 
 _FA_DIGITS = str.maketrans("0123456789", "۰۱۲۳۴۵۶۷۸۹")
 T = DARK
+# رنگ متن کارت مشکی در کد ست می‌شود؛ QSS روی برخی پلتفرم‌ها (ویندوز)
+# به برچسب‌های فرزند القا نمی‌شود و متن سیاه روی سیاه نامرئی می‌ماند.
+_INK_TITLE = f"color: {T.on_ink};"
+_INK_CAP = f"color: {T.rgba('#FFFFFF', 0.55)};"
 
 
 def fa(text) -> str:
     return str(text).translate(_FA_DIGITS)
+
+
+def _dot_pixmap(color: str, size: int = 10) -> QPixmap:
+    """نقطهٔ رنگی به‌جای ایموجی — پالت تک‌رنگ/معنایی و رندر یکسان روی همهٔ پلتفرم‌ها."""
+    pm = QPixmap(size, size)
+    pm.fill(Qt.transparent)
+    p = QPainter(pm)
+    p.setRenderHint(QPainter.Antialiasing, True)
+    p.setPen(Qt.NoPen)
+    p.setBrush(QColor(color))
+    p.drawEllipse(1, 1, size - 2, size - 2)
+    p.end()
+    return pm
 
 
 def load_fonts() -> str:
@@ -306,7 +325,8 @@ class MainWindow(QMainWindow):
         for w in (self._page_dash(), self._page_signals(), self._page_report(),
                   self._page_fund(), self._page_brief(), self._page_live(),
                   self._page_journal(), self._page_settings()):
-            w.setObjectName("page")
+            if w.objectName() != "pagescroll":      # داشبورد خودش نام دارد
+                w.setObjectName("page")
             self.pages.addWidget(w)
         return self.pages
 
@@ -336,12 +356,12 @@ class MainWindow(QMainWindow):
 
         hero = InkCard("نمای کلی", "", t=T)
         htop = QHBoxLayout()
-        self.status_pill = StatusPill(t=T)
-        self.status_pill.setProperty("onink", "true")
+        self.status_pill = StatusPill(t=T, onink=True)
         htop.addWidget(self.status_pill)
         htop.addStretch(1)
         self.last_run_lbl = QLabel("—")
         self.last_run_lbl.setObjectName("ink_cap")
+        self.last_run_lbl.setStyleSheet(_INK_CAP)
         htop.addWidget(self.last_run_lbl)
         hero.add_layout(htop)
         nums = QHBoxLayout()
@@ -349,15 +369,19 @@ class MainWindow(QMainWindow):
         n1 = QVBoxLayout()
         self.hero_signals = QLabel("۰")
         self.hero_signals.setObjectName("ink_num")
+        self.hero_signals.setStyleSheet(_INK_TITLE)
         c1 = QLabel("سیگنال کل")
         c1.setObjectName("ink_cap")
+        c1.setStyleSheet(_INK_CAP)
         n1.addWidget(self.hero_signals)
         n1.addWidget(c1)
         n2 = QVBoxLayout()
         self.hero_veto = QLabel("۰")
         self.hero_veto.setObjectName("ink_num")
+        self.hero_veto.setStyleSheet(_INK_TITLE)
         c2 = QLabel("وتوی فعال")
         c2.setObjectName("ink_cap")
+        c2.setStyleSheet(_INK_CAP)
         n2.addWidget(self.hero_veto)
         n2.addWidget(c2)
         nums.addLayout(n1)
@@ -366,6 +390,7 @@ class MainWindow(QMainWindow):
         hero.add_layout(nums)
         self.veto_lbl = QLabel("")
         self.veto_lbl.setObjectName("ink_sub")
+        self.veto_lbl.setStyleSheet(_INK_CAP)
         self.veto_lbl.setWordWrap(True)
         hero.add_widget(self.veto_lbl)
         tiles = QHBoxLayout()
@@ -436,7 +461,17 @@ class MainWindow(QMainWindow):
         self.ev_cards_lay.addStretch(1)
         lay.addLayout(self.ev_cards_lay)
         lay.addStretch(1)
-        return w
+
+        # ظرف اسکرول: در پنجره‌های کوچک‌تر یا مقیاس‌دهی DPI ویندوز، محتوا به‌جای
+        # فشرده‌شدن/سرریز از کارت‌ها، عمودی اسکرول می‌شود (افقی هرگز).
+        w.setObjectName("page")
+        scroll = QScrollArea()
+        scroll.setObjectName("pagescroll")
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QFrame.NoFrame)
+        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        scroll.setWidget(w)
+        return scroll
 
     # ── سایر صفحه‌ها ──────────────────────────────────────────
     def _page_signals(self) -> QWidget:
@@ -722,13 +757,29 @@ class MainWindow(QMainWindow):
                 tl = QLabel(u["title_fa"])
                 tl.setObjectName("ink_title")
                 tl.setWordWrap(True)
-                sb = QLabel(f"{u['country_fa']}  ·  {fa(abs(u['minutes']))} دقیقهٔ دیگر")
+                tl.setStyleSheet(_INK_TITLE)
+                sb = QLabel(f"{u['country_fa']}  ·  {fa_countdown(u['minutes'])}")
                 sb.setObjectName("ink_sub")
-                imp = QLabel("🔴 پراثر" if u["impact"] == "HIGH" else "🟠 متوسط")
+                sb.setWordWrap(True)
+                sb.setStyleSheet(_INK_CAP)
+                # نشانگر اثر: نقطهٔ نقاشی‌شده در کد به‌جای ایموجی (پالت + کراس‌پلتفرم)
+                high = u["impact"] == "HIGH"
+                imp_row = QHBoxLayout()
+                imp_row.setSpacing(6)
+                dot = QLabel()
+                dot.setFixedSize(10, 10)
+                dot.setPixmap(_dot_pixmap("#FF5D5D" if high
+                                          else T.rgba("#FFFFFF", 0.45), 10))
+                imp_row.addWidget(dot, 0, Qt.AlignVCenter)
+                imp = QLabel("پراثر" if high else "متوسط")
                 imp.setObjectName("ink_cap")
+                imp.setStyleSheet("color: #FF9A9A;" if high
+                                  else f"color: {T.rgba('#FFFFFF', 0.60)};")
+                imp_row.addWidget(imp, 0, Qt.AlignVCenter)
+                imp_row.addStretch(1)
                 ic.add_widget(tl)
                 ic.add_widget(sb)
-                ic.add_widget(imp)
+                ic.add_layout(imp_row)
                 self.ev_cards_lay.addWidget(ic, 1)
 
     # ── اقدام‌ها ──────────────────────────────────────────────

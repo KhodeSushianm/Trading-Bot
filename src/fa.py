@@ -45,3 +45,21 @@ def fa_pips(v: float, pip: float, is_gold: bool = False) -> str:
     if is_gold or pip >= 0.5:
         return f"{fa_num(f'{v:.0f}')} $"
     return f"{fa_num(f'{v / pip:.0f}')} پیپ"
+
+
+def fa_countdown(minutes) -> str:
+    """زمان باقی‌مانده تا رویداد به شکل خوانا (نه دقیقهٔ خام بزرگ).
+
+    زیر ۱ ساعت → «۲۵ دقیقهٔ دیگر»
+    زیر ۱ روز  → «۴ ساعت و ۱۲ دقیقهٔ دیگر»
+    بیشتر      → «۲ روز دیگر»
+    """
+    m = abs(int(minutes))
+    if m < 60:
+        return f"{fa_num(m)} دقیقهٔ دیگر"
+    if m < 24 * 60:
+        h, mm = divmod(m, 60)
+        if not mm:
+            return f"{fa_num(h)} ساعت دیگر"
+        return f"{fa_num(h)} ساعت و {fa_num(mm)} دقیقهٔ دیگر"
+    return f"{fa_num(m // (24 * 60))} روز دیگر"

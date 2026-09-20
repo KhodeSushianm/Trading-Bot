@@ -17,6 +17,7 @@
 """
 from __future__ import annotations
 
+import math
 from typing import Optional
 
 from PySide6.QtCore import (QPoint, QPointF, QRect, QRectF, QSize, Qt, QTimer,
@@ -27,6 +28,7 @@ from PySide6.QtWidgets import (QFrame, QHBoxLayout, QLabel, QSizePolicy, QToolBu
 
 from . import effects, icons
 from .theme import DARK, Space, Theme, Type
+from ..fa import fa_num
 
 
 # ══════════════════════════════════════════════════════════════
@@ -138,11 +140,15 @@ class InkCard(SoftCard):
         if title:
             ttl = QLabel(title)
             ttl.setObjectName("ink_title")
+            # رنگ در کد: روی برخی پلتفرم‌ها QSS برای برچسب‌های داخل کارت
+            # مشکی قابل اتکا نیست (متن سیاه روی سیاه = نامرئی)
+            ttl.setStyleSheet(f"color: {t.on_ink};")
             self._lay.addWidget(ttl)
         if sub:
             sb = QLabel(sub)
             sb.setObjectName("ink_sub")
             sb.setWordWrap(True)
+            sb.setStyleSheet(f"color: {t.rgba('#FFFFFF', 0.55)};")
             self._lay.addWidget(sb)
 
 
@@ -160,9 +166,11 @@ class StatTile(QFrame):
         self._num = QLabel(value)
         self._num.setObjectName("tile_num")
         self._num.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
+        self._num.setStyleSheet(f"color: {t.on_ink};")
         cap = QLabel(label)
         cap.setObjectName("tile_cap")
         cap.setWordWrap(True)
+        cap.setStyleSheet(f"color: {t.rgba('#FFFFFF', 0.5)};")
         lay.addWidget(self._num)
         lay.addWidget(cap)
         self._tone = tone
@@ -183,11 +191,16 @@ class StatTile(QFrame):
 class StatusPill(QFrame):
     COLORS = {"idle": None, "ok": "#1F9D66", "busy": "#FFFFFF", "err": "#D64545"}
     TEXT = {"idle": "متوقف", "ok": "در حال اجرا", "busy": "در حال تحلیل…", "err": "خطا"}
+    # رنگ متن برچسب — QSS رنگ را به فرزند القا نمی‌کند، پس در کد ست می‌شود
+    TXT_ONINK = {"ok": "#7BE0B0", "err": "#FF9A9A"}
 
-    def __init__(self, parent=None, t: Theme = DARK):
+    def __init__(self, parent=None, t: Theme = DARK, onink: bool = False):
         super().__init__(parent)
         self.setObjectName("statuspill")
         self._t = t
+        self._onink = onink
+        if onink:
+            self.setProperty("onink", "true")
         lay = QHBoxLayout(self)
         lay.setContentsMargins(14, 7, 16, 7)
         lay.setSpacing(Space.SM)
@@ -203,6 +216,24 @@ class StatusPill(QFrame):
         self._state = ""
         self.set_state("idle")
 
+    def _text_color(self, state: str) -> str:
+        t = self._t
+        if self._onink:
+            if state == "ok":
+                return self.TXT_ONINK["ok"]
+            if state == "err":
+                return self.TXT_ONINK["err"]
+            if state == "busy":
+                return t.on_ink
+            return t.rgba("#FFFFFF", 0.72)
+        if state == "ok":
+            return t.green_text
+        if state == "err":
+            return t.red_text
+        if state == "busy":
+            return t.text
+        return t.text_2
+
     def set_state(self, state: str, custom_text: str = "") -> None:
         text = custom_text or self.TEXT.get(state, state)
         if state == self._state and text == self._txt.text():
@@ -216,6 +247,7 @@ class StatusPill(QFrame):
         self._dot.set_color(color)
         self._dot.set_pulsing(state in ("ok", "busy"))
         self._txt.setText(text)
+        self._txt.setStyleSheet(f"color: {self._text_color(state)};")
 
 
 # ══════════════════════════════════════════════════════════════
@@ -298,8 +330,13 @@ class RingGauge(QWidget):
         self._t = t
         self._value = max(0.0, min(1.0, value))
         self._caption = caption
-        self.setMinimumSize(120, 120)
-        self.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
+        # اندازهٔ منعطف: در پنجره‌های کوچک جمع می‌شود تا از کارت بیرون نزند
+        self.setMinimumSize(84, 84)
+        self.setMaximumSize(220, 220)
+        self.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Preferred)
+
+    def sizeHint(self) -> QSize:     # noqa: N802
+        return QSize(132, 132)
 
     def set_value(self, v: float, caption: str = "") -> None:
         v = max(0.0, min(1.0, v))
@@ -330,14 +367,14 @@ class RingGauge(QWidget):
         p.setPen(QPen(QColor(t.ink_card), 6, Qt.SolidLine, Qt.RoundCap))
         p.drawArc(r, 90 * 16, -int(self._value * 360 * 16))
 
-        # متن مرکز
+        # متن مرکز (ارقام فارسی طبق قانون ارقام)
         p.setPen(QColor(t.text))
         f = QFont()
         f.setPixelSize(int(side * 0.20))
         f.setBold(True)
         p.setFont(f)
         p.drawText(QRectF(rect).adjusted(0, side * 0.30, 0, -side * 0.34).toRect(),
-                   Qt.AlignCenter, f"{int(round(self._value * 100))}٪")
+                   Qt.AlignCenter, f"{fa_num(int(round(self._value * 100)))}٪")
         if self._caption:
             p.setPen(QColor(t.text_3))
             f2 = QFont()
@@ -359,8 +396,9 @@ class LineChart(QWidget):
         self._t = t
         self._vals: list[float] = []
         self._labels: list[str] = []
-        self.setMinimumHeight(140)
-        self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
+        # حداقل ارتفاع کوچک: در پنجره‌های کوتاه، کارت را مجبور به سرریز نکند
+        self.setMinimumHeight(92)
+        self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
 
     def set_data(self, vals: list[float], labels: list[str]) -> None:
         if vals == self._vals and labels == self._labels:
@@ -432,14 +470,19 @@ class LineChart(QWidget):
         p.setPen(QColor(t.on_ink))
         p.drawText(QRectF(bx, by, tw, 18).toRect(), Qt.AlignCenter, bubble)
 
-        # برچسب محور
+        # برچسب محور — در عرض کم یکی‌درمیان تا هرگز همپوشانی نکنند
         p.setPen(QColor(t.text_3))
         f2 = QFont()
         f2.setPixelSize(Type.CAPTION)
         p.setFont(f2)
+        slot = w / (n - 1) if n > 1 else float(w)
+        k = max(1, math.ceil(40 / slot)) if slot > 0 else 1
         for i, lb in enumerate(self._labels[:n]):
+            if i % k:
+                continue
             x = pad_l + w * (i / (n - 1))
-            p.drawText(QRectF(x - 20, pad_t + h + 4, 40, 16).toRect(), Qt.AlignCenter, lb)
+            bx = min(max(x - 20, 0), max(0, self.width() - 40))
+            p.drawText(QRectF(bx, pad_t + h + 4, 40, 16).toRect(), Qt.AlignCenter, lb)
         p.end()
 
 
@@ -469,7 +512,8 @@ class DashedCard(QWidget):
         f.setPixelSize(Type.BODY)
         f.setBold(True)
         p.setFont(f)
-        p.drawText(self.rect(), Qt.AlignCenter, "+  " + self._label)
+        # علامت «+» با نشانهٔ RTL تا در چیدمان راست‌به‌چپ اولِ عبارت بماند
+        p.drawText(self.rect(), Qt.AlignCenter, "\u200F+  " + self._label)
         p.end()
 
 
