@@ -111,21 +111,35 @@ jobs:
           DEBUG_SMOKE: ${{ github.event.inputs.debug_smoke }}
         shell: pwsh
         run: |
-          # نکته: اینو ستاپ وقتی سطح دسترسی را عوض می‌کند (مثلاً رانر elevated +
-          # PrivilegesRequired=lowest) خودش را به‌صورت فرزندِ جدا (detached)
-          # دوباره اجرا می‌کند و پدر فوراً خارج می‌شود؛ پس کد خروج پدر بی‌معنی است.
-          # راه درست:.poll کردن روی فایل‌های مورد انتظار تا ظاهر/ناپدید شدنشان.
+          # دام شمارهٔ ۱: اینو ستاپ اگر پوشهٔ مسیر /LOG وجود نداشته باشد،
+          #   نمی‌تواند لاگ بسازد و بی‌سروصدا با «Setup failed to initialize»
+          #   (کد خروج 1) خارج می‌شود؛ پس اول $dir را می‌سازیم.
+          # دام شمارهٔ ۲: اگر اینو سطح دسترسی عوض کند، فرزند detached می‌سازد و
+          #   پدر فوراً خارج می‌شود؛ پس معیار اصلی poll روی فایل‌های نصب است و
+          #   کد خروج فقط برای شکستِ زودهنگامِ غیرصفر به کار می‌رود.
           $dir = Join-Path $env:RUNNER_TEMP "OdinSmokeTest"
+          if (Test-Path $dir) { Remove-Item $dir -Recurse -Force }
+          New-Item -ItemType Directory -Force -Path $dir | Out-Null
           $setup = Get-ChildItem installer\Output\*-setup.exe | Select-Object -First 1
           if (-not $setup) { throw "installer output missing" }
-          Start-Process -FilePath $setup.FullName -ArgumentList `
+          "launching: $($setup.FullName)"
+          "target dir: $dir"
+          $p = Start-Process -FilePath $setup.FullName -ArgumentList `
             "/VERYSILENT","/SUPPRESSMSGBOXES","/NORESTART","/NOICONS", `
-            "/DIR=$dir","/LOG=$dir\setup.log" | Out-Null
+            "/DIR=$dir","/LOG=$dir\setup.log" -PassThru
           $ok = $false
-          $deadline = (Get-Date).AddSeconds(150)
+          $deadline = (Get-Date).AddSeconds(240)
           while ((Get-Date) -lt $deadline) {
             if ((Test-Path "$dir\ODINAssistant.exe") -and (Test-Path "$dir\.installed") -and
                 (Test-Path "$dir\unins000.exe")) { $ok = $true; break }
+            if ($p.HasExited -and $p.ExitCode -ne 0) {
+              "---- evidence: dir listing ----"
+              Get-ChildItem $dir -Recurse -Force -ErrorAction SilentlyContinue |
+                Select-Object -First 40 -ExpandProperty FullName
+              "---- evidence: setup.log ----"
+              Get-Content "$dir\setup.log" -ErrorAction SilentlyContinue | Select-Object -Last 50
+              throw "setup exited early with code $($p.ExitCode)"
+            }
             Start-Sleep -Seconds 2
           }
           if (-not $ok) {
@@ -134,21 +148,26 @@ jobs:
               Select-Object -First 60 -ExpandProperty FullName
             "---- evidence: setup.log ----"
             Get-Content "$dir\setup.log" -ErrorAction SilentlyContinue | Select-Object -Last 50
-            throw "silent install did not produce artifacts in 150s"
+            throw "silent install did not produce artifacts in 240s"
           }
           "install artifacts OK"
-          Start-Process -FilePath "$dir\unins000.exe" -ArgumentList `
-            "/VERYSILENT","/NORESTART","/LOG=$dir\unins.log" | Out-Null
+          $u = Start-Process -FilePath "$dir\unins000.exe" -ArgumentList `
+            "/VERYSILENT","/NORESTART","/LOG=$dir\unins.log" -PassThru
           $gone = $false
-          $deadline = (Get-Date).AddSeconds(120)
+          $deadline = (Get-Date).AddSeconds(180)
           while ((Get-Date) -lt $deadline) {
             if (-not (Test-Path "$dir\ODINAssistant.exe")) { $gone = $true; break }
+            if ($u.HasExited -and $u.ExitCode -ne 0) {
+              "---- evidence: unins.log ----"
+              Get-Content "$dir\unins.log" -ErrorAction SilentlyContinue | Select-Object -Last 40
+              throw "uninstaller exited early with code $($u.ExitCode)"
+            }
             Start-Sleep -Seconds 2
           }
           if (-not $gone) {
             "---- evidence: unins.log ----"
             Get-Content "$dir\unins.log" -ErrorAction SilentlyContinue | Select-Object -Last 40
-            throw "silent uninstall did not remove the EXE in 120s"
+            throw "silent uninstall did not remove the EXE in 180s"
           }
           Start-Sleep -Seconds 3
           if (Test-Path "$dir\ODINAssistant.exe") { throw "uninstall left the EXE behind" }
