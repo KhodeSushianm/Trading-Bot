@@ -12,7 +12,7 @@
   var S = {
     cfg: null, settings: null, storage: null, journal: null,
     state: null, stats: null, tab: 'home', busy: false,
-    version: '0.11.0', lastBack: 0
+    version: '0.12.0', lastBack: 0
   };
   O.S = S;
 
@@ -545,7 +545,7 @@
     S.storage = O.makeStorage();
     loadSettings();
     S.journal = new O.Journal(S.storage);
-    try { S.version = (typeof ODINNative !== 'undefined' && ODINNative.getVersion()) || '0.11.0'; } catch (e) { }
+    try { S.version = (typeof ODINNative !== 'undefined' && ODINNative.getVersion()) || '0.12.0'; } catch (e) { }
     document.getElementById('splash-ver').textContent = 'v' + S.version + ' · android';
     applyUserName();
 

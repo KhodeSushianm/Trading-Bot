@@ -626,7 +626,7 @@
       '</div>';
 
     html += '<div class="card ink"><div class="ink-title">دربارهٔ دستیار اودین</div>' +
-      '<div class="ink-cap" style="margin-top:6px;line-height:2.2">نسخهٔ اندروید ' + O.faNum(S.version || '0.11.0') + ' — همراه نسخهٔ ویندوز (0.8.1)<br>' +
+      '<div class="ink-cap" style="margin-top:6px;line-height:2.2">نسخهٔ اندروید ' + O.faNum(S.version || '0.12.0') + ' — همراه نسخهٔ ویندوز (0.8.1)<br>' +
       '🕐 همهٔ ساعت‌های اپ به وقت تهران است (منطق داخلی موتور UTC — هماهنگ با نسخهٔ دسکتاپ).<br>' +
       '⚠️ <b style="color:#fff">غیرخودکار:</b> این اپ هیچ معامله‌ای انجام نمی‌دهد و به هیچ بروکری وصل نیست.</div>' +
       '<button class="btn ghost sm" data-tab="about" style="margin-top:10px;width:100%">ℹ️ دربارهٔ ما، حق نشر و اصالت برنامه ←</button></div>';
@@ -640,7 +640,7 @@
 
   // ── دربارهٔ ما (حق نشر، سازنده، اصالت امضا) ─────────────────
   O.renderAbout = function (S) {
-    var ver = S.version || '0.11.0';
+    var ver = S.version || '0.12.0';
     var html = '<div class="action-row"><button class="btn ghost" data-tab="settings">→ بازگشت</button></div>' +
       '<div class="page-title">ℹ️ دربارهٔ ما</div>' +
       '<div class="page-sub">سازنده، حق نشر و راهِ تشخیص نسخهٔ اصلی</div>';
@@ -653,31 +653,32 @@
       '<div style="font-size:17px;font-weight:800;color:#fff;margin-top:10px">دستیار اودین</div>' +
       '<div class="ink-cap" style="margin-top:4px">ODIN Assistant — نسخهٔ اندروید ' + O.faNum(ver) + '</div>' +
       '<div style="margin-top:12px;padding-top:12px;border-top:1px solid rgba(255,255,255,.14);font-size:12.5px;color:rgba(255,255,255,.85)">' +
-      'سازنده و توسعه‌دهنده: <b style="color:#fff">Sushian</b></div>' +
+      'سازنده و توسعه‌دهنده: <b style="color:#fff">Sushian Khoshkhani</b></div>' +
       '</div>';
 
     // حق نشر و مالکیت
     html += '<div class="card"><div class="section-title" style="margin-top:0">© حق نشر و مالکیت</div>' +
       '<div class="hint" style="line-height:2.3">' +
-      '<b dir="ltr" style="display:inline-block">© 2026 Sushian — All rights reserved.</b><br>' +
-      'کلیهٔ حقوق این نرم‌افزار محفوظ است. این برنامه و کد منبع آن — شامل موتور تحلیل، داور سیگنال، ژورنال و رابط کاربری — مالکیت انحصاری <b>Sushian</b> (سازندهٔ برنامه) است.<br>' +
+      '<b dir="ltr" style="display:inline-block">© 2026 Sushian Khoshkhani — All rights reserved.</b><br>' +
+      'کلیهٔ حقوق این نرم‌افزار محفوظ است. این برنامه و کد منبع آن — شامل موتور تحلیل، داور سیگنال، ژورنال و رابط کاربری — مالکیت انحصاری <b>Sushian Khoshkhani</b> (سازندهٔ برنامه) است.<br>' +
       'هرگونه کپی‌برداری، بازنشر، تغییر نام، تغییر برند یا عرضهٔ برنامه تحت عنوان شخصی دیگر — رایگان یا تجاری — بدون اجازهٔ کتبی سازنده <b>ممنوع</b> است و پیگرد قانونی دارد.' +
       '</div></div>';
 
     // امضای دیجیتال و اصالت نسخه
     html += '<div class="card"><div class="section-title" style="margin-top:0">🔏 امضای دیجیتال و اصالت نسخه</div>' +
       '<div class="hint" style="line-height:2.3">' +
-      'فایل نصبی (APK) رسمی این برنامه با گواهی دیجیتال به نام <b>Sushian</b> امضا شده است:' +
-      '<div dir="ltr" style="text-align:left;margin:8px 0;padding:8px 10px;background:var(--bg,#f4f4f7);border-radius:10px;font-family:monospace;font-size:11px">Subject: CN=Sushian, OU=ODIN Assistant, O=Sushian, C=IR</div>' +
-      'در مارکت‌ها و ابزارهای بررسی امضا، نام پابلیشر/امضاکنندهٔ نسخهٔ اصلی <b>Sushian</b> است. اگر نام دیگری دیدید، آن فایل <b>جعلی یا دست‌کاری‌شده</b> است — نصبش نکنید و گزارش دهید.<br>' +
-      'کلید امضای برنامه از نسخهٔ ۰.۱۱.۰ به نام Sushian صادر شده است.' +
+      'فایل نصبی (APK) رسمی این برنامه با گواهی دیجیتال به نام <b>Sushian Khoshkhani</b> امضا شده است:' +
+      '<div dir="ltr" style="text-align:left;margin:8px 0;padding:8px 10px;background:var(--bg,#f4f4f7);border-radius:10px;font-family:monospace;font-size:11px">Subject: CN=Sushian Khoshkhani, OU=ODIN Assistant, O=Sushian Khoshkhani, C=IR</div>' +
+      'در مارکت‌ها و ابزارهای بررسی امضا، نام پابلیشر/امضاکنندهٔ نسخهٔ اصلی <b>Sushian Khoshkhani</b> است. اگر نام دیگری دیدید، آن فایل <b>جعلی یا دست‌کاری‌شده</b> است — نصبش نکنید و گزارش دهید.<br>' +
+      'کلید امضای برنامه از نسخهٔ ۰.۱۲.۰ به نام Sushian Khoshkhani صادر شده است.' +
       '</div></div>';
 
-    // منبع رسمی
+    // منبع رسمی — بدون لینک بیرونی؛ نسخهٔ رسمی فقط مستقیم از سازنده
     html += '<div class="card"><div class="section-title" style="margin-top:0">🔗 منبع رسمی</div>' +
-      '<div class="hint" style="line-height:2.2">تنها منبع رسمی دریافت فایل نصبی، صفحهٔ Releases مخزن پروژه است:</div>' +
-      '<button class="btn ghost sm" data-ext="https://github.com/KhodeSushianm/Trading-Bot/releases" style="margin-top:8px;width:100%">github.com/KhodeSushianm/Trading-Bot ↗</button>' +
-      '</div>';
+      '<div class="hint" style="line-height:2.2">' +
+      'نسخهٔ رسمی برنامه فقط <b>مستقیماً از خودِ سازنده (Sushian Khoshkhani)</b> عرضه می‌شود.' +
+      'فایل نصبی را از واسطه‌ها، کانال‌ها یا صفحات متفرقه نگیرید؛ هر نسخه‌ای که امضای بالا را نداشته باشد رسمی نیست.' +
+      '</div></div>';
 
     // سلب مسئولیت (غیرخودکار)
     html += '<div class="card ink"><div class="ink-title">⚠️ غیرخودکار — سلب مسئولیت</div>' +

@@ -17,7 +17,7 @@ const O = ctx.ODIN;
 assert(O && typeof O.renderAbout === 'function', 'renderAbout missing');
 
 const S = {
-  version: '0.11.0',
+  version: '0.12.0',
   settings: {
     user_name: 'سوشیان', judge_enabled: true, min_score: 7, veto: {},
     fund_enabled: true, news_enabled: true, tv_enabled: true,
@@ -28,11 +28,15 @@ const S = {
 
 const about = O.renderAbout(S);
 assert(about.includes('دربارهٔ ما'), 'page title missing');
-assert(about.includes('Sushian'), 'creator name missing');
-assert(about.includes('© 2026 Sushian — All rights reserved.'), 'copyright line missing');
-assert(about.includes('CN=Sushian, OU=ODIN Assistant, O=Sushian, C=IR'), 'cert subject missing');
-assert(about.includes('۰.۱۱.۰'), 'persian version missing');
-assert(about.includes('KhodeSushianm/Trading-Bot/releases'), 'official source link missing');
+assert(about.includes('Sushian Khoshkhani'), 'creator name missing');
+assert(about.includes('© 2026 Sushian Khoshkhani — All rights reserved.'), 'copyright line missing');
+assert(about.includes('CN=Sushian Khoshkhani, OU=ODIN Assistant, O=Sushian Khoshkhani, C=IR'), 'cert subject missing');
+assert(about.includes('۰.۱۲.۰'), 'persian version missing');
+// برنامه با هدف فروش است — هیچ لینک دانلود/گیت‌هابی نباید در اپ باشد
+assert(!about.includes('github.com'), 'github link must be removed from about page');
+assert(!about.includes('KhodeSushianm'), 'repo link must be removed from about page');
+assert(!about.includes('data-ext'), 'external link button must be removed from about page');
+assert(about.includes('مستقیماً از خودِ سازنده'), 'official-source note (no link) missing');
 assert(about.includes('غیرخودکار'), 'disclaimer missing');
 
 const settings = O.renderSettings(S);
