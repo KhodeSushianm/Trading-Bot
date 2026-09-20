@@ -104,7 +104,7 @@ jobs:
 
       - name: Build installer (Inno Setup)
         shell: pwsh
-        run: & "${{ steps.iscc.outputs.path }}" /DAppVersion=${{ steps.ver.outputs.version }} installer\odin.iss
+        run: '& "${{ steps.iscc.outputs.path }}" /DAppVersion=${{ steps.ver.outputs.version }} installer\odin.iss'
 
       - name: Installer smoke test (silent install + uninstall)
         shell: pwsh
