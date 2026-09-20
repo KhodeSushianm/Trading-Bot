@@ -3,8 +3,8 @@
  * جریان تحلیل دقیقاً آینهٔ run_cycle دسکتاپ است:
  *   داده ← تحلیل تکنیکال ← قدرت ارزها ← تریدینگ‌ویو ← تقویم ← اخبار
  *   ← ژورنال (بستن سیگنال‌های باز) ← ⚖️ داور ← ثبت سیگنال‌ها (با کنترل اسپم)
- * تفاوت: تلگرام و حلقهٔ خودکار ندارد — اپ غیرخودکار است و هر تحلیل
- * فقط با لمس کاربر اجرا می‌شود.
+ * تفاوت: تلگرام ندارد و هیچ معامله‌ای انجام نمی‌دهد. تازه‌سازی خودکار
+ * (اختیاری) فقط «تحلیل» را تکرار می‌کند — آن هم فقط وقتی اپ باز و بازار فعال است.
  */
 (function (O) {
   'use strict';
@@ -12,7 +12,7 @@
   var S = {
     cfg: null, settings: null, storage: null, journal: null,
     state: null, stats: null, tab: 'home', busy: false,
-    version: '0.9.0', lastBack: 0
+    version: '0.10.0', lastBack: 0
   };
   O.S = S;
 
@@ -24,7 +24,8 @@
       weekend: true, high_impact_event: true, timeframe_conflict: true,
       range_market: true, volatility_spike: true, breaking_news: true
     },
-    fund_enabled: true, news_enabled: true, tv_enabled: true
+    fund_enabled: true, news_enabled: true, tv_enabled: true,
+    auto_refresh_enabled: true, auto_refresh_min: 15, notify_enabled: true
   };
 
   function buildCfg() {
@@ -87,6 +88,27 @@
   function closeModal() { document.getElementById('modal-root').classList.add('hidden'); }
   O.modalOpen = function () { return !document.getElementById('modal-root').classList.contains('hidden'); };
 
+  // ── پل نیتیو (اعلان، اشتراک، ذخیره فایل، روشن‌نگه‌داشتن صفحه) ──
+  // همه با گارد: در مرورگر/تست بدون ODINNative بی‌صدا رد می‌شوند.
+  O.native = {
+    notify: function (title, body) {
+      try { if (typeof ODINNative !== 'undefined' && ODINNative.notify) ODINNative.notify(title, body); } catch (e) { }
+    },
+    share: function (subject, text) {
+      try {
+        if (typeof ODINNative !== 'undefined' && ODINNative.shareText) { ODINNative.shareText(subject, text); return true; }
+      } catch (e) { }
+      return false;
+    },
+    saveDownload: function (name, content) {
+      try { if (typeof ODINNative !== 'undefined' && ODINNative.saveDownload) return ODINNative.saveDownload(name, content); } catch (e) { }
+      return '';
+    },
+    keepScreenOn: function (on) {
+      try { if (typeof ODINNative !== 'undefined' && ODINNative.keepScreenOn) ODINNative.keepScreenOn(on); } catch (e) { }
+    }
+  };
+
   var progLog = null;
   function progressOpen(title) {
     progLog = document.getElementById('progress-log');
@@ -100,8 +122,8 @@
     if (!progLog) return;
     var d = document.createElement('div');
     d.className = 'ln';
-    var t = new Date();
-    d.textContent = '[' + O.hhmm(t) + ':' + String(t.getSeconds()).padStart(2, '0') + '] ' + msg;
+    var t = O.tehran(new Date());               // لاگ پیشرفت هم به وقت تهران
+    d.textContent = '[' + O.hhmm(t) + ':' + String(t.getUTCSeconds()).padStart(2, '0') + '] ' + msg;
     progLog.appendChild(d);
     progLog.scrollTop = progLog.scrollHeight;
   }
@@ -173,14 +195,20 @@
   };
 
   // ── چرخهٔ تحلیل ─────────────────────────────────────────────
-  O.runAnalysis = function () {
-    if (S.busy) { O.toast('تحلیل قبلی هنوز در جریان است'); return; }
+  // opts.silent → بدون پنجرهٔ پیشرفت و بدون پیام‌های اضافه (تازه‌سازی خودکار)
+  O.runAnalysis = function (opts) {
+    opts = opts || {};
+    var silent = !!opts.silent;
+    if (S.busy) { if (!silent) O.toast('تحلیل قبلی هنوز در جریان است'); return; }
     S.busy = true;
     var btn = document.getElementById('btn-analyze');
     if (btn) btn.disabled = true;
-    progressOpen('در حال تحلیل...');
+    if (silent) { progLog = null; }
+    else progressOpen('در حال تحلیل...');
+    O.native.keepScreenOn(true);              // تا پایان تحلیل، صفحه خاموش نشود
 
     var nowMs = Date.now();
+    var prevNewsSnap = S.state ? S.state.newsSnap : null;
     O.runPipeline(S.cfg, S.storage, progressLog).then(function (mkt) {
       var status = O.marketStatus(new Date(nowMs));
 
@@ -215,6 +243,7 @@
 
       // ثبت در ژورنال با کنترل اسپم (cooldown)
       var sentState = {};
+      var newSignals = [];                    // سیگنال‌های تازه (غیرتکراری) این چرخه — برای اعلان
       try { sentState = JSON.parse(S.storage.get('sent_signals.json') || '{}'); } catch (e) { }
       signals.forEach(function (sig) {
         var dec = O.shouldSendSignal(sentState, sig, S.cfg.judge, nowMs);
@@ -222,6 +251,7 @@
           try { S.journal.appendRec(O.signalToJournal(sig, dec.go)); } catch (e) { }
         }
         if (dec.go) {
+          newSignals.push(sig);
           sentState[sig.symbol + '|' + sig.direction] = { ts: new Date(nowMs).toISOString(), score: sig.score };
           progressLog('🎯 سیگنال ' + sig.symbol + ' (' + (sig.direction === 'BUY' ? 'خرید' : 'فروش') + ') در ژورنال ثبت شد');
         } else {
@@ -249,14 +279,38 @@
       S.stats = stats;
       try { S.storage.set('state.last', JSON.stringify(S.state)); } catch (e) { }
 
-      progressDone(mkt.errors > 0 && !mkt.analyses.length);
-      O.navigate(S.tab === 'settings' ? 'home' : S.tab);
+      // 🔔 اعلان اندروید: سیگنال تازه + خبر فوری (فقط در برابر چرخهٔ قبل)
+      if (S.settings.notify_enabled !== false) {
+        if (newSignals.length) {
+          var nTitle = newSignals.length === 1
+            ? '🎯 سیگنال جدید: ' + newSignals[0].symbol + ' (' + (newSignals[0].direction === 'BUY' ? 'خرید' : 'فروش') + ')'
+            : '🎯 ' + O.faNum(newSignals.length) + ' سیگنال جدید صادر شد';
+          var nBody = newSignals.slice(0, 3).map(function (sg) {
+            return sg.symbol + ' · امتیاز ' + O.faNum(sg.score) + '/۱۱ · ورود ' + O.fmtPrice(sg.entry, sg.pip) +
+              ' · حد ضرر ' + O.fmtPrice(sg.sl, sg.pip) + ' · هدف ' + O.fmtPrice(sg.tp, sg.pip);
+          }).join('\n') + '\n🕒 ' + O.faNum(O.hhmmTeh(new Date(nowMs))) + ' به وقت تهران — پیشنهاد است، نه دستور معامله';
+          O.native.notify(nTitle, nBody);
+        }
+        if (prevNewsSnap && mkt.newsSnap && mkt.newsSnap.ok) {
+          var seenBr = {};
+          (prevNewsSnap.ok ? prevNewsSnap.items : []).forEach(function (i) { if (i.breaking) seenBr[i.link] = 1; });
+          var freshBr = mkt.newsSnap.items.filter(function (i) { return i.breaking && !seenBr[i.link]; });
+          if (freshBr.length) {
+            O.native.notify('🚨 خبر فوری — ' + freshBr[0].source,
+              freshBr.slice(0, 2).map(function (i) { return O.headlineFa(i, 110); }).join('\n'));
+          }
+        }
+      }
+
+      if (!silent) progressDone(mkt.errors > 0 && !mkt.analyses.length);
+      if (!O.modalOpen()) O.navigate(S.tab === 'settings' ? 'home' : S.tab);
       O.renderHeaderStatus();
       if (!mkt.analyses.length) {
-        O.modal('❌ داده‌ای نرسید',
+        if (silent) O.toast('⚠️ تازه‌سازی خودکار: داده‌ای نرسید — اتصال اینترنت را بررسی کن');
+        else O.modal('❌ داده‌ای نرسید',
           'هیچ نمادی تحلیل نشد — اتصال اینترنت را بررسی کن و دوباره تلاش کن.<br><br>منابع لازم: Yahoo Finance (قیمت‌ها)، ForexFactory (تقویم)، فیدهای خبری RSS.',
           [{ label: 'باشه', cls: 'primary' }]);
-      } else {
+      } else if (!silent) {
         var msg = signals.length
           ? '🎯 ' + O.faNum(signals.length) + ' سیگنال صادر شد — صفحهٔ سیگنال‌ها را ببین'
           : '⛔ سیگنالی صادر نشد — دلیل هر نماد در صفحهٔ سیگنال‌ها هست';
@@ -264,12 +318,15 @@
         O.toast(msg);
       }
       S.busy = false;
+      O.native.keepScreenOn(false);
       var b2 = document.getElementById('btn-analyze');
       if (b2) b2.disabled = false;
     }).catch(function (e) {
       progressLog('❌ خطای غیرمنتظره: ' + (e && e.message || e));
-      progressDone(true);
+      if (silent) O.toast('⚠️ تازه‌سازی خودکار ناموفق بود');
+      else progressDone(true);
       S.busy = false;
+      O.native.keepScreenOn(false);
       var b3 = document.getElementById('btn-analyze');
       if (b3) b3.disabled = false;
     });
@@ -306,6 +363,11 @@
           S.settings.min_score = Math.max(4, Math.min(10, (S.settings.min_score | 0) + delta));
           saveSettings();
           O.navigate('settings');
+        } else if (key === 'auto_refresh_min') {
+          var cur = S.settings.auto_refresh_min || 15;
+          S.settings.auto_refresh_min = Math.max(5, Math.min(120, cur + delta * 5));
+          saveSettings();
+          O.navigate('settings');
         }
         return;
       }
@@ -327,6 +389,8 @@
         if (!S.state) { O.toast('اول یک تحلیل اجرا کن'); return; }
         O.navigate('briefing'); return;
       }
+      if (act === 'share-briefing') { shareBriefing(); return; }
+      if (act === 'journal-save') { saveJournalFile(); return; }
       if (act === 'clear-cache') {
         S.storage.del('cache.calendar');
         S.storage.del('state.last');
@@ -398,13 +462,43 @@
     } else fallbackCopy();
   }
 
+  // ذخیرهٔ ژورنال در پوشهٔ دانلودها (پشتیبان‌گیری)
+  function saveJournalFile() {
+    var raw = S.journal.raw();
+    if (!raw.trim()) { O.toast('ژورنال خالی است'); return; }
+    var name = 'odin-journal-' + O.dayKeyTeh(new Date()) + '.jsonl';
+    var res = O.native.saveDownload(name, raw);
+    if (res === 'ok') O.toast('💾 ذخیره شد: دانلودها/' + name);
+    else if (res === 'permission') O.toast('مجوز حافظه لازم است — پس از اجازه، دوباره بزن');
+    else if (!res) O.toast('ذخیرهٔ فایل ممکن نیست — از «کپی JSONL» استفاده کن');
+    else O.toast('خطا در ذخیره: ' + String(res).slice(0, 60));
+  }
+
+  // اشتراک‌گذاری بریفینگ با شیتر اندروید (تلگرام، واتساپ، ...)
+  function shareBriefing() {
+    if (!S.state) { O.toast('اول یک تحلیل اجرا کن'); return; }
+    var lines = O.renderBriefing(S.state, S.cfg, S.state.ranAt);
+    var txt = lines.join('\n') + '\n\n— دستیار اودین v' + S.version + ' (اندروید) · ساعت‌ها به وقت تهران';
+    if (!O.native.share('بریفینگ دستیار اودین', txt)) {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(txt).then(function () { O.toast('در کلیپ‌بورد کپی شد ✓'); }).catch(function () { O.toast('اشتراک‌گذاری ممکن نیست'); });
+      } else O.toast('اشتراک‌گذاری ممکن نیست');
+    }
+  }
+
   // ── ساعت و شمارش معکوس زنده ─────────────────────────────────
   function startTimers() {
     setInterval(function () {
+      var now = new Date();
       var c = document.getElementById('clock');
-      if (c) c.textContent = O.faNum(O.hhmm(new Date())) + ' UTC';
+      if (c) c.textContent = O.faNum(O.hhmmTeh(now)) + ' تهران';
       var ic = document.getElementById('ink-clock');
-      if (ic) ic.textContent = O.faNum(O.hhmm(new Date()));
+      if (ic) ic.textContent = O.faNum(O.hhmmTeh(now));
+      var ij = document.getElementById('ink-jalali');
+      if (ij) {
+        var jf = O.jalaliFa(now);
+        if (ij.textContent !== jf) ij.textContent = jf;   // سر نیمه‌شب تازه شود
+      }
     }, 1000);
     setInterval(function () {
       var now = Date.now();
@@ -414,12 +508,26 @@
       });
       O.renderHeaderStatus();
     }, 15000);
+    // 🔄 تازه‌سازی خودکار — فقط وقتی اپ باز است، بازار فعال است و فاصله رسیده
+    setInterval(function () {
+      try {
+        if (!S.settings || S.settings.auto_refresh_enabled === false) return;
+        if (S.busy) return;
+        if (typeof document !== 'undefined' && document.hidden) return;
+        if (O.modalOpen()) return;
+        if (!S.state || !S.state.ranAt) return;
+        var iv = Math.max(5, S.settings.auto_refresh_min || 15) * 60000;
+        if (Date.now() - S.state.ranAt < iv) return;
+        if (!O.marketStatus(new Date()).open) return;      // آخر هفته‌ها اینترنت مصرف نکن
+        O.runAnalysis({ silent: true });
+      } catch (e) { }
+    }, 30000);
   }
 
   // ── خوش‌آمدگویی و راه‌اندازی ────────────────────────────────
   function showDisclaimer() {
     O.modal('⚠️ قبل از شروع — دو قول صادقانه',
-      '<b>۱) این اپ غیرخودکار است.</b> هیچ معامله‌ای انجام نمی‌دهد، به هیچ بروکری وصل نیست و فقط تحلیل و سیگنال <u>پیشنهادی</u> می‌دهد. تصمیم و مسئولیت هر معامله با خودت است.<br><br>' +
+      '<b>۱) این اپ معاملهٔ خودکار نمی‌کند.</b> هیچ معامله‌ای انجام نمی‌دهد، به هیچ بروکری وصل نیست و فقط تحلیل و سیگنال <u>پیشنهادی</u> می‌دهد. تصمیم و مسئولیت هر معامله با خودت است. تازه‌سازی خودکار (اگر از تنظیمات روشن باشد) فقط <u>تحلیل</u> را تکرار می‌کند — آن هم فقط وقتی اپ باز و بازار فعال است.<br><br>' +
       '<b>۲) حلقهٔ صداقت.</b> وقتی سیگنالی صادر نشود، دلیلش شفاف گفته می‌شود؛ دادهٔ در دسترس نباشد، آن مدرک «۰ امتیاز با ❔» می‌گیرد — هیچ امتیازی ساخته نمی‌شود. نتایج سیگنال‌ها هم در ژورنال با قاعدهٔ محتاطانه ثبت می‌شود.<br><br>' +
       '<span style="color:var(--text-3)">هیچ سیستمی سود را تضمین نمی‌کند. معامله در فارکس پرریسک است.</span>',
       [{ label: 'متوجه شدم — بزن بریم', cls: 'primary', fn: function () { S.storage.set('disclaimer.ok', '1'); maybeFirstRun(); } }]);
@@ -436,7 +544,7 @@
     S.storage = O.makeStorage();
     loadSettings();
     S.journal = new O.Journal(S.storage);
-    try { S.version = (typeof ODINNative !== 'undefined' && ODINNative.getVersion()) || '0.9.0'; } catch (e) { }
+    try { S.version = (typeof ODINNative !== 'undefined' && ODINNative.getVersion()) || '0.10.0'; } catch (e) { }
     document.getElementById('splash-ver').textContent = 'v' + S.version + ' · android';
     applyUserName();
 

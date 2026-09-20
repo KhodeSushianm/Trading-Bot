@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- آیکون اعلان — همان نشان خورشید/قطب‌نمای لوگو، تک‌رنگ سفید (استاندارد status bar) -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="48"
+    android:viewportHeight="48">
+    <path
+        android:pathData="M24,5.5v6M24,36.5v6M5.5,24h6M36.5,24h6"
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="3.4"
+        android:strokeLineCap="round"
+        android:fillColor="#00000000" />
+    <path
+        android:pathData="M24,13.5a10.5,10.5 0 1,1 0,21a10.5,10.5 0 1,1 0,-21"
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="3"
+        android:fillColor="#00000000" />
+    <path
+        android:pathData="M24,13.5a10.5,10.5 0 0,1 0,21z"
+        android:fillColor="#FFFFFF" />
+</vector>

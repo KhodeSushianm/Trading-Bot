@@ -16,8 +16,8 @@ android {
         applicationId "com.odin.assistant"
         minSdk 24
         targetSdk 34
-        versionCode 900
-        versionName "0.9.0"
+        versionCode 1000
+        versionName "0.10.0"
         resourceConfigurations += ["fa"]
     }
 
@@ -49,6 +49,9 @@ android {
 
     lint {
         abortOnError false
+        // در محیط‌های کم‌حافظه (ساخت محلی/CI سبک) lintVital حافظهٔ زیادی می‌خواهد؛
+        // lint کامل را می‌توان دستی با `gradle lint` اجرا کرد.
+        checkReleaseBuilds false
     }
 }
 

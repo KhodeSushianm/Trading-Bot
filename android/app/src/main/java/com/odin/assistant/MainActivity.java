@@ -80,6 +80,34 @@ public class MainActivity extends Activity {
         });
 
         web.loadUrl("file:///android_asset/www/index.html");
+
+        // مجوز اعلان در اندروید ۱۳+ — اگر رد شود، اعلان‌ها بی‌صدا غیرفعال
+        // می‌مانند و اپ مثل قبل با Toast کار می‌کند.
+        if (Build.VERSION.SDK_INT >= 33
+                && checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS)
+                != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+            requestPermissions(new String[]{android.Manifest.permission.POST_NOTIFICATIONS}, 1001);
+        }
+    }
+
+    @Override
+    protected void onPause() {
+        super.onPause();
+        if (web != null) {
+            // تایمرهای JS در پس‌زمینه متوقف شوند — تازه‌سازی خودکار و ساعت
+            // فقط وقتی اپ باز است کار می‌کنند (بدون مصرف باتری/اینترنت پنهان)
+            web.onPause();
+            web.pauseTimers();
+        }
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        if (web != null) {
+            web.onResume();
+            web.resumeTimers();
+        }
     }
 
     @Override

@@ -54,4 +54,16 @@
       label: O.sessionLabel(sessions, overlap, true)
     };
   };
+
+  // معادل تهرانِ پیام‌های بسته‌بودن بازار — فقط برای نمایش.
+  // خود marketStatus عمداً UTC می‌ماند (تست parity همان رشته‌ها را با
+  // src/judge/session.py مقایسه می‌کند). ۲۲:۰۰ UTC = ۰۱:۳۰ تهران،
+  // ۲۱:۰۰ UTC = ۰۰:۳۰ تهران (ایران ساعت تابستانی ندارد).
+  O.tehranMarketHint = function (st) {
+    if (!st || st.open) return '';
+    var r = st.reason_fa || '';
+    if (r.indexOf('یکشنبه') === 0 || r.indexOf('شنبه') === 0) return 'بازگشایی: ۰۱:۳۰ بامداد دوشنبه به وقت تهران';
+    if (r.indexOf('جمعه') === 0) return 'بسته از ۰۰:۳۰ بامداد شنبه به وقت تهران';
+    return '';
+  };
 })(typeof ODIN !== 'undefined' ? ODIN : (globalThis.ODIN = {}));

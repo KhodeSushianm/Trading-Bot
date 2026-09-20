@@ -10,6 +10,16 @@
   }
   O.esc = esc;
 
+  // رشته‌های موتور (وتو/سشن) عمداً UTC می‌مانند (تست parity با پایتون)؛
+  // اینجا فقط معادل تهران به متن «بسته» اضافه می‌شود — تبدیل نمایشی.
+  // ۲۲:۰۰ UTC = ۰۱:۳۰ تهران · ۲۱:۰۰ UTC = ۰۰:۳۰ تهران (بدون ساعت تابستانی)
+  function tehranize(txt) {
+    return String(txt == null ? '' : txt)
+      .replace('ساعت 22:۰۰ UTC', 'ساعت 22:۰۰ UTC — ۰۱:۳۰ بامداد دوشنبه تهران')
+      .replace('ساعت 21:۰۰ UTC', 'ساعت 21:۰۰ UTC — ۰۰:۳۰ بامداد شنبه تهران');
+  }
+  O.tehranize = tehranize;
+
   var VERDICT_CHIP = {
     BUY_SETUP: ['buy', '🟢 ستاپ خرید'],
     SELL_SETUP: ['sell', '🔴 ستاپ فروش'],
@@ -63,6 +73,11 @@
       '<button class="btn primary" data-action="analyze" id="btn-analyze">⟳ تحلیل تازه</button>' +
       '<button class="btn ghost" data-action="briefing">🌅 بریفینگ</button>' +
       '</div>';
+    if (S.settings && S.settings.auto_refresh_enabled) {
+      html += '<div class="card-sub" style="margin:-4px 2px 10px">🔄 تازه‌سازی خودکار هر ' +
+        O.faNum(S.settings.auto_refresh_min || 15) + ' دقیقه — فقط وقتی اپ باز و بازار فعال است' +
+        (S.settings.notify_enabled === false ? '' : ' · اعلان سیگنال جدید روشن 🔔') + '</div>';
+    }
 
     var nowMs = Date.now();
     var status = O.marketStatus(new Date(nowMs));
@@ -78,7 +93,9 @@
       '<div class="card-row"><div>' +
       '<div class="ink-title">' + esc(status.open ? '🟢 ' + status.label : '🔒 ' + status.reason_fa) + '</div>' +
       '<div class="ink-cap" style="margin-top:3px">' + (status.open && status.sessions.length ? 'سشن‌های فعال: ' + esc(status.sessions.join(' + ')) : 'بازار فارکس ۲۴ ساعته، ۵ روز در هفته') + '</div>' +
-      '</div><div style="text-align:left"><div class="ink-num" id="ink-clock">' + O.faNum(O.hhmm(new Date(nowMs))) + '</div><div class="ink-cap">UTC</div></div></div>' +
+      (status.open ? '' : '<div class="ink-cap" style="margin-top:3px">' + esc(O.tehranMarketHint(status)) + '</div>') +
+      '</div><div style="text-align:left"><div class="ink-num" id="ink-clock">' + O.faNum(O.hhmmTeh(new Date(nowMs))) + '</div><div class="ink-cap">تهران</div>' +
+      '<div class="ink-cap" id="ink-jalali" style="margin-top:4px">' + esc(O.jalaliFa(new Date(nowMs))) + '</div></div></div>' +
       '<div class="ink-tiles">' +
       '<div class="ink-tile"><div class="t-num">' + O.faNum(sigCount) + '</div><div class="t-cap">سیگنال چرخهٔ آخر</div></div>' +
       '<div class="ink-tile"><div class="t-num">' + O.faNum(breaking) + '</div><div class="t-cap">خبر فوری</div></div>' +
@@ -148,7 +165,7 @@
         html += '<div class="card"><div class="card-row">' +
           '<div><div class="card-title">📅 رویداد پراثر بعدی</div>' +
           '<div style="font-size:12px;font-weight:500;margin-top:2px">' + esc(nxt.title_fa) + '</div>' +
-          '<div class="card-sub">' + esc(O.evCountryFa(nxt)) + ' — ' + O.faNum(O.hhmm(new Date(nxt.when))) + ' UTC</div></div>' +
+          '<div class="card-sub">' + esc(O.evCountryFa(nxt)) + ' — ' + O.faNum(O.hhmmTeh(new Date(nxt.when))) + ' تهران</div></div>' +
           '<div style="text-align:left"><div class="countdown" data-cd-ts="' + nxt.when + '">' + esc(O.countdown2(O.evMinutesFrom(nxt, nowMs))) + '</div></div>' +
           '</div></div>';
       } else {
@@ -296,7 +313,7 @@
 
     h += evidencesHtml(j, id);
 
-    h += '<div class="card-sub" style="margin-top:10px">🕒 ' + esc(O.faDate(new Date(s.now))) + ' UTC · 💹 ' + esc(s.session_fa) +
+    h += '<div class="card-sub" style="margin-top:10px">🕒 ' + esc(O.faDateTeh(new Date(s.now))) + ' تهران · 💹 ' + esc(s.session_fa) +
       (s._dup ? '' : ' · 📔 در ژورنال ثبت شد') + '</div>';
     h += '<div class="hint" style="margin-top:6px">⚠️ این یک پیشنهاد است، نه دستور معامله. هیچ سیستمی سود را تضمین نمی‌کند؛ مسئولیت هر معامله با خودت است.</div>';
     return h + '</div>';
@@ -317,7 +334,7 @@
     if (j.vetoes && j.vetoes.length) {
       h += '<div style="margin-top:8px">';
       j.vetoes.forEach(function (v) {
-        h += '<div class="veto-row"><span class="v-icon">🚫</span><div><div class="veto-title">' + esc(v.title_fa) + '</div><div class="veto-detail">' + esc(v.detail_fa) + '</div></div></div>';
+        h += '<div class="veto-row"><span class="v-icon">🚫</span><div><div class="veto-title">' + esc(v.title_fa) + '</div><div class="veto-detail">' + esc(tehranize(v.detail_fa)) + '</div></div></div>';
       });
       h += '</div>';
     }
@@ -344,7 +361,7 @@
     var st = S.state;
     var nowMs = Date.now();
     var html = '<div class="page-title">🏦 تقویم اقتصادی</div>' +
-      '<div class="page-sub">منبع: ForexFactory — فقط هفتهٔ جاری (شنبه تا جمعه). رویداد پراثر در ۳۰ دقیقهٔ آینده = وتوی سیگنال آن نماد.</div>';
+      '<div class="page-sub">منبع: ForexFactory — فقط هفتهٔ جاری (شنبه تا جمعه). همهٔ ساعت‌ها به وقت تهران است. رویداد پراثر در ۳۰ دقیقهٔ آینده = وتوی سیگنال آن نماد.</div>';
 
     var cal = st && st.calSnap;
     if (!cal) {
@@ -356,7 +373,7 @@
     }
     if (cal.stale) {
       html += '<div class="warn-row">⚠️ این داده از کش قدیمی است (آخرین دریافت موفق: ' +
-        esc(cal.fetchedAt ? O.faDate(new Date(cal.fetchedAt)) : '—') + ')</div>';
+        esc(cal.fetchedAt ? O.faDateTeh(new Date(cal.fetchedAt)) + ' تهران' : '—') + ')</div>';
     }
 
     var horizon = +(S.cfg.fundamental.horizon_hours) || 48;
@@ -385,15 +402,17 @@
       if (shown >= 40) return;
       shown++;
       var d = new Date(e.when);
-      var dayKey = d.toISOString().slice(0, 10);
+      var dayKey = O.dayKeyTeh(d);
       var dayHtml = '';
       if (dayKey !== lastDay) {
-        dayHtml = '<div class="day-head">' + esc(O.WEEKDAY_FA[O.pyWeekday(d)] + ' ' + O.faNum(d.getUTCDate()) + ' ' + O.MONTH_FA[d.getUTCMonth() + 1]) + '</div>';
+        var td = O.tehran(d);
+        var greg = O.faNum(td.getUTCDate()) + ' ' + O.MONTH_FA[td.getUTCMonth() + 1];
+        dayHtml = '<div class="day-head">' + esc(O.jalaliFa(d)) + ' <span style="opacity:.6;font-weight:400">(' + greg + ')</span></div>';
         lastDay = dayKey;
       }
       var mins = O.evMinutesFrom(e, nowMs);
       dayHtml += '<div class="card ev-card" data-impact="' + e.impact + '">' +
-        '<div class="ev-top"><span class="ev-time">' + O.faNum(O.hhmm(d)) + ' UTC</span>' +
+        '<div class="ev-top"><span class="ev-time">' + O.faNum(O.hhmmTeh(d)) + '</span>' +
         '<span class="countdown" data-cd-ts="' + e.when + '">' + esc(O.countdown2(mins)) + '</span></div>' +
         '<div class="ev-title">' + (O.IMPACT_EMOJI[e.impact] || '⚪') + ' ' + esc(e.title_fa) + '</div>' +
         '<div class="ev-title-en">' + esc(e.title) + '</div>' +
@@ -548,8 +567,9 @@
     }
 
     html += '<div class="action-row" style="margin-top:4px">' +
-      '<button class="btn ghost sm" data-action="journal-export" style="flex:1">📤 خروجی JSONL</button>' +
-      '<button class="btn red sm" data-action="journal-clear" style="flex:1">🗑️ پاک‌کردن ژورنال</button></div>';
+      '<button class="btn ghost sm" data-action="journal-save" style="flex:1">💾 ذخیره در دانلودها</button>' +
+      '<button class="btn ghost sm" data-action="journal-export" style="flex:1">📤 کپی JSONL</button>' +
+      '<button class="btn red sm" data-action="journal-clear" style="flex:1">🗑️ پاک‌کردن</button></div>';
     return html;
   };
 
@@ -577,7 +597,7 @@
       '</div>';
 
     html += '<div class="card"><div class="section-title" style="margin-top:0">🚫 دروازه‌های وتو</div><div class="hint" style="margin-bottom:6px">وتوها بدون استثنا هستند: حتی با امتیاز کامل، سیگنال صادر نمی‌شود.</div>' +
-      row('weekend', '🔒 بازار بسته', 'شنبه/یکشنبه و جمعه بعد از ۲۱ UTC', v.weekend) +
+      row('weekend', '🔒 بازار بسته', 'شنبه/یکشنبه و جمعه از ۰۰:۳۰ بامداد شنبه (تهران)', v.weekend) +
       row('high_impact_event', '📅 رویداد پراثر تقویم', 'رویداد پراثر تا ۳۰ دقیقهٔ آینده', v.high_impact_event) +
       row('timeframe_conflict', '🔀 تضاد تایم‌فریم', 'H4 و H1 هم‌جهت نباشند', v.timeframe_conflict) +
       row('range_market', '😴 بازار بی‌روند', 'ADX زیر آستانهٔ ۲۰', v.range_market) +
@@ -591,6 +611,13 @@
       row('tv_enabled', '🔍 تاییدیهٔ تریدینگ‌ویو', 'API غیررسمی — اگر قطع شد، مدرک ❔ می‌گیرد', set.tv_enabled) +
       '</div>';
 
+    html += '<div class="card"><div class="section-title" style="margin-top:0">🔄 تازه‌سازی و اعلان‌ها</div>' +
+      '<div class="set-row"><div><div class="set-label">تازه‌سازی خودکار تحلیل</div><div class="set-sub">فقط وقتی اپ باز و بازار فعال است — معامله خودکار نمی‌کند</div></div>' + switchHtml('auto_refresh_enabled', set.auto_refresh_enabled !== false) + '</div>' +
+      '<div class="set-row"><div><div class="set-label">فاصلهٔ تازه‌سازی</div><div class="set-sub">هر چند دقیقه یک‌بار تحلیل تکرار شود</div></div>' +
+      '<span class="stepper"><button data-step="auto_refresh_min:-1">−</button><span class="val">' + O.faNum(set.auto_refresh_min || 15) + ' دقیقه</span><button data-step="auto_refresh_min:1">+</button></span></div>' +
+      '<div class="set-row"><div><div class="set-label">اعلان سیگنال جدید و خبر فوری 🔔</div><div class="set-sub">نوتیفیکیشن اندروید + لرزش هنگام صدور سیگنال تازه یا خبر فوری</div></div>' + switchHtml('notify_enabled', set.notify_enabled !== false) + '</div>' +
+      '</div>';
+
     html += '<div class="card"><div class="section-title" style="margin-top:0">🗄️ داده‌ها</div>' +
       '<div class="set-row"><div><div class="set-label">پاک‌کردن کش تقویم و تحلیل</div><div class="set-sub">دادهٔ بازار دفعهٔ بعد تازه دریافت می‌شود</div></div>' +
       '<button class="btn ghost sm" data-action="clear-cache">پاک‌کردن</button></div>' +
@@ -599,7 +626,8 @@
       '</div>';
 
     html += '<div class="card ink"><div class="ink-title">دربارهٔ دستیار اودین</div>' +
-      '<div class="ink-cap" style="margin-top:6px;line-height:2.2">نسخهٔ اندروید ' + O.faNum(S.version || '0.9.0') + ' — همراه نسخهٔ ویندوز (0.8.0)<br>' +
+      '<div class="ink-cap" style="margin-top:6px;line-height:2.2">نسخهٔ اندروید ' + O.faNum(S.version || '0.10.0') + ' — همراه نسخهٔ ویندوز (0.8.1)<br>' +
+      '🕐 همهٔ ساعت‌های اپ به وقت تهران است (منطق داخلی موتور UTC — هماهنگ با نسخهٔ دسکتاپ).<br>' +
       '⚠️ <b style="color:#fff">غیرخودکار:</b> این اپ هیچ معامله‌ای انجام نمی‌دهد و به هیچ بروکری وصل نیست. فقط تحلیل، سیگنال پیشنهادی و پیگیری صداقتِ نتایج.<br>' +
       'هیچ سیستمی سود را تضمین نمی‌کند؛ مسئولیت هر معامله با خودت است.</div></div>';
     return html;
@@ -613,6 +641,7 @@
   // ── بریفینگ ─────────────────────────────────────────────────
   O.renderBriefingPage = function (S) {
     var html = '<div class="action-row"><button class="btn ghost" data-tab="home">→ بازگشت</button>' +
+      '<button class="btn ghost" data-action="share-briefing">📤 اشتراک</button>' +
       '<button class="btn primary" data-action="analyze">⟳ تحلیل تازه</button></div>';
     if (!S.state || !S.state.analyses || !S.state.analyses.length) {
       return html + '<div class="card"><div class="empty-state"><div class="e-ico">🌅</div><div class="e-t">اول تحلیل را اجرا کن</div><div class="e-s">بریفینگ از نتیجهٔ آخرین تحلیل ساخته می‌شود.</div></div></div>';

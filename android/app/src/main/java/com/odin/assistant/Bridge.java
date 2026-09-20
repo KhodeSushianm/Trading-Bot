@@ -1,14 +1,22 @@
 package com.odin.assistant;
 
 import android.app.Activity;
+import android.app.Notification;
+import android.app.NotificationChannel;
+import android.app.NotificationManager;
+import android.app.PendingIntent;
+import android.content.ContentValues;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.net.Uri;
 import android.os.Build;
+import android.os.Environment;
 import android.os.Handler;
 import android.os.Looper;
+import android.provider.MediaStore;
 import android.util.Base64;
 import android.view.HapticFeedbackConstants;
+import android.view.WindowManager;
 import android.webkit.JavascriptInterface;
 import android.webkit.WebView;
 import android.widget.Toast;
@@ -16,6 +24,8 @@ import android.widget.Toast;
 import org.json.JSONObject;
 
 import java.io.ByteArrayOutputStream;
+import java.io.File;
+import java.io.FileOutputStream;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.HttpURLConnection;
@@ -25,7 +35,8 @@ import java.util.concurrent.Executors;
 
 /**
  * پل نیتیو ↔ وب: درخواست HTTP (بدون محدودیت CORS)، حافظهٔ محلی
- * (ژورنال و تنظیمات)، لرزش لمسی و بازکردن لینک بیرونی.
+ * (ژورنال و تنظیمات)، اعلان اندروید، اشتراک‌گذاری، ذخیره در دانلودها،
+ * لرزش لمسی، روشن‌نگه‌داشتن صفحه و بازکردن لینک بیرونی.
  *
  * پاسخ HTTP به‌صورت Base64 به JS برمی‌گردد تا متن UTF-8 (فارسی/XML)
  * بدون خرابی کدگذاری منتقل شود.
@@ -34,7 +45,10 @@ public class Bridge {
 
     private static final String UA =
             "Mozilla/5.0 (Linux; Android 13) AppleWebKit/537.36 (KHTML, like Gecko) "
-                    + "Chrome/126.0.0.0 Mobile Safari/537.36 ODINAssistant/0.9.0";
+                    + "Chrome/126.0.0.0 Mobile Safari/537.36 ODINAssistant/0.10.0";
+
+    private static final String CH_ID = "signals";
+    private static final int NOTIF_ID = 1001;
 
     private final Activity act;
     private final WebView web;
@@ -134,7 +148,7 @@ public class Bridge {
         try {
             return act.getPackageManager().getPackageInfo(act.getPackageName(), 0).versionName;
         } catch (Exception e) {
-            return "0.9.0";
+            return "0.10.0";
         }
     }
 
@@ -177,5 +191,131 @@ public class Bridge {
                 }
             });
         }
+    }
+
+    // ── اعلان اندروید (سیگنال جدید / خبر فوری) ────────────────────
+    /** اگر اعلان‌ها خاموش باشند (تنظیمات سیستم یا مجوز رد شده) بی‌صدا رد می‌شود. */
+    @JavascriptInterface
+    public void notify(final String title, final String body) {
+        ui.post(new Runnable() {
+            @Override
+            public void run() {
+                try {
+                    NotificationManager nm =
+                            (NotificationManager) act.getSystemService(Activity.NOTIFICATION_SERVICE);
+                    if (nm == null || !nm.areNotificationsEnabled()) return;
+
+                    long[] vib = {0, 250, 150, 250};
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                        NotificationChannel ch = new NotificationChannel(
+                                CH_ID, "سیگنال‌ها و اخبار", NotificationManager.IMPORTANCE_HIGH);
+                        ch.setDescription("اعلان سیگنال جدید و خبر فوری — دستیار اودین");
+                        ch.enableVibration(true);
+                        ch.setVibrationPattern(vib);
+                        nm.createNotificationChannel(ch);
+                    }
+
+                    Intent tap = new Intent(act, MainActivity.class);
+                    tap.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
+                    int piFlags = PendingIntent.FLAG_UPDATE_CURRENT;
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                        piFlags |= PendingIntent.FLAG_IMMUTABLE;
+                    }
+                    PendingIntent pi = PendingIntent.getActivity(act, 0, tap, piFlags);
+
+                    Notification.Builder b = Build.VERSION.SDK_INT >= Build.VERSION_CODES.O
+                            ? new Notification.Builder(act, CH_ID)
+                            : new Notification.Builder(act);
+                    b.setContentTitle(title)
+                            .setContentText(body)
+                            .setStyle(new Notification.BigTextStyle().bigText(body))
+                            .setSmallIcon(R.drawable.ic_stat_odin)
+                            .setContentIntent(pi)
+                            .setAutoCancel(true);
+                    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) {
+                        b.setVibrate(vib);
+                        b.setDefaults(Notification.DEFAULT_SOUND);
+                    }
+                    nm.notify(NOTIF_ID, b.build());
+                } catch (Exception ignored) {
+                }
+            }
+        });
+    }
+
+    // ── اشتراک‌گذاری متن (شیتر اندروید) ──────────────────────────
+    @JavascriptInterface
+    public void shareText(final String subject, final String text) {
+        ui.post(new Runnable() {
+            @Override
+            public void run() {
+                try {
+                    Intent i = new Intent(Intent.ACTION_SEND);
+                    i.setType("text/plain");
+                    i.putExtra(Intent.EXTRA_SUBJECT, subject);
+                    i.putExtra(Intent.EXTRA_TEXT, text);
+                    act.startActivity(Intent.createChooser(i, "اشتراک‌گذاری بریفینگ"));
+                } catch (Exception ignored) {
+                }
+            }
+        });
+    }
+
+    // ── ذخیرهٔ فایل در پوشهٔ دانلودها ────────────────────────────
+    /** «ok» یا «permission» یا شرح خطا برمی‌گرداند (JS ترجمه می‌کند). */
+    @JavascriptInterface
+    public String saveDownload(String name, String content) {
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                // API 29+: MediaStore — بدون هیچ مجوزی
+                ContentValues cv = new ContentValues();
+                cv.put(MediaStore.Downloads.DISPLAY_NAME, name);
+                cv.put(MediaStore.Downloads.MIME_TYPE, "application/json");
+                cv.put(MediaStore.Downloads.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS);
+                cv.put(MediaStore.Downloads.IS_PENDING, 1);
+                Uri uri = act.getContentResolver()
+                        .insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, cv);
+                if (uri == null) return "insert-failed";
+                OutputStream os = act.getContentResolver().openOutputStream(uri);
+                if (os == null) return "open-failed";
+                os.write(content.getBytes("UTF-8"));
+                os.close();
+                cv.clear();
+                cv.put(MediaStore.Downloads.IS_PENDING, 0);
+                act.getContentResolver().update(uri, cv, null, null);
+                return "ok";
+            }
+            // API 24-28: نوشتن مستقیم در Downloads عمومی (یک‌بار مجوز لازم است)
+            if (act.checkSelfPermission(android.Manifest.permission.WRITE_EXTERNAL_STORAGE)
+                    != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+                act.requestPermissions(new String[]{
+                        android.Manifest.permission.WRITE_EXTERNAL_STORAGE}, 1002);
+                return "permission";
+            }
+            File dir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS);
+            if (!dir.exists() && !dir.mkdirs()) return "mkdir-failed";
+            FileOutputStream fos = new FileOutputStream(new File(dir, name));
+            fos.write(content.getBytes("UTF-8"));
+            fos.close();
+            return "ok";
+        } catch (Exception e) {
+            return e.getClass().getSimpleName() + ": "
+                    + (e.getMessage() == null ? "" : e.getMessage());
+        }
+    }
+
+    // ── روشن‌نگه‌داشتن صفحه (فقط هنگام تحلیل) ────────────────────
+    @JavascriptInterface
+    public void keepScreenOn(final boolean on) {
+        ui.post(new Runnable() {
+            @Override
+            public void run() {
+                if (on) {
+                    act.getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+                } else {
+                    act.getWindow().clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+                }
+            }
+        });
     }
 }

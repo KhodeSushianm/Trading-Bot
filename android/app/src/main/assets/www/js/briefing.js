@@ -13,8 +13,8 @@
     var horizonHours = +(cfg.briefing && cfg.briefing.horizon_hours) || 24;
     var parts = [];
 
-    parts.push('🌅 بریفینگ صبحگاهی — ' + O.faDate(new Date(nowMs)));
-    parts.push('🕒 ' + O.faNum(O.hhmm(new Date(nowMs))) + ' UTC | منبع داده: Yahoo Finance');
+    parts.push('🌅 بریفینگ صبحگاهی — ' + O.faDateTeh(new Date(nowMs)) + ' (' + O.jalaliFa(new Date(nowMs)) + ')');
+    parts.push('🕒 ' + O.faNum(O.hhmmTeh(new Date(nowMs))) + ' به وقت تهران | منبع داده: Yahoo Finance');
 
     // ۱) آنچه امروز در پیش است
     parts.push('');
@@ -26,8 +26,8 @@
           var pairs = syms.filter(function (s) { return s.base === e.country || s.quote === e.country; })
             .map(function (s) { return s.name; });
           var tag = pairs.length ? ' → ' + pairs.join('، ') : '';
-          parts.push('  ' + (O.IMPACT_FA[e.impact] || '') + ' ' + O.faNum(O.hhmm(new Date(e.when))) +
-            ' UTC (' + O.WEEKDAY_FA[O.pyWeekday(new Date(e.when))] + '): ' + e.title_fa +
+          parts.push('  ' + (O.IMPACT_FA[e.impact] || '') + ' ' + O.faNum(O.hhmmTeh(new Date(e.when))) +
+            ' (' + O.WEEKDAY_FA[O.pyWeekdayTeh(new Date(e.when))] + '): ' + e.title_fa +
             ' [' + O.evCountryFa(e) + ']' + tag);
           if (e.forecast || e.previous) {
             var bits = [];
@@ -42,7 +42,7 @@
       }
       var nxt = O.nextHighImpact(calSnap.events, null, null, nowMs);
       if (nxt && O.evMinutesFrom(nxt, nowMs) > horizonHours * 60) {
-        parts.push('  📌 نزدیک‌ترین رویداد پراثر: ' + nxt.title_fa + ' (' + O.evCountryFa(nxt) + ') — ' + O.faDate(new Date(nxt.when)));
+        parts.push('  📌 نزدیک‌ترین رویداد پراثر: ' + nxt.title_fa + ' (' + O.evCountryFa(nxt) + ') — ' + O.faDateTeh(new Date(nxt.when)) + ' تهران');
       }
     } else if (calSnap) {
       parts.push('  ⚠️ تقویم اقتصادی در دسترس نبود (' + String(calSnap.error || '').slice(0, 60) + ')');
@@ -71,10 +71,10 @@
           var g = byEv[k];
           var when = new Date(g.when);
           var w = new Date(g.when - 30 * 60000), t = new Date(g.when + 30 * 60000);
-          parts.push('  • ' + O.WEEKDAY_FA[O.pyWeekday(when)] + ' ' + O.faNum(O.hhmm(when)) + ' UTC — ' +
+          parts.push('  • ' + O.WEEKDAY_FA[O.pyWeekdayTeh(when)] + ' ' + O.faNum(O.hhmmTeh(when)) + ' — ' +
             g.title + ' (' + g.country + ')');
-          parts.push('       ⛔ ورود ممنوع: ' + O.faNum(O.hhmm(w)) + ' تا ' + O.faNum(O.hhmm(t)) +
-            ' UTC → نمادهای متاثر: ' + Array.from(new Set(g.names)).sort().join('، '));
+          parts.push('       ⛔ ورود ممنوع: ' + O.faNum(O.hhmmTeh(w)) + ' تا ' + O.faNum(O.hhmmTeh(t)) +
+            ' (تهران) → نمادهای متاثر: ' + Array.from(new Set(g.names)).sort().join('، '));
         });
       }
     }
