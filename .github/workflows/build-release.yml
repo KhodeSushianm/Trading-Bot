@@ -111,53 +111,48 @@ jobs:
           DEBUG_SMOKE: ${{ github.event.inputs.debug_smoke }}
         shell: pwsh
         run: |
-          # /CURRENTUSER: در سشن بدون UAC رانر، نصب elevation نمی‌خواهد؛
-          # مسیر هم داخل RUNNER_TEMP است که قطعاً قابل‌نوشتن است
+          # نکته: اینو ستاپ وقتی سطح دسترسی را عوض می‌کند (مثلاً رانر elevated +
+          # PrivilegesRequired=lowest) خودش را به‌صورت فرزندِ جدا (detached)
+          # دوباره اجرا می‌کند و پدر فوراً خارج می‌شود؛ پس کد خروج پدر بی‌معنی است.
+          # راه درست:.poll کردن روی فایل‌های مورد انتظار تا ظاهر/ناپدید شدنشان.
           $dir = Join-Path $env:RUNNER_TEMP "OdinSmokeTest"
           $setup = Get-ChildItem installer\Output\*-setup.exe | Select-Object -First 1
           if (-not $setup) { throw "installer output missing" }
-          # Start-Process -Wait: کد خروج معتبر برای برنامهٔ GUI + لاگ اینو ستاپ
-          $p = Start-Process -FilePath $setup.FullName -Wait -PassThru -ArgumentList `
+          Start-Process -FilePath $setup.FullName -ArgumentList `
             "/VERYSILENT","/SUPPRESSMSGBOXES","/NORESTART","/NOICONS", `
-            "/DIR=$dir","/LOG=$dir\setup.log"
-          if ($p.ExitCode -ne 0) {
+            "/DIR=$dir","/LOG=$dir\setup.log" | Out-Null
+          $ok = $false
+          $deadline = (Get-Date).AddSeconds(150)
+          while ((Get-Date) -lt $deadline) {
+            if ((Test-Path "$dir\ODINAssistant.exe") -and (Test-Path "$dir\.installed") -and
+                (Test-Path "$dir\unins000.exe")) { $ok = $true; break }
+            Start-Sleep -Seconds 2
+          }
+          if (-not $ok) {
             "---- evidence: dir listing ----"
             Get-ChildItem $dir -Recurse -Force -ErrorAction SilentlyContinue |
               Select-Object -First 60 -ExpandProperty FullName
             "---- evidence: setup.log ----"
             Get-Content "$dir\setup.log" -ErrorAction SilentlyContinue | Select-Object -Last 50
-            if ($env:DEBUG_SMOKE -eq "1") {
-              "---- evidence: elevation / OS ----"
-              ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
-              [System.Environment]::OSVersion.VersionString
-              "---- evidence: defender threats ----"
-              Get-MpThreatDetection -ErrorAction SilentlyContinue | Format-List -Property Resources, ActionSuccess
-              "---- evidence: application event log (errors, 10min) ----"
-              Get-WinEvent -FilterHashtable @{LogName='Application'; Level=1,2; StartTime=(Get-Date).AddMinutes(-10)} -ErrorAction SilentlyContinue |
-                Select-Object -First 15 TimeCreated, ProviderName, Id, Message | Format-List
-              "---- evidence: second attempt via cmd ----"
-              $dir2 = Join-Path $env:RUNNER_TEMP "OdinSmoke2"
-              cmd /c "`"$($setup.FullName)`" /VERYSILENT /SUPPRESSMSGBOXES /NORESTART /NOICONS /DIR=$dir2 /LOG=$dir2\setup.log & echo CMD_EXIT=%ERRORLEVEL%"
-              Get-Content "$dir2\setup.log" -ErrorAction SilentlyContinue | Select-Object -Last 50
-              "---- evidence: minimal args attempt ----"
-              $dir3 = Join-Path $env:RUNNER_TEMP "OdinSmoke3"
-              $p3 = Start-Process -FilePath $setup.FullName -Wait -PassThru -ArgumentList "/VERYSILENT","/DIR=$dir3","/LOG=$dir3\setup.log"
-              "exit3=$($p3.ExitCode)"
-              Get-Content "$dir3\setup.log" -ErrorAction SilentlyContinue | Select-Object -Last 50
-            } else {
-              throw "silent install failed (exit $($p.ExitCode))"
-            }
+            throw "silent install did not produce artifacts in 150s"
           }
-          if (-not (Test-Path "$dir\ODINAssistant.exe")) { throw "installed EXE missing" }
-          if (-not (Test-Path "$dir\.installed")) { throw ".installed marker missing (installed-mode broken)" }
-          $u = Start-Process -FilePath "$dir\unins000.exe" -Wait -PassThru -ArgumentList `
-            "/VERYSILENT","/NORESTART","/LOG=$dir\unins.log"
-          if ($u.ExitCode -ne 0) {
+          "install artifacts OK"
+          Start-Process -FilePath "$dir\unins000.exe" -ArgumentList `
+            "/VERYSILENT","/NORESTART","/LOG=$dir\unins.log" | Out-Null
+          $gone = $false
+          $deadline = (Get-Date).AddSeconds(120)
+          while ((Get-Date) -lt $deadline) {
+            if (-not (Test-Path "$dir\ODINAssistant.exe")) { $gone = $true; break }
+            Start-Sleep -Seconds 2
+          }
+          if (-not $gone) {
+            "---- evidence: unins.log ----"
             Get-Content "$dir\unins.log" -ErrorAction SilentlyContinue | Select-Object -Last 40
-            throw "silent uninstall failed (exit $($u.ExitCode))"
+            throw "silent uninstall did not remove the EXE in 120s"
           }
           Start-Sleep -Seconds 3
           if (Test-Path "$dir\ODINAssistant.exe") { throw "uninstall left the EXE behind" }
+          "uninstall OK — smoke test passed"
 
       - name: Rename portable artifact with version
         shell: pwsh
