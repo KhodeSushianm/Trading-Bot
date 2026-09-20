@@ -105,16 +105,19 @@ jobs:
       - name: Installer smoke test (silent install + uninstall)
         shell: pwsh
         run: |
+          # /CURRENTUSER: در سشن بدون UAC رانر، نصب elevation نمی‌خواهد؛
+          # مسیر هم داخل RUNNER_TEMP است که قطعاً قابل‌نوشتن است
+          $dir = Join-Path $env:RUNNER_TEMP "OdinSmokeTest"
           $setup = Get-ChildItem installer\Output\*-setup.exe | Select-Object -First 1
           if (-not $setup) { throw "installer output missing" }
-          & $setup.FullName /VERYSILENT /SUPPRESSMSGBOXES /NORESTART /NOICONS /DIR=C:\OdinSmokeTest
+          & $setup.FullName /VERYSILENT /SUPPRESSMSGBOXES /NORESTART /NOICONS /CURRENTUSER "/DIR=$dir"
           if ($LASTEXITCODE -ne 0) { throw "silent install failed ($LASTEXITCODE)" }
-          if (-not (Test-Path C:\OdinSmokeTest\ODINAssistant.exe)) { throw "installed EXE missing" }
-          if (-not (Test-Path C:\OdinSmokeTest\.installed)) { throw ".installed marker missing (installed-mode broken)" }
-          & C:\OdinSmokeTest\unins000.exe /VERYSILENT /NORESTART
+          if (-not (Test-Path "$dir\ODINAssistant.exe")) { throw "installed EXE missing" }
+          if (-not (Test-Path "$dir\.installed")) { throw ".installed marker missing (installed-mode broken)" }
+          & "$dir\unins000.exe" /VERYSILENT /NORESTART
           if ($LASTEXITCODE -ne 0) { throw "silent uninstall failed ($LASTEXITCODE)" }
           Start-Sleep -Seconds 3
-          if (Test-Path C:\OdinSmokeTest\ODINAssistant.exe) { throw "uninstall left the EXE behind" }
+          if (Test-Path "$dir\ODINAssistant.exe") { throw "uninstall left the EXE behind" }
 
       - name: Rename portable artifact with version
         shell: pwsh
