@@ -87,10 +87,6 @@ jobs:
           QT_QPA_PLATFORM: offscreen
         run: .\dist\ODINAssistant.exe --selftest
 
-      - name: Rename portable artifact with version
-        shell: pwsh
-        run: Rename-Item -Path dist/ODINAssistant.exe -NewName "ODINAssistant-v${{ steps.ver.outputs.version }}-windows.exe"
-
       - name: Locate (or install) Inno Setup
         id: iscc
         shell: pwsh
@@ -119,6 +115,10 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw "silent uninstall failed ($LASTEXITCODE)" }
           Start-Sleep -Seconds 3
           if (Test-Path C:\OdinSmokeTest\ODINAssistant.exe) { throw "uninstall left the EXE behind" }
+
+      - name: Rename portable artifact with version
+        shell: pwsh
+        run: Rename-Item -Path dist/ODINAssistant.exe -NewName "ODINAssistant-v${{ steps.ver.outputs.version }}-windows.exe"
 
       - name: Publish GitHub Release
         if: startsWith(github.ref, 'refs/tags/')
