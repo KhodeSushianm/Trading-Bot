@@ -112,10 +112,14 @@ jobs:
           if (-not $setup) { throw "installer output missing" }
           # Start-Process -Wait: کد خروج معتبر برای برنامهٔ GUI + لاگ اینو ستاپ
           $p = Start-Process -FilePath $setup.FullName -Wait -PassThru -ArgumentList `
-            "/VERYSILENT","/SUPPRESSMSGBOXES","/NORESTART","/NOICONS","/CURRENTUSER", `
+            "/VERYSILENT","/SUPPRESSMSGBOXES","/NORESTART","/NOICONS", `
             "/DIR=$dir","/LOG=$dir\setup.log"
           if ($p.ExitCode -ne 0) {
-            Get-Content "$dir\setup.log" -ErrorAction SilentlyContinue | Select-Object -Last 40
+            "---- evidence: dir listing ----"
+            Get-ChildItem $dir -Recurse -Force -ErrorAction SilentlyContinue |
+              Select-Object -First 60 -ExpandProperty FullName
+            "---- evidence: setup.log ----"
+            Get-Content "$dir\setup.log" -ErrorAction SilentlyContinue | Select-Object -Last 50
             throw "silent install failed (exit $($p.ExitCode))"
           }
           if (-not (Test-Path "$dir\ODINAssistant.exe")) { throw "installed EXE missing" }

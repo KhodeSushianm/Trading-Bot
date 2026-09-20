@@ -37,8 +37,9 @@ AppUpdatesURL={#MyAppURL}/releases
 DefaultDirName={autopf}\ODIN Assistant
 DefaultGroupName={#MyAppName}
 DisableProgramGroupPage=yes
-; کاربر می‌تواند بین «همهٔ کاربران» و «فقط من» انتخاب کند (بدون اجبار به UAC)
-PrivilegesRequired=admin
+; پیش‌فرض: فقط کاربر جاری (بدون UAC — مثل VS Code)؛ کاربر می‌تواند در دیالوگ
+; «برای همهٔ کاربران» را انتخاب کند که همان موقع elevation انجام می‌شود
+PrivilegesRequired=lowest
 PrivilegesRequiredOverridesAllowed=dialog commandline
 OutputDir=Output
 OutputBaseFilename=ODINAssistant-v{#AppVersion}-windows-setup
