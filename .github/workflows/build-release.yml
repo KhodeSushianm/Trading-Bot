@@ -110,12 +110,22 @@ jobs:
           $dir = Join-Path $env:RUNNER_TEMP "OdinSmokeTest"
           $setup = Get-ChildItem installer\Output\*-setup.exe | Select-Object -First 1
           if (-not $setup) { throw "installer output missing" }
-          & $setup.FullName /VERYSILENT /SUPPRESSMSGBOXES /NORESTART /NOICONS /CURRENTUSER "/DIR=$dir"
-          if ($LASTEXITCODE -ne 0) { throw "silent install failed ($LASTEXITCODE)" }
+          # Start-Process -Wait: کد خروج معتبر برای برنامهٔ GUI + لاگ اینو ستاپ
+          $p = Start-Process -FilePath $setup.FullName -Wait -PassThru -ArgumentList `
+            "/VERYSILENT","/SUPPRESSMSGBOXES","/NORESTART","/NOICONS","/CURRENTUSER", `
+            "/DIR=$dir","/LOG=$dir\setup.log"
+          if ($p.ExitCode -ne 0) {
+            Get-Content "$dir\setup.log" -ErrorAction SilentlyContinue | Select-Object -Last 40
+            throw "silent install failed (exit $($p.ExitCode))"
+          }
           if (-not (Test-Path "$dir\ODINAssistant.exe")) { throw "installed EXE missing" }
           if (-not (Test-Path "$dir\.installed")) { throw ".installed marker missing (installed-mode broken)" }
-          & "$dir\unins000.exe" /VERYSILENT /NORESTART
-          if ($LASTEXITCODE -ne 0) { throw "silent uninstall failed ($LASTEXITCODE)" }
+          $u = Start-Process -FilePath "$dir\unins000.exe" -Wait -PassThru -ArgumentList `
+            "/VERYSILENT","/NORESTART","/LOG=$dir\unins.log"
+          if ($u.ExitCode -ne 0) {
+            Get-Content "$dir\unins.log" -ErrorAction SilentlyContinue | Select-Object -Last 40
+            throw "silent uninstall failed (exit $($u.ExitCode))"
+          }
           Start-Sleep -Seconds 3
           if (Test-Path "$dir\ODINAssistant.exe") { throw "uninstall left the EXE behind" }
 
