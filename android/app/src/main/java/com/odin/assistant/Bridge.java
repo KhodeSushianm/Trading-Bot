@@ -5,6 +5,7 @@ import android.content.ContentValues;
 import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
+import android.media.MediaScannerConnection;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Environment;
@@ -51,7 +52,7 @@ public class Bridge {
 
     private static final String UA =
             "Mozilla/5.0 (Linux; Android 13) AppleWebKit/537.36 (KHTML, like Gecko) "
-                    + "Chrome/126.0.0.0 Mobile Safari/537.36 ODINAssistant/0.17.0";
+                    + "Chrome/126.0.0.0 Mobile Safari/537.36 ODINAssistant/0.18.0";
 
     private final Context ctx;          // همیشه غیرnull (application context ترجیحاً)
     private final Activity act;         // در حالت سرویس null است
@@ -156,7 +157,7 @@ public class Bridge {
         try {
             return ctx.getPackageManager().getPackageInfo(ctx.getPackageName(), 0).versionName;
         } catch (Exception e) {
-            return "0.17.0";
+            return "0.18.0";
         }
     }
 
@@ -408,6 +409,106 @@ public class Bridge {
             FileOutputStream fos = new FileOutputStream(new File(dir, name));
             fos.write(content.getBytes("UTF-8"));
             fos.close();
+            return "ok";
+        } catch (Exception e) {
+            return e.getClass().getSimpleName() + ": "
+                    + (e.getMessage() == null ? "" : e.getMessage());
+        }
+    }
+
+    // ── کارت تصویری سیگنال (v0.18.0) — ذخیره/اشتراک PNG ─────────
+    private static byte[] decodeDataUrl(String dataUrl) {
+        try {
+            if (dataUrl == null) return null;
+            int comma = dataUrl.indexOf(',');
+            String b64 = comma >= 0 ? dataUrl.substring(comma + 1) : dataUrl;
+            return Base64.decode(b64, Base64.DEFAULT);
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    /**
+     * ذخیرهٔ PNG در گالری (Pictures/ODIN).
+     * API 29+: MediaStore بدون مجوز · API 24-28: حافظهٔ خارجی با مجوز یک‌بار.
+     * @return "ok" یا "permission" یا شرح خطا
+     */
+    @JavascriptInterface
+    public String saveImage(String dataUrl, String name) {
+        try {
+            byte[] png = decodeDataUrl(dataUrl);
+            if (png == null || png.length == 0) return "decode-failed";
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                ContentValues cv = new ContentValues();
+                cv.put(MediaStore.Images.Media.DISPLAY_NAME, name);
+                cv.put(MediaStore.Images.Media.MIME_TYPE, "image/png");
+                cv.put(MediaStore.Images.Media.RELATIVE_PATH,
+                        Environment.DIRECTORY_PICTURES + "/ODIN");
+                Uri uri = ctx.getContentResolver()
+                        .insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, cv);
+                if (uri == null) return "insert-failed";
+                OutputStream os = ctx.getContentResolver().openOutputStream(uri);
+                if (os == null) return "open-failed";
+                os.write(png);
+                os.close();
+                return "ok";
+            }
+            if (act == null) return "permission";
+            if (act.checkSelfPermission(android.Manifest.permission.WRITE_EXTERNAL_STORAGE)
+                    != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+                act.requestPermissions(new String[]{
+                        android.Manifest.permission.WRITE_EXTERNAL_STORAGE}, 1003);
+                return "permission";
+            }
+            File dir = new File(Environment.getExternalStoragePublicDirectory(
+                    Environment.DIRECTORY_PICTURES), "ODIN");
+            if (!dir.exists() && !dir.mkdirs()) return "mkdir-failed";
+            File f = new File(dir, name);
+            FileOutputStream fos = new FileOutputStream(f);
+            fos.write(png);
+            fos.close();
+            MediaScannerConnection.scanFile(ctx, new String[]{f.getAbsolutePath()},
+                    new String[]{"image/png"}, null);
+            return "ok";
+        } catch (Exception e) {
+            return e.getClass().getSimpleName() + ": "
+                    + (e.getMessage() == null ? "" : e.getMessage());
+        }
+    }
+
+    /**
+     * اشتراک PNG با شیتر اندروید: فایل در cacheDir/share نوشته و از طریق
+     * ShareFileProvider (بدون AndroidX) به‌صورت content:// به اپ مقصد داده
+     * می‌شود — روی همهٔ APIها کار می‌کند (file:// از API 24 ممنوع است).
+     */
+    @JavascriptInterface
+    public String shareImage(String dataUrl, final String caption) {
+        if (act == null) return "";
+        try {
+            byte[] png = decodeDataUrl(dataUrl);
+            if (png == null || png.length == 0) return "decode-failed";
+            File dir = new File(ctx.getCacheDir(), "share");
+            if (!dir.exists() && !dir.mkdirs()) return "mkdir-failed";
+            final String name = "odin-signal-" + System.currentTimeMillis() + ".png";
+            File f = new File(dir, name);
+            FileOutputStream fos = new FileOutputStream(f);
+            fos.write(png);
+            fos.close();
+            Uri uri = ShareFileProvider.uriFor(name);
+            final Intent i = new Intent(Intent.ACTION_SEND);
+            i.setType("image/png");
+            i.putExtra(Intent.EXTRA_STREAM, uri);
+            if (caption != null && !caption.isEmpty()) i.putExtra(Intent.EXTRA_TEXT, caption);
+            i.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+            ui.post(new Runnable() {
+                @Override
+                public void run() {
+                    try {
+                        act.startActivity(Intent.createChooser(i, "اشتراک کارت سیگنال"));
+                    } catch (Exception ignored) {
+                    }
+                }
+            });
             return "ok";
         } catch (Exception e) {
             return e.getClass().getSimpleName() + ": "

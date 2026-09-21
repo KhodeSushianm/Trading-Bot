@@ -18,7 +18,7 @@ const ctx = { console };
 ctx.globalThis = ctx;
 vm.createContext(ctx);
 for (const f of ['md5.js', 'fa.js', 'icons.js', 'config.js', 'indicators.js', 'session.js',
-  'technical.js', 'calendar.js', 'news.js', 'judge.js', 'journal.js', 'data.js', 'alerts.js', 'chart.js',
+  'technical.js', 'calendar.js', 'news.js', 'judge.js', 'journal.js', 'data.js', 'alerts.js', 'chart.js', 'sharecard.js',
   'briefing.js', 'ui.js']) {
   vm.runInContext(fs.readFileSync(path.join(WWW, f), 'utf8'), ctx, { filename: f });
 }
@@ -201,6 +201,10 @@ for (const [name, html] of Object.entries(pages)) {
   noEmoji(html, 'page:' + name);
   if (!name.endsWith('-empty')) hasSvg(html, 'page:' + name);
 }
+
+// دکمهٔ اشتراک تصویر روی کارت سیگنال (v0.18.0)
+assert(pages.signals.includes('data-share-img='), 'share-image button missing on signal card');
+assert(pages.signals.includes('اشتراک تصویر'), 'share-image label missing');
 
 // دکمهٔ نمودار روی کارت نماد (v0.17.0)
 assert(pages.home.includes('data-chart-open="EURUSD"'), 'chart button missing on symbol card');

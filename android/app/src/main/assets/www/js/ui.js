@@ -367,8 +367,11 @@
       '<div class="level-box tp"><div class="l-cap">' + O.ico('target', 11, 'c-green') + ' هدف</div><div class="l-val">' + esc(O.fmtPrice(s.tp, s.pip)) + '</div><div class="l-sub">' + esc(O.faPips(Math.abs(s.tp - s.entry), s.pip, s.is_gold)) + '</div></div>' +
       '</div>';
 
-    h += '<div style="margin-top:8px"><button class="btn subtle" data-chart-sig="' + esc(s.symbol) + '"' +
-      ' style="padding:5px 12px;font-size:10.5px">' + O.ico('chart-line', 12) + ' نمایش روی نمودار</button></div>';
+    h += '<div style="margin-top:8px;display:flex;gap:6px;flex-wrap:wrap">' +
+      '<button class="btn subtle" data-chart-sig="' + esc(s.symbol) + '"' +
+      ' style="padding:5px 12px;font-size:10.5px">' + O.ico('chart-line', 12) + ' نمایش روی نمودار</button>' +
+      '<button class="btn subtle" data-share-img="' + idx + '"' +
+      ' style="padding:5px 12px;font-size:10.5px">' + O.ico('share', 12) + ' اشتراک تصویر</button></div>';
     h += '<div class="sym-meta" style="margin-top:8px">' +
       '<span class="pill outline">' + O.ico('scale', 11) + ' ریسک به ریسک ۱:' + O.faRatio(s.rr) + '</span>' +
       '<span class="pill outline">' + O.ico('wave', 11) + ' ATR: ' + esc(O.faPips(s.atr, s.pip, s.is_gold)) + '</span>' +
@@ -748,7 +751,7 @@
       '</div>';
 
     html += '<div class="card ink"><div class="ink-title">دربارهٔ ODIN ASSISTANT</div>' +
-      '<div class="ink-cap" style="margin-top:6px;line-height:2.2">نسخهٔ اندروید ' + O.faNum(S.version || '0.17.0') + ' — همراه نسخهٔ ویندوز (0.8.1)<br>' +
+      '<div class="ink-cap" style="margin-top:6px;line-height:2.2">نسخهٔ اندروید ' + O.faNum(S.version || '0.18.0') + ' — همراه نسخهٔ ویندوز (0.8.1)<br>' +
       O.ico('clock', 11) + ' همهٔ ساعت‌های اپ به وقت تهران است (منطق داخلی موتور UTC — هماهنگ با نسخهٔ دسکتاپ).<br>' +
       O.ico('seal', 11) + ' <b style="color:#fff">غیرخودکار:</b> این اپ هیچ معامله‌ای انجام نمی‌دهد و به هیچ بروکری وصل نیست.</div>' +
       '<button class="btn ghost sm" data-tab="about" style="margin-top:10px;width:100%">' + O.ico('info', 13) + ' دربارهٔ ما، حق نشر و اصالت برنامه ' + O.ico('chevron-left', 12) + '</button></div>';
@@ -766,7 +769,7 @@
 
   // ── دربارهٔ ما (حق نشر، سازنده، اصالت امضا) ─────────────────
   O.renderAbout = function (S) {
-    var ver = S.version || '0.17.0';
+    var ver = S.version || '0.18.0';
     var html = '<div class="action-row"><button class="btn ghost" data-tab="settings">' + O.ico('chevron-right', 14) + ' بازگشت</button></div>' +
       pt('info', 'دربارهٔ ما') +
       '<div class="page-sub">سازنده، حق نشر و راهِ تشخیص نسخهٔ اصلی</div>';

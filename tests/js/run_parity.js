@@ -21,7 +21,7 @@ const FIX = JSON.parse(fs.readFileSync(path.join(HERE, 'fixtures.json'), 'utf8')
 
 // ── بارگذاری ماژول‌های اپ (بدون DOM) ─────────────────────────
 const FILES = ['md5.js', 'fa.js', 'icons.js', 'license.js', 'config.js', 'indicators.js', 'session.js', 'technical.js',
-  'calendar.js', 'news.js', 'judge.js', 'journal.js', 'data.js', 'alerts.js', 'chart.js', 'briefing.js', 'ui.js', 'app.js'];
+  'calendar.js', 'news.js', 'judge.js', 'journal.js', 'data.js', 'alerts.js', 'chart.js', 'sharecard.js', 'briefing.js', 'ui.js', 'app.js'];
 for (const f of FILES) {
   const code = fs.readFileSync(path.join(JS_DIR, f), 'utf8');
   try {

@@ -80,6 +80,7 @@ jobs:
           node tests/js/smoke_license.js
           node tests/js/smoke_alerts.js
           node tests/js/smoke_chart.js
+          node tests/js/smoke_share.js
 
       - name: Prepare release keystore from Secrets (if present)
         env:

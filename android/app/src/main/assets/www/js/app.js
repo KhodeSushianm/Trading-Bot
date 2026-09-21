@@ -29,7 +29,7 @@
   var S = {
     cfg: null, settings: null, storage: null, journal: null,
     state: null, stats: null, tab: 'home', busy: false,
-    version: '0.17.0', lastBack: 0,
+    version: '0.18.0', lastBack: 0,
     deviceId: '', deviceCode: '', licensed: false,   // لایسنس (v0.14.0)
     chartSym: null, chartTf: 'H1', chartBars: 120, chartSig: null,   // نمودار (v0.17.0)
     onbStage: null,               // 'license' | 'name' | 'bg' | null — مرحلهٔ خوش‌آمدگویی
@@ -126,6 +126,14 @@
     },
     openNotificationSettings: function () {
       try { if (typeof ODINNative !== 'undefined' && ODINNative.openNotificationSettings) ODINNative.openNotificationSettings(); } catch (e) { }
+    },
+    shareImage: function (dataUrl, caption) {
+      try { if (typeof ODINNative !== 'undefined' && ODINNative.shareImage) return ODINNative.shareImage(dataUrl, caption); } catch (e) { }
+      return '';
+    },
+    saveImage: function (dataUrl, name) {
+      try { if (typeof ODINNative !== 'undefined' && ODINNative.saveImage) return ODINNative.saveImage(dataUrl, name); } catch (e) { }
+      return '';
     }
   };
 
@@ -566,6 +574,12 @@
         } catch (e) { }
         return;
       }
+      if (t.dataset.shareImg !== undefined && t.dataset.shareImg !== '') {
+        var jIdx = parseInt(t.dataset.shareImg, 10);
+        var jj = ((S.state && S.state.judgments) || [])[jIdx];
+        if (jj && jj.signal) showShareImageModal(jj.signal);
+        return;
+      }
       if (t.dataset.chartOpen) {
         S.chartSym = t.dataset.chartOpen; S.chartSig = null;
         S.chartTf = 'H1'; S.chartBars = 120;
@@ -846,6 +860,64 @@
     });
   }
 
+  // ── کارت تصویری سیگنال (v0.18.0) — پیش‌نمایش، ارسال، ذخیره ──
+  function showShareImageModal(sig) {
+    var spec = O.buildShareSpec(sig, { version: S.version });
+    var dataUrl = null;
+    var pending = [];
+
+    function build(cb) {
+      if (dataUrl) { cb(dataUrl); return; }
+      var fontsReady = (document.fonts && document.fonts.ready)
+        ? document.fonts.ready : Promise.resolve();
+      Promise.resolve(fontsReady).then(function () {
+        try {
+          var cv = O.renderShareCanvas(spec);
+          dataUrl = cv.toDataURL('image/png');
+          cb(dataUrl);
+        } catch (e) {
+          O.toast('ساخت تصویر ممکن نشد — دوباره تلاش کن');
+        }
+      });
+    }
+
+    O.modal(O.ico('share', 17) + ' اشتراک کارت سیگنال',
+      '<div id="sc-wrap" style="text-align:center;min-height:220px">' +
+      '<div class="spinner" style="margin:90px auto;border-color:var(--border);border-top-color:var(--ink)"></div></div>',
+      [
+        {
+          label: 'ارسال به…', cls: 'primary', fn: function () {
+            build(function (u) {
+              var res = O.native.shareImage(u,
+                spec.dirLabel + ' ' + spec.pair + ' · امتیاز ' + spec.scoreFa + ' — ODIN ASSISTANT');
+              if (res && res !== 'ok') O.toast('اشتراک ناموفق: ' + String(res).slice(0, 50));
+            });
+          }
+        },
+        {
+          label: 'ذخیره در گالری', cls: 'ghost', fn: function () {
+            build(function (u) {
+              var name = 'odin-signal-' + sig.symbol + '-' + O.dayKeyTeh(new Date(sig.now || Date.now())) + '.png';
+              var res = O.native.saveImage(u, name);
+              if (res === 'ok') O.toast('در گالری ذخیره شد (Pictures/ODIN)');
+              else if (res === 'permission') O.toast('مجوز حافظه لازم است — پس از اجازه، دوباره بزن');
+              else if (!res) O.toast('ذخیره در این محیط ممکن نیست');
+              else O.toast('خطا در ذخیره: ' + String(res).slice(0, 50));
+            });
+          }
+        },
+        { label: 'بستن', cls: 'ghost' }
+      ]);
+
+    build(function (u) {
+      var w = document.getElementById('sc-wrap');
+      if (w) {
+        w.innerHTML = '<img src="' + u + '" alt="کارت سیگنال" ' +
+          'style="width:100%;border-radius:18px;box-shadow:var(--shadow-lg)">';
+      }
+    });
+  }
+
   // ── همگام‌سازی با سرویس پس‌زمینه ────────────────────────────
   // وقتی رصد پس‌زمینه فعال است، چرخه‌ها در WebView سرویس اجرا می‌شوند و
   // نتیجه در state.last می‌نشیند؛ رابط فقط آن را تازه می‌خواند (واکشی دوبله نه).
@@ -1092,7 +1164,7 @@
     S.storage = O.makeStorage();
     loadSettings();
     S.journal = new O.Journal(S.storage);
-    try { S.version = (typeof ODINNative !== 'undefined' && ODINNative.getVersion()) || '0.17.0'; } catch (e) { }
+    try { S.version = (typeof ODINNative !== 'undefined' && ODINNative.getVersion()) || '0.18.0'; } catch (e) { }
     document.getElementById('splash-ver').textContent = 'v' + S.version + ' · android';
     applyUserName();
 

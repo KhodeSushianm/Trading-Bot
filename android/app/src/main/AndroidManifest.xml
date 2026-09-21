@@ -52,6 +52,14 @@
                 android:value="user_requested_continuous_market_signal_monitoring" />
         </service>
 
+        <!-- پرووایدر اشتراک تصویر کارت سیگنال (بدون AndroidX) — فقط خواندنی،
+             فقط cacheDir/share، فقط با grant روی share intent -->
+        <provider
+            android:name=".ShareFileProvider"
+            android:authorities="com.odin.assistant.share"
+            android:exported="false"
+            android:grantUriPermissions="true" />
+
         <!-- بازگشت رصد بعد از ریستارت گوشی (اگر کاربر فعال کرده باشد) -->
         <receiver
             android:name=".BootReceiver"
