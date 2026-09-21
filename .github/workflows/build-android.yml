@@ -16,38 +16,58 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v4
 
-    - name: Set up Python
-      uses: actions/setup-python@v5
+    - name: Set up JDK 17
+      uses: actions/setup-java@v4
       with:
-        python-version: '3.10'
+        java-version: '17'
+        distribution: 'temurin'
 
-    - name: Install dependencies
-      run: |
-        python -m pip install --upgrade pip
-        if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
-        # نصب ابزارهای مورد نیاز برای بیلد اندروید (Buildozer)
-        sudo apt-get update
-        sudo apt-get install -y git zip unzip openjdk-17-jdk autoconf automake build-essential libssl-dev libffi-dev cmake pkg-config libtinfo5 libncursesw5-dev xclip xsel
-        pip install buildozer cython==0.29.37
+    - name: Setup Gradle
+      uses: gradle/actions/setup-gradle@v3
+      with:
+        gradle-version: '8.5'
 
-    - name: Build APK with Buildozer
+    - name: Create Gradle wrapper
       run: |
         cd android
-        # اطمینان از وجود فایل buildozer.spec
-        if [ ! -f buildozer.spec ]; then
-          echo "خطا: فایل buildozer.spec پیدا نشد!"
-          exit 1
+        if [ ! -f gradlew ]; then
+          echo "Creating gradlew wrapper..."
+          cat > gradlew << 'GRADLEW_SCRIPT'
+#!/bin/sh
+exec gradle "$@"
+GRADLEW_SCRIPT
+          chmod +x gradlew
         fi
-        # اجرای بیلد
-        buildozer -v android debug
+
+    - name: Create keystore properties (for debug build)
+      run: |
+        cd android
+        cat > keystore.properties << 'KEYSTORE_PROPS'
+storeFile=debug.keystore
+storePassword=android
+keyAlias=androiddebugkey
+keyPassword=android
+KEYSTORE_PROPS
         
+        if [ ! -f debug.keystore ]; then
+          keytool -genkey -v -keystore debug.keystore -alias androiddebugkey \
+            -storepass android -keypass android -keyalg RSA -keysize 2048 \
+            -validity 10000 -dname "CN=Android Debug,O=Android,C=US"
+        fi
+
+    - name: Build Debug APK with Gradle
+      run: |
+        cd android
+        ./gradlew clean assembleDebug --stacktrace --no-daemon
+
     - name: Locate APK
       id: locate_apk
       run: |
         cd android
-        APK_PATH=$(find bin -name "*.apk" -type f | head -n 1)
+        APK_PATH=$(find app/build/outputs/apk/debug -name "*.apk" -type f | head -n 1)
         if [ -z "$APK_PATH" ]; then
-          echo "خطا: فایل APK ساخته نشد!"
+          echo "Error: APK file not found!"
+          find . -name "*.apk" || true
           exit 1
         fi
         echo "apk_path=$APK_PATH" >> $GITHUB_OUTPUT
@@ -61,12 +81,12 @@ jobs:
         files: ./android/app-debug.apk
         body: |
           🚀 **نسخه جدید اندروید منتشر شد!**
-          
+
           ### تغییرات:
           - قفل سخت‌افزاری (Device Locking) فعال شد.
           - سیستم لایسنس جدید برای جلوگیری از کپی غیرمجاز.
           - بهبود پایداری و رفع باگ‌ها.
-          
+
           ⚠️ **توجه:** این نسخه فقط روی دستگاهی که لایسنس برای آن صادر شده کار می‌کند.
         draft: false
         prerelease: false
