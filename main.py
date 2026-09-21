@@ -334,9 +334,27 @@ def _selftest() -> int:
         assert loaded[0].is_win and not loaded[0].is_open
     assert _json.loads(_json.dumps(rec, ensure_ascii=False))["symbol"] == sg.symbol
 
+    # لایسنس (v0.14.0): طرح HMAC — قطعی، آفلاین، و هم‌بُر با ماژول JS اندروید
+    from src import license as lic
+    did = lic.get_device_id()
+    assert did == lic.get_device_id() and len(did) == 64, "شناسهٔ دستگاه باید قطعی و ۶۴ هگز باشد"
+    code = lic.get_device_code(did)
+    assert code == lic.format_code(did[:12].upper()) and code.count("-") == 2, \
+        f"کد دستگاه بدقالبه: {code}"
+    key = lic.generate_license_key(code)
+    assert key == lic.generate_license_key(code), "کلید باید قطعی باشد"
+    assert lic.validate_license(key)[0], "کلید درست باید اعتبارسنجی شود"
+    assert lic.validate_license(key.lower().replace("-", " "))[0], "کلید باید به فاصله/حروف کوچک مقاوم باشد"
+    assert not lic.validate_license("AAAA-BBBB-CCCC-DDDD")[0], "کلید غلط باید رد شود"
+    assert not lic.validate_license("short")[0], "کلید بدقالبه باید رد شود"
+    assert not lic.validate_license(key, "FF00-FF00-FF00")[0], "کلید دستگاه دیگر باید رد شود"
+    # بُرِد مشترک با license.js اندروید (همان secret، همان HMAC) — در smoke_license.js هم هست
+    assert lic.generate_license_key("AB12-CD34-EF56") == "6F1F-8540-078F-9898", \
+        "بُرِد آزمایشی مشترک پایتون/JS تغییر کرده — secret دو طرف باید یکی بماند"
+
     print(f"SELFTEST OK — {len(evs)} رویداد پارس شد، {len(cases)} حالت جهت‌دهی، "
           f"{len(veto_cases)} وتو، سیگنال {sg.score}/{sg.max_score}، "
-          f"ریاضی SL/TP، ژورنال و کدگذاری کنسول سالم")
+          f"ریاضی SL/TP، ژورنال، لایسنس (HMAC) و کدگذاری کنسول سالم")
     return 0
 
 

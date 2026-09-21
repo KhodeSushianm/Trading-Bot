@@ -43,8 +43,9 @@ from src.ui.splash import WelcomeSplash
 from src.ui.theme import DARK, Space, build_qss
 from src.ui.widgets import (Card, DashedCard, InkCard, LineChart, NavRail, RingGauge,
                             StatTile, StatusPill, Toast)
-from src.license import (check_and_enforce_license, activate_program, 
-                         get_device_id, is_activated, deactivate_program)
+from src.license import (check_and_enforce_license, activate_program,
+                         get_device_id, get_device_code, is_activated,
+                         deactivate_program)
 
 _FA_DIGITS = str.maketrans("0123456789", "۰۱۲۳۴۵۶۷۸۹")
 T = DARK
@@ -181,14 +182,18 @@ class MainWindow(QMainWindow):
      TAB_LOG, TAB_JOURNAL, TAB_SETTINGS) = range(8)
 
     def __init__(self, show_splash: bool = True):
-        # بررسی لایسنس قبل از ساخت UI
-        license_ok, license_msg = check_and_enforce_license()
+        super().__init__()
+
+        # دروازهٔ لایسنس (v0.14.0) — عمداً «بعد از» super().__init__():
+        # در v0.14.0 اولیه اینجا قبل از ساخت آبجکت پایه بود و دیالوگ فعال‌سازی
+        # با والدِ ساخته‌نشده، روی هر ماشین بدون لایسنس کرش می‌کرد
+        # (RuntimeError: libshiboken). در حالت تست/توسعه خودِ
+        # check_and_enforce_license بی‌اثر می‌شود (ODIN_SKIP_LICENSE=1 یا offscreen).
+        license_ok, _license_msg = check_and_enforce_license()
         if not license_ok:
-            # نمایش دیالوگ فعال‌سازی
             if not self._show_activation_dialog():
                 sys.exit(1)
-        
-        super().__init__()
+
         self.q: queue.Queue = queue.Queue()
         self.cfg = load_config()
         uicfg = self.cfg.get("ui") or {}
@@ -901,10 +906,11 @@ class MainWindow(QMainWindow):
         Returns:
             True اگر کاربر با موفقیت فعال‌سازی کرد، False اگر انصراف داد یا شکست خورد
         """
-        dialog = QDialog(self)
+        # والدِ None: دیالوگ مستقل و مدال است — وابسته به ساخت‌ویندوز نیست
+        dialog = QDialog()
         dialog.setWindowTitle("فعال‌سازی ODIN Assistant")
         dialog.setModal(True)
-        dialog.setFixedSize(500, 400)
+        dialog.setFixedSize(520, 430)
         dialog.setLayoutDirection(Qt.RightToLeft)
         
         layout = QVBoxLayout()
@@ -912,7 +918,7 @@ class MainWindow(QMainWindow):
         layout.setContentsMargins(30, 30, 30, 30)
         
         # عنوان
-        title_lbl = QLabel("🔐 فعال‌سازی برنامه")
+        title_lbl = QLabel("فعال‌سازی برنامه")
         title_lbl.setObjectName("ink_title")
         title_lbl.setStyleSheet(f"color: {T.on_ink}; font-size: 18px; font-weight: bold;")
         title_lbl.setAlignment(Qt.AlignCenter)
@@ -920,8 +926,9 @@ class MainWindow(QMainWindow):
         
         # توضیحات
         desc_lbl = QLabel(
-            "برای استفاده از ODIN Assistant، باید برنامه را با کلید لایسنس معتبر فعال کنید.\n\n"
-            "این لایسنس فقط روی همین دستگاه کار می‌کند و قابل انتقال به دستگاه دیگر نیست."
+            "۱) «کد دستگاه» زیر را کپی کرده و برای سازنده (Sushian Khoshkhani) بفرستید.\n"
+            "۲) کلید لایسنس مخصوص همین دستگاه را دریافت و اینجا وارد کنید.\n\n"
+            "هر کلید فقط روی همان دستگاه کار می‌کند و قابل انتقال نیست."
         )
         desc_lbl.setWordWrap(True)
         desc_lbl.setStyleSheet(f"color: {T.text_2}; font-size: 13px;")
@@ -970,12 +977,40 @@ class MainWindow(QMainWindow):
         """)
         form_layout.addRow("کلید لایسنس:", self.license_input)
         
-        # نمایش شناسه دستگاه
-        device_id = get_device_id()
-        device_lbl = QLabel(f"شناسه دستگاه شما: {device_id[:16]}...")
-        device_lbl.setWordWrap(True)
-        device_lbl.setStyleSheet(f"color: {T.text_2}; font-size: 11px;")
-        form_layout.addRow("", device_lbl)
+        # نمایش کد دستگاه (کامل، انتخاب‌پذیر، با دکمهٔ کپی) — v0.14.0
+        device_code = get_device_code()
+        dev_row = QHBoxLayout()
+        dev_row.setSpacing(8)
+        self.device_code_input = QLineEdit(device_code)
+        self.device_code_input.setReadOnly(True)
+        self.device_code_input.setStyleSheet(f"""
+            QLineEdit {{
+                padding: 8px; border: 1px solid {T.divider}; border-radius: 8px;
+                font-size: 14px; font-weight: bold; letter-spacing: 2px;
+                color: {T.text}; background: {T.raised};
+                font-family: Consolas, monospace;
+            }}
+        """)
+        copy_btn = QPushButton("کپی")
+        copy_btn.setMinimumHeight(38)
+        copy_btn.setCursor(Qt.PointingHandCursor)
+        copy_btn.setStyleSheet(f"""
+            QPushButton {{
+                background-color: transparent; color: {T.text_2};
+                border: 1px solid {T.divider}; border-radius: 8px;
+                font-size: 12px; padding: 0 14px;
+            }}
+            QPushButton:hover {{ background-color: {T.rgba('#000000', 0.05)}; }}
+        """)
+
+        def _copy_code():
+            QApplication.clipboard().setText(device_code)
+            copy_btn.setText("کپی شد")
+
+        copy_btn.clicked.connect(_copy_code)
+        dev_row.addWidget(self.device_code_input, 1)
+        dev_row.addWidget(copy_btn)
+        form_layout.addRow("کد دستگاه:", dev_row)
         
         layout.addLayout(form_layout)
         
@@ -1044,12 +1079,12 @@ class MainWindow(QMainWindow):
             license_key = self.license_input.text().strip()
             
             if not name:
-                self.status_lbl.setText("⚠️ لطفاً نام خود را وارد کنید")
+                self.status_lbl.setText("لطفاً نام خود را وارد کنید")
                 self.status_lbl.setStyleSheet("font-size: 12px; color: #FF9A9A;")
                 return
             
             if not license_key:
-                self.status_lbl.setText("⚠️ لطفاً کلید لایسنس را وارد کنید")
+                self.status_lbl.setText("لطفاً کلید لایسنس را وارد کنید")
                 self.status_lbl.setStyleSheet("font-size: 12px; color: #FF9A9A;")
                 return
             
@@ -1057,12 +1092,12 @@ class MainWindow(QMainWindow):
             success, message = activate_program(license_key, name)
             
             if success:
-                self.status_lbl.setText(f"✅ {message}")
+                self.status_lbl.setText(message)
                 self.status_lbl.setStyleSheet("font-size: 12px; color: #4CAF50;")
                 self.activation_result = True
                 dialog.accept()
             else:
-                self.status_lbl.setText(f"❌ {message}")
+                self.status_lbl.setText(message)
                 self.status_lbl.setStyleSheet("font-size: 12px; color: #FF5D5D;")
         
         activate_btn.clicked.connect(on_activate)
@@ -1080,6 +1115,8 @@ class MainWindow(QMainWindow):
 def _selftest() -> int:
     app_paths.fix_console_encoding()
     os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+    # خودآزمون هرگز پشت دروازهٔ لایسنس نمی‌ماند (CI و توسعه)
+    os.environ["ODIN_SKIP_LICENSE"] = "1"
     app = QApplication(sys.argv[:1])
     app.setStyle("Fusion")
     fam = load_fonts()
