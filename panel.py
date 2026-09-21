@@ -29,7 +29,8 @@ from PySide6.QtGui import QColor, QFont, QFontDatabase, QIcon, QPainter, QPixmap
 from PySide6.QtWidgets import (QApplication, QCheckBox, QFrame, QHBoxLayout, QLabel,
                                QLineEdit, QMainWindow, QMessageBox, QPlainTextEdit,
                                QPushButton, QScrollArea, QStackedWidget,
-                               QVBoxLayout, QWidget)
+                               QVBoxLayout, QWidget, QDialog, QDialogButtonBox,
+                               QFormLayout, QComboBox)
 
 from src import app_paths
 from src.config import load_config, save_local_config
@@ -42,6 +43,8 @@ from src.ui.splash import WelcomeSplash
 from src.ui.theme import DARK, Space, build_qss
 from src.ui.widgets import (Card, DashedCard, InkCard, LineChart, NavRail, RingGauge,
                             StatTile, StatusPill, Toast)
+from src.license import (check_and_enforce_license, activate_program, 
+                         get_device_id, is_activated, deactivate_program)
 
 _FA_DIGITS = str.maketrans("0123456789", "۰۱۲۳۴۵۶۷۸۹")
 T = DARK
@@ -178,6 +181,13 @@ class MainWindow(QMainWindow):
      TAB_LOG, TAB_JOURNAL, TAB_SETTINGS) = range(8)
 
     def __init__(self, show_splash: bool = True):
+        # بررسی لایسنس قبل از ساخت UI
+        license_ok, license_msg = check_and_enforce_license()
+        if not license_ok:
+            # نمایش دیالوگ فعال‌سازی
+            if not self._show_activation_dialog():
+                sys.exit(1)
+        
         super().__init__()
         self.q: queue.Queue = queue.Queue()
         self.cfg = load_config()
@@ -883,6 +893,185 @@ class MainWindow(QMainWindow):
         except Exception:
             pass
         super().closeEvent(event)
+
+    # ── دیالوگ فعال‌سازی لایسنس ───────────────────────────────
+    def _show_activation_dialog(self) -> bool:
+        """نمایش دیالوگ فعال‌سازی برنامه.
+        
+        Returns:
+            True اگر کاربر با موفقیت فعال‌سازی کرد، False اگر انصراف داد یا شکست خورد
+        """
+        dialog = QDialog(self)
+        dialog.setWindowTitle("فعال‌سازی ODIN Assistant")
+        dialog.setModal(True)
+        dialog.setFixedSize(500, 400)
+        dialog.setLayoutDirection(Qt.RightToLeft)
+        
+        layout = QVBoxLayout()
+        layout.setSpacing(20)
+        layout.setContentsMargins(30, 30, 30, 30)
+        
+        # عنوان
+        title_lbl = QLabel("🔐 فعال‌سازی برنامه")
+        title_lbl.setObjectName("ink_title")
+        title_lbl.setStyleSheet(f"color: {T.on_ink}; font-size: 18px; font-weight: bold;")
+        title_lbl.setAlignment(Qt.AlignCenter)
+        layout.addWidget(title_lbl)
+        
+        # توضیحات
+        desc_lbl = QLabel(
+            "برای استفاده از ODIN Assistant، باید برنامه را با کلید لایسنس معتبر فعال کنید.\n\n"
+            "این لایسنس فقط روی همین دستگاه کار می‌کند و قابل انتقال به دستگاه دیگر نیست."
+        )
+        desc_lbl.setWordWrap(True)
+        desc_lbl.setStyleSheet(f"color: {T.text_2}; font-size: 13px;")
+        layout.addWidget(desc_lbl)
+        
+        # فرم ورودی
+        form_layout = QFormLayout()
+        form_layout.setSpacing(12)
+        
+        # فیلد نام کاربر
+        self.name_input = QLineEdit()
+        self.name_input.setPlaceholderText("نام خود را وارد کنید")
+        self.name_input.setMinimumHeight(40)
+        self.name_input.setStyleSheet("""
+            QLineEdit {
+                padding: 10px;
+                border: 1px solid #E0E0E0;
+                border-radius: 8px;
+                font-size: 13px;
+                font-family: inherit;
+            }
+            QLineEdit:focus {
+                border-color: #1976D2;
+                outline: none;
+            }
+        """)
+        form_layout.addRow("نام:", self.name_input)
+        
+        # فیلد کلید لایسنس
+        self.license_input = QLineEdit()
+        self.license_input.setPlaceholderText("XXXX-XXXX-XXXX-XXXX")
+        self.license_input.setMinimumHeight(40)
+        self.license_input.setStyleSheet("""
+            QLineEdit {
+                padding: 10px;
+                border: 1px solid #E0E0E0;
+                border-radius: 8px;
+                font-size: 13px;
+                font-family: inherit;
+                letter-spacing: 1px;
+            }
+            QLineEdit:focus {
+                border-color: #1976D2;
+                outline: none;
+            }
+        """)
+        form_layout.addRow("کلید لایسنس:", self.license_input)
+        
+        # نمایش شناسه دستگاه
+        device_id = get_device_id()
+        device_lbl = QLabel(f"شناسه دستگاه شما: {device_id[:16]}...")
+        device_lbl.setWordWrap(True)
+        device_lbl.setStyleSheet(f"color: {T.text_2}; font-size: 11px;")
+        form_layout.addRow("", device_lbl)
+        
+        layout.addLayout(form_layout)
+        
+        # پیام وضعیت
+        self.status_lbl = QLabel("")
+        self.status_lbl.setWordWrap(True)
+        self.status_lbl.setStyleSheet("font-size: 12px; color: #FF5D5D;")
+        layout.addWidget(self.status_lbl)
+        
+        layout.addStretch(1)
+        
+        # دکمه‌ها
+        btn_layout = QHBoxLayout()
+        btn_layout.setSpacing(12)
+        
+        cancel_btn = QPushButton("انصراف")
+        cancel_btn.setMinimumHeight(40)
+        cancel_btn.setMinimumWidth(120)
+        cancel_btn.setCursor(Qt.PointingHandCursor)
+        cancel_btn.setStyleSheet(f"""
+            QPushButton {{
+                background-color: transparent;
+                color: {T.text_2};
+                border: 1px solid {T.divider};
+                border-radius: 8px;
+                font-size: 13px;
+            }}
+            QPushButton:hover {{
+                background-color: {T.rgba('#000000', 0.05)};
+            }}
+        """)
+        
+        activate_btn = QPushButton("فعال‌سازی")
+        activate_btn.setMinimumHeight(40)
+        activate_btn.setMinimumWidth(120)
+        activate_btn.setCursor(Qt.PointingHandCursor)
+        activate_btn.setObjectName("primary")
+        activate_btn.setStyleSheet(f"""
+            QPushButton {{
+                background-color: {T.primary};
+                color: {T.on_primary};
+                border: none;
+                border-radius: 8px;
+                font-size: 13px;
+                font-weight: bold;
+            }}
+            QPushButton:hover {{
+                background-color: {T.rgba(T.primary, 0.9)};
+            }}
+            QPushButton:pressed {{
+                background-color: {T.rgba(T.primary, 0.8)};
+            }}
+        """)
+        
+        btn_layout.addWidget(cancel_btn)
+        btn_layout.addWidget(activate_btn)
+        layout.addLayout(btn_layout)
+        
+        dialog.setLayout(layout)
+        
+        # اتصال دکمه‌ها
+        self.activation_result = False
+        
+        def on_activate():
+            name = self.name_input.text().strip()
+            license_key = self.license_input.text().strip()
+            
+            if not name:
+                self.status_lbl.setText("⚠️ لطفاً نام خود را وارد کنید")
+                self.status_lbl.setStyleSheet("font-size: 12px; color: #FF9A9A;")
+                return
+            
+            if not license_key:
+                self.status_lbl.setText("⚠️ لطفاً کلید لایسنس را وارد کنید")
+                self.status_lbl.setStyleSheet("font-size: 12px; color: #FF9A9A;")
+                return
+            
+            # تلاش برای فعال‌سازی
+            success, message = activate_program(license_key, name)
+            
+            if success:
+                self.status_lbl.setText(f"✅ {message}")
+                self.status_lbl.setStyleSheet("font-size: 12px; color: #4CAF50;")
+                self.activation_result = True
+                dialog.accept()
+            else:
+                self.status_lbl.setText(f"❌ {message}")
+                self.status_lbl.setStyleSheet("font-size: 12px; color: #FF5D5D;")
+        
+        activate_btn.clicked.connect(on_activate)
+        cancel_btn.clicked.connect(dialog.reject)
+        
+        # اجرای دیالوگ
+        result = dialog.exec()
+        
+        return self.activation_result if hasattr(self, 'activation_result') else (result == QDialog.Accepted)
 
 
 # ══════════════════════════════════════════════════════════════
