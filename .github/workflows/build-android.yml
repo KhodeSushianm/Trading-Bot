@@ -27,49 +27,35 @@ jobs:
       with:
         gradle-version: '8.5'
 
-    - name: Setup Gradle Wrapper
+    - name: Create Gradle Wrapper
       run: |
         cd android
-        # Create gradle wrapper directory
         mkdir -p gradle/wrapper
+        echo "distributionBase=GRADLE_USER_HOME" > gradle/wrapper/gradle-wrapper.properties
+        echo "distributionPath=wrapper/dists" >> gradle/wrapper/gradle-wrapper.properties
+        echo "distributionUrl=https\://services.gradle.org/distributions/gradle-8.5-bin.zip" >> gradle/wrapper/gradle-wrapper.properties
+        echo "zipStoreBase=GRADLE_USER_HOME" >> gradle/wrapper/gradle-wrapper.properties
+        echo "zipStorePath=wrapper/dists" >> gradle/wrapper/gradle-wrapper.properties
         
-        # Create gradle-wrapper.properties
-        cat > gradle/wrapper/gradle-wrapper.properties << 'EOF'
-distributionBase=GRADLE_USER_HOME
-distributionPath=wrapper/dists
-distributionUrl=https\://services.gradle.org/distributions/gradle-8.5-bin.zip
-zipStoreBase=GRADLE_USER_HOME
-zipStorePath=wrapper/dists
-EOF
-
-        # Create gradlew script
-        cat > gradlew << 'GRADLEW_SCRIPT'
-#!/bin/sh
-APP_HOME=$(cd "$(dirname "$0")" && pwd -P)
-CLASSPATH=$APP_HOME/gradle/wrapper/gradle-wrapper.jar
-if [ -n "$JAVA_HOME" ] ; then
-    JAVACMD="$JAVA_HOME/bin/java"
-else
-    JAVACMD="java"
-fi
-exec "$JAVACMD" -classpath "$CLASSPATH" org.gradle.wrapper.GradleWrapperMain "$@"
-GRADLEW_SCRIPT
-        chmod +x gradlew
-
-        # Download gradle-wrapper.jar
-        echo "Downloading Gradle Wrapper JAR..."
+    - name: Download Gradle Wrapper JAR
+      run: |
+        cd android
         curl -L -o gradle/wrapper/gradle-wrapper.jar \
           https://raw.githubusercontent.com/gradle/gradle/v8.5.0/gradle/wrapper/gradle-wrapper.jar
+      
+    - name: Create gradlew script
+      run: |
+        cd android
+        printf '#!/bin/sh\nAPP_HOME=$(cd "$(dirname "$0")" && pwd -P)\nCLASSPATH=$APP_HOME/gradle/wrapper/gradle-wrapper.jar\nif [ -n "$JAVA_HOME" ] ; then\n    JAVACMD="$JAVA_HOME/bin/java"\nelse\n    JAVACMD="java"\nfi\nexec "$JAVACMD" -classpath "$CLASSPATH" org.gradle.wrapper.GradleWrapperMain "$@"' > gradlew
+        chmod +x gradlew
 
     - name: Create keystore properties (for debug build)
       run: |
         cd android
-        cat > keystore.properties << 'KEYSTORE_PROPS'
-storeFile=debug.keystore
-storePassword=android
-keyAlias=androiddebugkey
-keyPassword=android
-KEYSTORE_PROPS
+        echo "storeFile=debug.keystore" > keystore.properties
+        echo "storePassword=android" >> keystore.properties
+        echo "keyAlias=androiddebugkey" >> keystore.properties
+        echo "keyPassword=android" >> keystore.properties
         
         if [ ! -f debug.keystore ]; then
           keytool -genkey -v -keystore debug.keystore -alias androiddebugkey \
