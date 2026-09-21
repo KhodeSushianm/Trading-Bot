@@ -78,6 +78,7 @@ jobs:
           node tests/js/smoke_about.js
           node tests/js/smoke_icons.js
           node tests/js/smoke_license.js
+          node tests/js/smoke_alerts.js
 
       - name: Prepare release keystore from Secrets (if present)
         env:

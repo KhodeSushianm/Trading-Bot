@@ -594,6 +594,16 @@ body {
 /* دکمهٔ «توقف رصد» داخل اعلان ماندگار با بقیهٔ اکشن‌ها یکی است */
 .brief-line .ico, .hint .ico, .card-sub .ico, .set-sub .ico, .news-src .ico { vertical-align: -0.2em; }
 
+/* ── v0.16.0 دکمهٔ دایره‌ای کوچک (حذف هشدار و...) ─────────────── */
+.icon-btn {
+  width: 32px; height: 32px; border-radius: 50%; flex: 0 0 auto;
+  border: 1px solid var(--border); background: var(--card); color: var(--text-2);
+  display: flex; align-items: center; justify-content: center; cursor: pointer;
+  transition: transform .12s, color .15s, background .15s;
+}
+.icon-btn:active { transform: scale(.9); }
+.icon-btn.del:hover, .icon-btn.del.arm { background: var(--red-tint); color: var(--red-text); border-color: #EBC9C9; }
+
 /* ══════════════════════════════════════════════════════════════
    v0.14.2 — پیل تلگرام (ارتباط با سازنده) و فهرست تیم پروژه
    ══════════════════════════════════════════════════════════════ */

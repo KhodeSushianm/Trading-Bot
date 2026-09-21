@@ -29,7 +29,7 @@
   var S = {
     cfg: null, settings: null, storage: null, journal: null,
     state: null, stats: null, tab: 'home', busy: false,
-    version: '0.15.0', lastBack: 0,
+    version: '0.16.0', lastBack: 0,
     deviceId: '', deviceCode: '', licensed: false,   // لایسنس (v0.14.0)
     onbStage: null,               // 'license' | 'name' | 'bg' | null — مرحلهٔ خوش‌آمدگویی
     svcBusy: false, svcReady: false
@@ -356,9 +356,26 @@
         }
       }
 
+      // هشدارهای قیمت (v0.16.0) — در هسته چک می‌شوند تا هم رابط و هم
+      // سرویس پس‌زمینه (اپ بسته) آن‌ها را فعال کنند؛ حذفِ پس‌از‌فعال‌شدن
+      // تضمین می‌کند یک هشدار دو بار اعلان نمی‌شود.
+      var firedAlerts = [];
+      try { firedAlerts = O.alertsCheck(S.storage, S.state.analyses, nowMs); }
+      catch (e) { log('[!] بررسی هشدار قیمت ناموفق: ' + e); }
+      if (firedAlerts.length && S.settings.notify_enabled !== false) {
+        firedAlerts.forEach(function (f) {
+          O.native.notify('هشدار قیمت — ' + f.a.symbol,
+            f.a.symbol + ' به سطح ' + O.fmtPrice(f.a.price, f.pip) +
+            (f.a.dir === 'above' ? ' رسید (عبور به بالا)' : ' رسید (عبور به پایین)') +
+            ' — قیمت فعلی ' + O.fmtPrice(f.price, f.pip) +
+            '\n' + O.faNum(O.hhmmTeh(new Date(nowMs))) + ' به وقت تهران' +
+            (f.a.sticky ? ' · هشدار تکرارشونده' : ''));
+        });
+      }
+
       return {
         mkt: mkt, judgments: judgments, signals: signals, newSignals: newSignals,
-        resolved: resolved, stats: stats, nowMs: nowMs
+        resolved: resolved, stats: stats, nowMs: nowMs, firedAlerts: firedAlerts
       };
     });
   };
@@ -400,6 +417,9 @@
           ? O.faNum(res.signals.length) + ' سیگنال صادر شد — صفحهٔ سیگنال‌ها را ببین'
           : 'سیگنالی صادر نشد — دلیل هر نماد در صفحهٔ سیگنال‌ها هست';
         if (res.resolved.length) msg += ' · ' + O.faNum(res.resolved.length) + ' نتیجهٔ ژورنال بسته شد';
+        if (res.firedAlerts && res.firedAlerts.length) {
+          msg += ' · ' + O.faNum(res.firedAlerts.length) + ' هشدار قیمت فعال شد';
+        }
         O.toast(msg);
       }
       S.busy = false;
@@ -505,6 +525,7 @@
             ? O.faNum(res.newSignals.length) + ' سیگنال تازه صادر شد'
             : 'سیگنال تازه‌ای صادر نشد') +
           (res.resolved.length ? ' · ' + O.faNum(res.resolved.length) + ' نتیجهٔ ژورنال بسته شد' : '') +
+          (res.firedAlerts && res.firedAlerts.length ? ' · ' + O.faNum(res.firedAlerts.length) + ' هشدار قیمت فعال شد' : '') +
           ' · چرخهٔ بعدی تا ' + O.faNum(nextMin) + ' دقیقه';
         O.native.notifyOngoing('رصد بازار — ODIN ASSISTANT', summary);
         O.native.bgCycleDone(nextMin);
@@ -524,7 +545,7 @@
   // ── رویدادها (delegation) ───────────────────────────────────
   function bindEvents() {
     document.addEventListener('click', function (ev) {
-      var t = ev.target.closest ? ev.target.closest('[data-tab],[data-action],[data-expand],[data-ext],[data-step],.cal-filter') : null;
+      var t = ev.target.closest ? ev.target.closest('[data-tab],[data-action],[data-expand],[data-ext],[data-step],[data-alert-add],[data-alert-del],.cal-filter') : null;
       if (!t) return;
 
       if (t.dataset.ext) {
@@ -533,6 +554,13 @@
           if (typeof ODINNative !== 'undefined') ODINNative.openExternal(t.dataset.ext);
           else window.open(t.dataset.ext, '_blank');
         } catch (e) { }
+        return;
+      }
+      if (t.dataset.alertAdd) { showAlertAdd(t.dataset.alertAdd); return; }
+      if (t.dataset.alertDel) {
+        O.alertsRemove(S.storage, t.dataset.alertDel);
+        O.toast('هشدار حذف شد');
+        O.navigate(S.tab);
         return;
       }
       if (t.dataset.tab) { O.navigate(t.dataset.tab); return; }
@@ -719,6 +747,65 @@
         navigator.clipboard.writeText(txt).then(function () { O.toast('در کلیپ‌بورد کپی شد'); }).catch(function () { O.toast('اشتراک‌گذاری ممکن نیست'); });
       } else O.toast('اشتراک‌گذاری ممکن نیست');
     }
+  }
+
+  // ── هشدار قیمت (v0.16.0) — افزودن از کارت نماد در خانه ──────
+  function toLatinDigits(str) {
+    return String(str == null ? '' : str)
+      .replace(/[۰-۹]/g, function (d) { return String(d.charCodeAt(0) - 0x06F0); })
+      .replace(/[٠-٩]/g, function (d) { return String(d.charCodeAt(0) - 0x0660); })
+      .replace(/٫/g, '.');
+  }
+
+  function showAlertAdd(symbol) {
+    var a = null;
+    (S.state && S.state.analyses || []).forEach(function (x) { if (x.symbol === symbol) a = x; });
+    var pip = a ? a.pip : 0.0001;
+    var pair = symbol.length === 6 ? symbol.slice(0, 3) + '/' + symbol.slice(3) : symbol;
+    var cur = (a && isFinite(a.price)) ? O.fmtPrice(a.price, pip) : '';
+    var dir = 'above';
+    O.modal(O.ico('bell', 18) + ' هشدار قیمت — ' + pair,
+      '<div class="set-sub" style="margin-bottom:10px">قیمت فعلی: <b class="mono" style="color:var(--text)">' +
+        (cur || '—') + '</b>' + (a ? '' : ' — اول یک تحلیل اجرا کن') + '</div>' +
+      '<div class="sym-meta" style="margin-bottom:10px">' +
+        '<button class="pill ink" id="al-above" type="button">' + O.ico('arrow-up', 11) + ' وقتی بالاتر رفت</button>' +
+        '<button class="pill outline" id="al-below" type="button">' + O.ico('arrow-down', 11) + ' وقتی پایین‌تر آمد</button>' +
+      '</div>' +
+      '<input id="al-price" class="text-input mono" inputmode="decimal" placeholder="مثلاً 1.1800" value="' + cur + '"' +
+        ' style="text-align:center;letter-spacing:1px;font-weight:700" autocomplete="off" autocorrect="off" spellcheck="false">' +
+      '<div class="set-row" style="padding:12px 2px 0"><div><div class="set-label">هشدار تکرارشونده</div>' +
+      '<div class="set-sub">پس از فعال‌شدن حذف نمی‌شود — حداکثر هر ۶۰ دقیقه یک‌بار تکرار می‌شود</div></div>' +
+      '<label class="switch"><input type="checkbox" id="al-sticky"><span class="track"></span><span class="knob"></span></label></div>',
+      [{
+        label: 'ثبت هشدار', cls: 'primary', keepOpen: true, fn: function () {
+          var el = document.getElementById('al-price');
+          var price = parseFloat(toLatinDigits(el ? el.value : ''));
+          if (!isFinite(price) || price <= 0) { O.toast('قیمت معتبر وارد کن (با رقم لاتین)'); return; }
+          var stickyEl = document.getElementById('al-sticky');
+          var r = O.alertsAdd(S.storage, symbol, dir, price, !!(stickyEl && stickyEl.checked), pip);
+          if (!r.ok) {
+            O.toast(r.why === 'duplicate' ? 'این هشدار قبلاً ثبت شده است'
+              : (r.why === 'max'
+                ? 'حداکثر ' + O.faNum(O.ALERTS_MAX) + ' هشدار فعال — اول یکی را حذف کن'
+                : 'قیمت نامعتبر است'));
+            return;
+          }
+          closeModal();
+          var already = a && isFinite(a.price) &&
+            ((dir === 'above' && a.price >= price) || (dir === 'below' && a.price <= price));
+          O.toast(already
+            ? 'هشدار ثبت شد — قیمت همین حالا از سطح گذشته؛ در چرخهٔ بعد فعال می‌شود'
+            : 'هشدار ثبت شد — حتی وقتی اپ بسته باشد فعال می‌شود');
+          O.navigate(S.tab);
+        }
+      }]);
+    var up = document.getElementById('al-above'), dn = document.getElementById('al-below');
+    if (up) up.addEventListener('click', function () {
+      dir = 'above'; up.className = 'pill ink'; dn.className = 'pill outline';
+    });
+    if (dn) dn.addEventListener('click', function () {
+      dir = 'below'; dn.className = 'pill ink'; up.className = 'pill outline';
+    });
   }
 
   // ── همگام‌سازی با سرویس پس‌زمینه ────────────────────────────
@@ -967,7 +1054,7 @@
     S.storage = O.makeStorage();
     loadSettings();
     S.journal = new O.Journal(S.storage);
-    try { S.version = (typeof ODINNative !== 'undefined' && ODINNative.getVersion()) || '0.15.0'; } catch (e) { }
+    try { S.version = (typeof ODINNative !== 'undefined' && ODINNative.getVersion()) || '0.16.0'; } catch (e) { }
     document.getElementById('splash-ver').textContent = 'v' + S.version + ' · android';
     applyUserName();
 

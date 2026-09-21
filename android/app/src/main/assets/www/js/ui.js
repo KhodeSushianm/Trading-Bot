@@ -165,6 +165,8 @@
           (a.support ? '<span class="sym-stat">حمایت <b>' + esc(O.fmtPrice(a.support, a.pip)) + '</b></span>' : '') +
           (a.resistance ? '<span class="sym-stat">مقاومت <b>' + esc(O.fmtPrice(a.resistance, a.pip)) + '</b></span>' : '') +
           '</div>' : '') +
+        '<div style="margin-top:9px"><button class="btn subtle" data-alert-add="' + esc(a.symbol) + '"' +
+          ' style="padding:5px 12px;font-size:10.5px">' + O.ico('bell', 11) + ' هشدار قیمت</button></div>' +
         '</div>';
     });
 
@@ -227,6 +229,27 @@
         '<div class="ink-tile"><div class="t-num">' + O.rFmt(stats.overall.avg_r) + '</div><div class="t-cap">میانگین R</div></div>' +
         '<div class="ink-tile"><div class="t-num">' + O.faNum(stats.open_count) + '</div><div class="t-cap">سیگنال باز</div></div>' +
         '</div></div>';
+    }
+
+    // هشدارهای قیمت (v0.16.0)
+    var alerts = (S.storage && O.alertsLoad) ? O.alertsLoad(S.storage) : [];
+    if (alerts.length) {
+      html += '<div class="card"><div class="card-title">' + ct('bell', 'هشدارهای قیمت (' + O.faNum(alerts.length) + ')') + '</div>' +
+        '<div class="card-sub">با هر چرخهٔ تحلیل بررسی می‌شوند — حتی وقتی اپ بسته است (رصد پس‌زمینه)</div>' +
+        '<div style="margin-top:6px">';
+      alerts.forEach(function (al) {
+        var pair = String(al.symbol).length === 6 ? al.symbol.slice(0, 3) + '/' + al.symbol.slice(3) : al.symbol;
+        html += '<div class="j-entry"><div class="j-sym">' +
+          '<div style="font-size:12.5px;font-weight:700">' + esc(pair) + ' — ' +
+          (al.dir === 'above'
+            ? O.ico('arrow-up', 10, 'c-green') + ' عبور به بالای '
+            : O.ico('arrow-down', 10, 'c-red') + ' عبور به زیر ') +
+          '<b class="mono">' + esc(O.fmtPrice(al.price, al.pip)) + '</b></div>' +
+          '<div class="s2">' + (al.sticky ? 'تکرارشونده (حداکثر ساعتی یک‌بار) · ' : '') +
+          'ثبت ' + esc(agoFa(Date.parse(al.created_at))) + '</div></div>' +
+          '<button class="icon-btn del" data-alert-del="' + esc(al.id) + '" title="حذف هشدار">' + O.ico('trash', 14) + '</button></div>';
+      });
+      html += '</div></div>';
     }
 
     // پاصفحه
@@ -719,7 +742,7 @@
       '</div>';
 
     html += '<div class="card ink"><div class="ink-title">دربارهٔ ODIN ASSISTANT</div>' +
-      '<div class="ink-cap" style="margin-top:6px;line-height:2.2">نسخهٔ اندروید ' + O.faNum(S.version || '0.15.0') + ' — همراه نسخهٔ ویندوز (0.8.1)<br>' +
+      '<div class="ink-cap" style="margin-top:6px;line-height:2.2">نسخهٔ اندروید ' + O.faNum(S.version || '0.16.0') + ' — همراه نسخهٔ ویندوز (0.8.1)<br>' +
       O.ico('clock', 11) + ' همهٔ ساعت‌های اپ به وقت تهران است (منطق داخلی موتور UTC — هماهنگ با نسخهٔ دسکتاپ).<br>' +
       O.ico('seal', 11) + ' <b style="color:#fff">غیرخودکار:</b> این اپ هیچ معامله‌ای انجام نمی‌دهد و به هیچ بروکری وصل نیست.</div>' +
       '<button class="btn ghost sm" data-tab="about" style="margin-top:10px;width:100%">' + O.ico('info', 13) + ' دربارهٔ ما، حق نشر و اصالت برنامه ' + O.ico('chevron-left', 12) + '</button></div>';
@@ -737,7 +760,7 @@
 
   // ── دربارهٔ ما (حق نشر، سازنده، اصالت امضا) ─────────────────
   O.renderAbout = function (S) {
-    var ver = S.version || '0.15.0';
+    var ver = S.version || '0.16.0';
     var html = '<div class="action-row"><button class="btn ghost" data-tab="settings">' + O.ico('chevron-right', 14) + ' بازگشت</button></div>' +
       pt('info', 'دربارهٔ ما') +
       '<div class="page-sub">سازنده، حق نشر و راهِ تشخیص نسخهٔ اصلی</div>';

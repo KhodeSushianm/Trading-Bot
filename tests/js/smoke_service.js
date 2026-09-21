@@ -43,7 +43,7 @@ ctx.ODINNative = {
 };
 vm.createContext(ctx);
 for (const f of ['md5.js', 'fa.js', 'icons.js', 'license.js', 'config.js', 'indicators.js', 'session.js',
-  'technical.js', 'calendar.js', 'news.js', 'judge.js', 'journal.js', 'data.js',
+  'technical.js', 'calendar.js', 'news.js', 'judge.js', 'journal.js', 'data.js', 'alerts.js',
   'briefing.js', 'ui.js', 'app.js']) {
   vm.runInContext(fs.readFileSync(path.join(WWW, f), 'utf8'), ctx, { filename: f });
 }
@@ -93,6 +93,11 @@ const realMarketStatus = O.marketStatus;
   calls.stopBg = 0;
   ctx.ODIN.S.svcReady = false;      // init دوباره تا لایسنس اعمال شود
   calls.cycleDone.length = 0; calls.ongoing.length = 0;
+  // هشدار قیمتِ حتماً فعال‌شو (v0.16.0): EURUSD زیر ۹۹۹ — در چرخهٔ زنده شلیک می‌شود
+  prefs.set('alerts.json', JSON.stringify([{
+    id: 'EURUSD|below|999', symbol: 'EURUSD', dir: 'below', price: 999, pip: 0.0001,
+    sticky: false, created_at: new Date().toISOString(), last_fired: null
+  }]));
 
   O.svcStart();   // فاز ۱: آماده‌سازی + اولین tick با وضعیت واقعی بازار
 
@@ -123,6 +128,11 @@ const realMarketStatus = O.marketStatus;
   const st2 = JSON.parse(prefs.get('state.last'));
   assert(st2.ranAt && Array.isArray(st2.analyses), 'state.last malformed');
   assert(calls.ongoing.length > 0, 'ongoing notification summary missing');
+  // هشدار قیمت باید در همان چرخهٔ سرویس فعال و اعلان شده باشد (اپ بسته!)
+  assert(calls.notify.some(([t]) => t.includes('هشدار قیمت')),
+    'price alert must fire from background cycle: ' + JSON.stringify(calls.notify.map(x => x[0])));
+  assert.strictEqual(JSON.parse(prefs.get('alerts.json') || '[]').length, 0,
+    'non-sticky alert must be consumed after firing');
   const body = calls.ongoing.map(x => x[1]).join(' ');
   assert(body.includes('آخرین تحلیل') || nextMin === 10,
     'ongoing should summarize the cycle (or be the error retry): ' + body);

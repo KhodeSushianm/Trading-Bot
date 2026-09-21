@@ -18,7 +18,7 @@ const ctx = { console };
 ctx.globalThis = ctx;
 vm.createContext(ctx);
 for (const f of ['md5.js', 'fa.js', 'icons.js', 'config.js', 'indicators.js', 'session.js',
-  'technical.js', 'calendar.js', 'news.js', 'judge.js', 'journal.js', 'data.js',
+  'technical.js', 'calendar.js', 'news.js', 'judge.js', 'journal.js', 'data.js', 'alerts.js',
   'briefing.js', 'ui.js']) {
   vm.runInContext(fs.readFileSync(path.join(WWW, f), 'utf8'), ctx, { filename: f });
 }
@@ -140,11 +140,18 @@ const journalEntries = [
   { ts: nowMs - 3600e3, symbol: 'GBPUSD', direction: 'SELL', entry: 1.315, sl: 1.32, tp: 1.305, pip: 0.0001, is_gold: false, score: 8, max_score: 11, outcome: null, r: null, note: '' }
 ];
 
+const alertMem = {
+  'alerts.json': JSON.stringify([
+    { id: 'EURUSD|above|1.18', symbol: 'EURUSD', dir: 'above', price: 1.18, pip: 0.0001, sticky: false, created_at: new Date(nowMs - 3600e3).toISOString(), last_fired: null },
+    { id: 'XAUUSD|below|3600', symbol: 'XAUUSD', dir: 'below', price: 3600, pip: 1, sticky: true, created_at: new Date(nowMs - 7200e3).toISOString(), last_fired: null }
+  ])
+};
 const S = {
   cfg, settings, state,
   stats: O.computeStats(journalEntries, nowMs),
   journal: { load: () => journalEntries, raw: () => '' },
-  version: '0.13.0'
+  storage: { get: k => alertMem[k] || '', set: (k, v) => { alertMem[k] = String(v); }, del: k => { delete alertMem[k]; } },
+  version: '0.16.0'
 };
 
 const pages = {
@@ -178,6 +185,11 @@ for (const [name, html] of Object.entries(pages)) {
   noEmoji(html, 'page:' + name);
   if (!name.endsWith('-empty')) hasSvg(html, 'page:' + name);
 }
+
+// کارت هشدارهای قیمت در خانه (v0.16.0) — بدون ایموجی و با دکمهٔ حذف
+assert(pages.home.includes('هشدارهای قیمت'), 'alerts card missing in home');
+assert(pages.home.includes('data-alert-del="EURUSD|above|1.18"'), 'alert delete button missing');
+assert(pages.home.includes('data-alert-add="EURUSD"'), 'alert add button missing on symbol card');
 
 // تنظیمات باید سوئیچ رصد پس‌زمینه را داشته باشد (v0.13.0)
 assert(pages.settings.includes('background_enabled'), 'background switch missing in settings');
