@@ -1,0 +1,59 @@
+apply plugin: 'com.android.application'
+
+// امضای نسخهٔ release از keystore.properties خوانده می‌شود (بیرون از گیت).
+// ساخت کلید: android/make-keystore.sh  (یک‌بار اجرا شود)
+def keystorePropsFile = rootProject.file("keystore.properties")
+def keystoreProps = new Properties()
+if (keystorePropsFile.exists()) {
+    keystorePropsFile.withInputStream { keystoreProps.load(it) }
+}
+
+android {
+    namespace 'com.odin.assistant'
+    compileSdk 34
+
+    defaultConfig {
+        applicationId "com.odin.assistant"
+        minSdk 24
+        targetSdk 34
+        versionCode 1900
+        versionName "0.19.0"
+        resourceConfigurations += ["fa"]
+    }
+
+    signingConfigs {
+        release {
+            if (keystorePropsFile.exists()) {
+                storeFile rootProject.file(keystoreProps['storeFile'])
+                storePassword keystoreProps['storePassword']
+                keyAlias keystoreProps['keyAlias']
+                keyPassword keystoreProps['keyPassword']
+            }
+        }
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            shrinkResources false
+            if (keystorePropsFile.exists()) {
+                signingConfig signingConfigs.release
+            }
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+
+    lint {
+        abortOnError false
+        // در محیط‌های کم‌حافظه (ساخت محلی/CI سبک) lintVital حافظهٔ زیادی می‌خواهد؛
+        // lint کامل را می‌توان دستی با `gradle lint` اجرا کرد.
+        checkReleaseBuilds false
+    }
+}
+
+// هیچ وابستگی بیرونی ندارد — فقط APIهای خود اندروید (WebView + SharedPreferences)
+dependencies { }

@@ -1,0 +1,121 @@
+name: Build Android APK
+
+# ساخت «release» اپ اندروید روی برنچ android (و تگ‌هایی که به آن می‌رسند).
+# درس‌های شکست‌های v0.14.0 اولیه:
+#   ۱) AGP 8.5.2 حداقل Gradle 8.7 می‌خواهد (نه 8.5) — خطای VersionCheckPlugin.
+#   ۲) APK debug با keystore یک‌بارمصرفِ CI قابل توزیع نیست (زنجیرهٔ امضای
+#      رسمی bd11159e… را می‌شکند)؛ پس release می‌سازیم و اگر Secrets کلید
+#      رسمی موجود باشد، همان‌جا امضا می‌شود؛ وگرنه خروجی unsigned فقط برای
+#      «صحت بیلد» است و هرگز توزیع نمی‌شود.
+#   ۳) تگ‌های برنچ main (ویندوز) نباید اینجا بیلد اندروید بسازند → guard.
+
+on:
+  push:
+    branches: [ "android" ]
+    tags: [ 'v*' ]
+  pull_request:
+    branches: [ "android" ]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  # ── نگهبان: تگ باید از برنچ android قابل‌دسترس باشد ──────────────
+  android_guard:
+    runs-on: ubuntu-latest
+    outputs:
+      build: ${{ steps.chk.outputs.build }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - id: chk
+        name: Is this ref part of the android branch?
+        run: |
+          if [[ "${{ github.ref }}" != refs/tags/* ]]; then
+            echo "build=true" >> "$GITHUB_OUTPUT"
+            echo "not a tag push (ref=${{ github.ref }}) — android build allowed"
+            exit 0
+          fi
+          TAG_SHA=$(git rev-list -n 1 "${{ github.ref }}")
+          git fetch --no-tags origin android || true
+          AND_SHA=$(git rev-parse FETCH_HEAD 2>/dev/null || echo "")
+          if [[ -n "$AND_SHA" ]] && git merge-base --is-ancestor "$TAG_SHA" "$AND_SHA" 2>/dev/null; then
+            echo "build=true" >> "$GITHUB_OUTPUT"
+            echo "tag ${{ github.ref_name }} reachable from android — build"
+          else
+            echo "build=false" >> "$GITHUB_OUTPUT"
+            echo "tag ${{ github.ref_name }} NOT on android (windows release?) — skip"
+          fi
+
+  build:
+    needs: android_guard
+    if: needs.android_guard.outputs.build == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+
+      - name: Set up Android SDK (platform 34 + build-tools 34)
+        uses: android-actions/setup-android@v3
+        with:
+          packages: 'platforms;android-34 build-tools;34.0.0'
+
+      - name: Setup Gradle 8.7 (حداقلِ سازگار با AGP 8.5.2)
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.7'
+
+      - name: JS smoke tests (رندر بدون ایموجی، لایسنس، دربارهٔ ما)
+        run: |
+          node tests/js/smoke_about.js
+          node tests/js/smoke_icons.js
+          node tests/js/smoke_license.js
+          node tests/js/smoke_alerts.js
+          node tests/js/smoke_chart.js
+          node tests/js/smoke_share.js
+
+      - name: Prepare release keystore from Secrets (if present)
+        env:
+          KS_B64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          KS_PASS: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KS_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          KS_KEYPASS: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          cd android
+          if [ -n "$KS_B64" ] && [ -n "$KS_PASS" ] && [ -n "$KS_ALIAS" ] && [ -n "$KS_KEYPASS" ]; then
+            mkdir -p keystore
+            printf '%s' "$KS_B64" | base64 -d > keystore/ci-release.jks
+            printf 'storeFile=keystore/ci-release.jks\nstorePassword=%s\nkeyAlias=%s\nkeyPassword=%s\n' \
+              "$KS_PASS" "$KS_ALIAS" "$KS_KEYPASS" > keystore.properties
+            echo "SIGNED=1" >> "$GITHUB_ENV"
+            echo "✓ keystore رسمی از Secrets بارگذاری شد — APK امضا می‌شود"
+          else
+            echo "SIGNED=0" >> "$GITHUB_ENV"
+            echo "! Secrets کلید امضا تنظیم نشده — بیلد unsigned فقط برای صحت‌سنجی است"
+          fi
+
+      - name: Build release APK (Gradle 8.7 + AGP 8.5.2)
+        run: |
+          cd android
+          gradle assembleRelease --no-daemon --console=plain
+
+      - name: Verify signature (فقط وقتی امضاشده باشد)
+        if: env.SIGNED == '1'
+        run: |
+          "$ANDROID_HOME"/build-tools/34.0.0/apksigner verify --print-certs \
+            android/app/build/outputs/apk/release/app-release.apk | head -6
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ODIN-Assistant-android-CI
+          path: android/app/build/outputs/apk/release/app-release*.apk
+          if-no-files-found: error

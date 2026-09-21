@@ -737,3 +737,126 @@ class Stepper(QWidget):
         self._label.setText(fa_num(v))
         if changed and not silent:
             self.valueChanged.emit(v)
+#  نمودار کندل‌استیک (v0.19.0) — QPainter، بدون کتابخانهٔ خارجی؛
+#  همزاد بصری js/chart.js اندروید (همان حاشیه‌ها/رنگ‌ها/برچسب‌ها)
+# ══════════════════════════════════════════════════════════════
+class CandleChart(QWidget):
+    """candles: [{'t':ms,'o','h','l','c'}] · levels: [(price, QColor, label, dashed)]"""
+
+    PAD_L, PAD_R, PAD_T, PAD_B = 6, 78, 10, 26
+
+    def __init__(self, parent=None, t: Theme = DARK):
+        super().__init__(parent)
+        self._t = t
+        self._candles: list = []
+        self._pip = 0.0001
+        self._levels: list = []
+        self.setMinimumHeight(240)
+
+    def set_data(self, candles, pip: float = 0.0001, levels=None) -> None:
+        self._candles = list(candles or [])
+        self._pip = pip if pip and pip > 0 else 0.0001
+        self._levels = list(levels or [])
+        self.update()
+
+    def _fmt(self, v: float) -> str:
+        from src.report.signal import fmt_price
+        return fmt_price(v, self._pip)
+
+    def paintEvent(self, ev) -> None:          # noqa: N802
+        from datetime import datetime, timezone
+        from PySide6.QtCore import QPointF, QRectF, Qt
+        from PySide6.QtGui import QColor, QFont, QPainter, QPen
+
+        p = QPainter(self)
+        p.setRenderHint(QPainter.Antialiasing, True)
+        p.setRenderHint(QPainter.TextAntialiasing, True)
+        w, h = self.width(), self.height()
+        t = self._t
+        cs = self._candles[-240:]
+        if len(cs) < 2:
+            p.setPen(QColor(t.text_3))
+            p.setFont(QFont("Vazirmatn", 11))
+            p.drawText(QRectF(0, 0, w, h), Qt.AlignCenter, "دادهٔ نمودار کافی نیست — اول یک چرخهٔ تحلیل اجرا کن")
+            p.end()
+            return
+
+        lo = min(c["l"] for c in cs)
+        hi = max(c["h"] for c in cs)
+        for lv in self._levels:
+            lo = min(lo, lv[0]); hi = max(hi, lv[0])
+        rng = (hi - lo) or hi * 0.001 or 1
+        lo -= rng * 0.04; hi += rng * 0.04; rng = hi - lo
+
+        plot_w = w - self.PAD_L - self.PAD_R
+        plot_h = h - self.PAD_T - self.PAD_B
+
+        def y_of(price):
+            return self.PAD_T + (hi - price) / rng * plot_h
+
+        # شبکه + برچسب قیمت (راست)
+        mono = QFont("Consolas", 8)
+        for g in range(5):
+            pv = hi - rng * g / 4
+            gy = y_of(pv)
+            p.setPen(QPen(QColor(t.divider), 1))
+            p.drawLine(int(self.PAD_L), int(gy), int(w - self.PAD_R), int(gy))
+            p.setPen(QColor(t.text_3))
+            p.setFont(mono)
+            p.drawText(QRectF(w - self.PAD_R + 6, gy - 8, self.PAD_R - 8, 16),
+                       Qt.AlignLeft | Qt.AlignVCenter, self._fmt(pv))
+
+        # سطوح (خط‌چین + برچسب)
+        for price, color, label, dashed in self._levels:
+            ly = y_of(price)
+            if ly < self.PAD_T - 2 or ly > h - self.PAD_B + 2:
+                continue
+            pen = QPen(color, 1.4)
+            if dashed:
+                pen.setStyle(Qt.DashLine)
+            p.setPen(pen)
+            p.drawLine(self.PAD_L, int(ly), int(w - self.PAD_R), int(ly))
+            if label:
+                p.setPen(color)
+                p.setFont(QFont("Vazirmatn", 8, QFont.Bold))
+                p.drawText(QRectF(self.PAD_L + 4, ly - 17, plot_w - 8, 15),
+                           Qt.AlignLeft | Qt.AlignVCenter, label)
+
+        # کندل‌ها
+        n = len(cs)
+        step = plot_w / n
+        bw = max(1.6, min(12.0, step * 0.62))
+        up_c, dn_c = QColor(t.green), QColor(t.red)
+        for i, c in enumerate(cs):
+            x = self.PAD_L + i * step + step / 2
+            col = up_c if c["c"] >= c["o"] else dn_c
+            y_h, y_l = y_of(c["h"]), y_of(c["l"])
+            y_o, y_c = y_of(c["o"]), y_of(c["c"])
+            p.setPen(QPen(col, 1))
+            p.drawLine(QPointF(x, y_h), QPointF(x, y_l))
+            top, bh = min(y_o, y_c), max(1.0, abs(y_c - y_o))
+            p.setPen(Qt.NoPen)
+            p.setBrush(col)
+            p.drawRoundedRect(QRectF(x - bw / 2, top, bw, bh), 1, 1)
+
+        # برچسب زمان (تهران) — ۴ نقطه
+        from src.fa import hhmm, tehran
+        p.setFont(mono)
+        p.setPen(QColor(t.text_3))
+        for ti in range(4):
+            idx = min(n - 1, round((n - 1) * ti / 3))
+            d = tehran(datetime.fromtimestamp(cs[idx]["t"] / 1000, tz=timezone.utc))
+            lbl = f"{d.month:02d}/{d.day:02d} {hhmm(d)}"
+            tx = self.PAD_L + idx * step + step / 2
+            p.drawText(QRectF(tx - 44, h - 20, 88, 16), Qt.AlignCenter, lbl)
+
+        # قرص قیمت آخرین کندل
+        last = cs[-1]
+        ly2 = max(self.PAD_T + 8, min(h - self.PAD_B - 8, y_of(last["c"])))
+        p.setPen(Qt.NoPen)
+        p.setBrush(QColor(t.ink_card))
+        p.drawRoundedRect(QRectF(w - self.PAD_R + 3, ly2 - 9, 70, 18), 9, 9)
+        p.setPen(QColor(t.on_ink))
+        p.setFont(QFont("Consolas", 8, QFont.Bold))
+        p.drawText(QRectF(w - self.PAD_R + 3, ly2 - 9, 70, 18), Qt.AlignCenter, self._fmt(last["c"]))
+        p.end()

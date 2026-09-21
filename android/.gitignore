@@ -1,0 +1,9 @@
+# فایل‌های محلی ساخت — هرگز در گیت ثبت نمی‌شوند
+keystore/
+keystore.properties
+local.properties
+.gradle/
+build/
+app/build/
+*.iml
+.idea/

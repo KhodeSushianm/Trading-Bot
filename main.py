@@ -334,9 +334,67 @@ def _selftest() -> int:
         assert loaded[0].is_win and not loaded[0].is_open
     assert _json.loads(_json.dumps(rec, ensure_ascii=False))["symbol"] == sg.symbol
 
+    # لایسنس (v0.14.0): طرح HMAC — قطعی، آفلاین، و هم‌بُر با ماژول JS اندروید
+    from src import license as lic
+    did = lic.get_device_id()
+    assert did == lic.get_device_id() and len(did) == 64, "شناسهٔ دستگاه باید قطعی و ۶۴ هگز باشد"
+    code = lic.get_device_code(did)
+    assert code == lic.format_code(did[:12].upper()) and code.count("-") == 2, \
+        f"کد دستگاه بدقالبه: {code}"
+    key = lic.generate_license_key(code)
+    assert key == lic.generate_license_key(code), "کلید باید قطعی باشد"
+    assert lic.validate_license(key)[0], "کلید درست باید اعتبارسنجی شود"
+    assert lic.validate_license(key.lower().replace("-", " "))[0], "کلید باید به فاصله/حروف کوچک مقاوم باشد"
+    assert not lic.validate_license("AAAA-BBBB-CCCC-DDDD")[0], "کلید غلط باید رد شود"
+    assert not lic.validate_license("short")[0], "کلید بدقالبه باید رد شود"
+    assert not lic.validate_license(key, "FF00-FF00-FF00")[0], "کلید دستگاه دیگر باید رد شود"
+    # بُرِد مشترک با license.js اندروید (همان secret، همان HMAC) — در smoke_license.js هم هست
+    assert lic.generate_license_key("AB12-CD34-EF56") == "6F1F-8540-078F-9898", \
+        "بُرِد آزمایشی مشترک پایتون/JS تغییر کرده — secret دو طرف باید یکی بماند"
+
+    # کارت تصویری سیگنال (v0.19.0) — spec پایتون == spec جاوااسکریپت (smoke_share.js)
+    from src.report.sharecard import build_share_spec as _bss
+    from datetime import datetime as _dt2, timezone as _tz2
+    _spec = _bss({"symbol": "EURUSD", "fa_name": "یورو به دلار آمریکا", "direction": "BUY",
+                  "stars": 5, "score": 10, "max_score": 11, "entry": 1.17, "sl": 1.165,
+                  "tp": 1.18, "pip": 0.0001, "is_gold": False, "rr": 2.0,
+                  "now": _dt2(2026, 9, 21, 12, 0, 0, tzinfo=_tz2.utc),
+                  "session_fa": "لندن/نیویورک"}, version="0.19.0")
+    assert (_spec["pair"], _spec["dirLabel"], _spec["entry"], _spec["slDist"],
+            _spec["scoreFa"], _spec["timeTeh"], _spec["footerTg"]) == \
+        ("EUR/USD", "سیگنال خرید", "1.17000", "۵۰ پیپ", "۱۰ از ۱۱", "۱۵:۳۰ تهران",
+         "@Khode_Sushian"), f"spec کارت تصویری از وکتور مشترک خارج شد: {_spec}"
+
+    # هشدارهای قیمت (v0.19.0) — چرخهٔ افزودن/شلیک/حذفِ یک‌بارمصرف
+    import tempfile as _tf
+    from src import alerts as _al
+    _prev = os.environ.get("ODIN_DATA_DIR")
+    with _tf.TemporaryDirectory() as _td:
+        os.environ["ODIN_DATA_DIR"] = _td
+        try:
+            ok, _w = _al.add_alert("EURUSD", "above", 9.5, pip=0.0001)
+            assert ok, "افزودن هشدار ناموفق"
+            _f = _al.check_alerts([{"symbol": "EURUSD", "price": 10.0, "pip": 0.0001}])
+            assert len(_f) == 1 and _f[0]["_price"] == 10.0, "هشدار شلیک نشد"
+            assert _al.check_alerts([{"symbol": "EURUSD", "price": 10.0}]) == [], \
+                "هشدار یک‌بارمصرف باید مصرف شود"
+        finally:
+            if _prev is None:
+                os.environ.pop("ODIN_DATA_DIR", None)
+            else:
+                os.environ["ODIN_DATA_DIR"] = _prev
+    # کلید زمان‌دار (v0.15.0) — انقضا داخل رشتهٔ کلید؛ بُرِد مشترک با js/license.js
+    timed = lic.generate_license_key("AB12-CD34-EF56", until="2030-12-31")
+    assert timed == "19DB-2DFA-F0E7-0082-301231", f"بُرِد کلید زمان‌دار عوض شده: {timed}"
+    assert lic.validate_license(timed, "AB12-CD34-EF56")[0], "کلید زمان‌دار معتبر باید پاس شود"
+    assert not lic.validate_license(timed, "AB12-CD34-EF56", now=datetime(2031, 1, 1))[0], \
+        "کلید زمان‌دار باید پس از انقضا رد شود"
+    assert not lic.validate_license("19DB-2DFA-F0E7-0082", "AB12-CD34-EF56")[0], \
+        "حذف پسوند تاریخ نباید کلید زمان‌دار را معتبر کند"
+
     print(f"SELFTEST OK — {len(evs)} رویداد پارس شد، {len(cases)} حالت جهت‌دهی، "
           f"{len(veto_cases)} وتو، سیگنال {sg.score}/{sg.max_score}، "
-          f"ریاضی SL/TP، ژورنال و کدگذاری کنسول سالم")
+          f"ریاضی SL/TP، ژورنال، لایسنس (HMAC) و کدگذاری کنسول سالم")
     return 0
 
 
