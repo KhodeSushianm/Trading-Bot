@@ -165,8 +165,12 @@
           (a.support ? '<span class="sym-stat">حمایت <b>' + esc(O.fmtPrice(a.support, a.pip)) + '</b></span>' : '') +
           (a.resistance ? '<span class="sym-stat">مقاومت <b>' + esc(O.fmtPrice(a.resistance, a.pip)) + '</b></span>' : '') +
           '</div>' : '') +
-        '<div style="margin-top:9px"><button class="btn subtle" data-alert-add="' + esc(a.symbol) + '"' +
-          ' style="padding:5px 12px;font-size:10.5px">' + O.ico('bell', 11) + ' هشدار قیمت</button></div>' +
+        '<div style="margin-top:9px;display:flex;gap:6px">' +
+          '<button class="btn subtle" data-chart-open="' + esc(a.symbol) + '"' +
+            ' style="padding:5px 12px;font-size:10.5px">' + O.ico('chart-line', 11) + ' نمودار</button>' +
+          '<button class="btn subtle" data-alert-add="' + esc(a.symbol) + '"' +
+            ' style="padding:5px 12px;font-size:10.5px">' + O.ico('bell', 11) + ' هشدار قیمت</button>' +
+        '</div>' +
         '</div>';
     });
 
@@ -363,7 +367,9 @@
       '<div class="level-box tp"><div class="l-cap">' + O.ico('target', 11, 'c-green') + ' هدف</div><div class="l-val">' + esc(O.fmtPrice(s.tp, s.pip)) + '</div><div class="l-sub">' + esc(O.faPips(Math.abs(s.tp - s.entry), s.pip, s.is_gold)) + '</div></div>' +
       '</div>';
 
-    h += '<div class="sym-meta">' +
+    h += '<div style="margin-top:8px"><button class="btn subtle" data-chart-sig="' + esc(s.symbol) + '"' +
+      ' style="padding:5px 12px;font-size:10.5px">' + O.ico('chart-line', 12) + ' نمایش روی نمودار</button></div>';
+    h += '<div class="sym-meta" style="margin-top:8px">' +
       '<span class="pill outline">' + O.ico('scale', 11) + ' ریسک به ریسک ۱:' + O.faRatio(s.rr) + '</span>' +
       '<span class="pill outline">' + O.ico('wave', 11) + ' ATR: ' + esc(O.faPips(s.atr, s.pip, s.is_gold)) + '</span>' +
       '<span class="pill outline">' + O.ico('coins', 11) + ' ریسک پیشنهادی: حداکثر ۱٪</span></div>';
@@ -742,7 +748,7 @@
       '</div>';
 
     html += '<div class="card ink"><div class="ink-title">دربارهٔ ODIN ASSISTANT</div>' +
-      '<div class="ink-cap" style="margin-top:6px;line-height:2.2">نسخهٔ اندروید ' + O.faNum(S.version || '0.16.0') + ' — همراه نسخهٔ ویندوز (0.8.1)<br>' +
+      '<div class="ink-cap" style="margin-top:6px;line-height:2.2">نسخهٔ اندروید ' + O.faNum(S.version || '0.17.0') + ' — همراه نسخهٔ ویندوز (0.8.1)<br>' +
       O.ico('clock', 11) + ' همهٔ ساعت‌های اپ به وقت تهران است (منطق داخلی موتور UTC — هماهنگ با نسخهٔ دسکتاپ).<br>' +
       O.ico('seal', 11) + ' <b style="color:#fff">غیرخودکار:</b> این اپ هیچ معامله‌ای انجام نمی‌دهد و به هیچ بروکری وصل نیست.</div>' +
       '<button class="btn ghost sm" data-tab="about" style="margin-top:10px;width:100%">' + O.ico('info', 13) + ' دربارهٔ ما، حق نشر و اصالت برنامه ' + O.ico('chevron-left', 12) + '</button></div>';
@@ -760,7 +766,7 @@
 
   // ── دربارهٔ ما (حق نشر، سازنده، اصالت امضا) ─────────────────
   O.renderAbout = function (S) {
-    var ver = S.version || '0.16.0';
+    var ver = S.version || '0.17.0';
     var html = '<div class="action-row"><button class="btn ghost" data-tab="settings">' + O.ico('chevron-right', 14) + ' بازگشت</button></div>' +
       pt('info', 'دربارهٔ ما') +
       '<div class="page-sub">سازنده، حق نشر و راهِ تشخیص نسخهٔ اصلی</div>';
@@ -830,6 +836,78 @@
       'هیچ سیستمی سود را تضمین نمی‌کند؛ مسئولیت هر معامله با خودت است.' +
       '</div></div>';
 
+    return html;
+  };
+
+  // ── نمودار کندل‌استیک (v0.17.0) ──────────────────────────────
+  O.renderChartPage = function (S) {
+    var back = '<div class="action-row"><button class="btn ghost" data-tab="home">' +
+      O.ico('chevron-right', 14) + ' بازگشت</button></div>';
+    var sym = S.chartSym ||
+      (S.state && S.state.analyses && S.state.analyses[0] && S.state.analyses[0].symbol);
+    if (!sym) {
+      return back + '<div class="card"><div class="empty-state"><div class="e-ico">' + O.ico('chart-line', 40) +
+        '</div><div class="e-t">نمادی انتخاب نشده</div><div class="e-s">از کارت هر نماد در خانه، «نمودار» را بزن.</div></div></div>';
+    }
+    var pair = sym.length === 6 ? sym.slice(0, 3) + '/' + sym.slice(3) : sym;
+    var a = null;
+    ((S.state && S.state.analyses) || []).forEach(function (x) { if (x.symbol === sym) a = x; });
+    var raw = null;
+    try {
+      raw = (S.storage && S.storage.get) ? JSON.parse(S.storage.get('chart.' + sym) || 'null') : null;
+    } catch (e) { raw = null; }
+    if (!raw || !raw.length || raw.length < 5) {
+      return back + pt('chart-line', pair) +
+        '<div class="card"><div class="empty-state"><div class="e-ico">' + O.ico('chart-line', 40) +
+        '</div><div class="e-t">دادهٔ کندل کافی نیست</div>' +
+        '<div class="e-s">اول «تحلیل تازه» را اجرا کن — کندل‌ها برای نمودار هم ذخیره می‌شوند.</div></div></div>';
+    }
+
+    var tf = S.chartTf === 'H4' ? 'H4' : 'H1';
+    var candles = tf === 'H4' ? O.resample4h(raw) : raw;
+    var bars = S.chartBars | 0 || (tf === 'H4' ? 60 : 120);
+    var pip = a ? a.pip : (sym === 'XAUUSD' ? 1 : 0.0001);
+
+    var levels = [];
+    if (a && a.support) levels.push({ price: a.support, color: O.CHART_COLORS.support, label: 'حمایت ' + O.fmtPrice(a.support, pip) });
+    if (a && a.resistance) levels.push({ price: a.resistance, color: O.CHART_COLORS.resistance, label: 'مقاومت ' + O.fmtPrice(a.resistance, pip) });
+    var sig = (S.chartSig && S.chartSig.symbol === sym) ? S.chartSig : null;
+    if (sig) {
+      levels.push({ price: sig.entry, color: O.CHART_COLORS.entry, label: 'ورود ' + O.fmtPrice(sig.entry, pip) });
+      levels.push({ price: sig.sl, color: O.CHART_COLORS.sl, label: 'حد ضرر ' + O.fmtPrice(sig.sl, pip), dash: '6 3' });
+      levels.push({ price: sig.tp, color: O.CHART_COLORS.tp, label: 'هدف ' + O.fmtPrice(sig.tp, pip), dash: '6 3' });
+    }
+
+    var html = back + pt('chart-line', pair + ' — ' + tf);
+    html += '<div class="page-sub">' + (a ? esc(a.fa_name) + ' · ' : '') +
+      'کندل‌های یک‌ساعتهٔ Yahoo Finance' + (S.state && S.state.ranAt ? ' · آخرین تحلیل ' + esc(agoFa(S.state.ranAt)) : '') +
+      ' · ساعت‌ها تهران</div>';
+
+    // قرص‌های تایم‌فریم و تعداد کندل
+    var tfPills = ['H1', 'H4'].map(function (t) {
+      return '<button class="pill ' + (t === tf ? 'ink' : 'outline') + '" data-chart-tf="' + t + '">' + t + '</button>';
+    }).join('');
+    var barOpts = tf === 'H4' ? [30, 60, 90] : [60, 120, 240];
+    var barPills = barOpts.map(function (b) {
+      return '<button class="pill ' + (b === bars ? 'ink' : 'outline') + '" data-chart-bars="' + b + '">' + O.faNum(b) + '</button>';
+    }).join('');
+    html += '<div class="sym-meta" style="margin-bottom:10px">' + tfPills +
+      '<span style="width:8px"></span>' + barPills + '</div>';
+
+    html += '<div class="card" style="padding:10px 8px">' +
+      O.renderCandleChart(candles, { pip: pip, levels: levels, height: 300, maxBars: bars }) + '</div>';
+
+    if (sig) {
+      html += '<div class="card"><div class="card-title">' +
+        ct('target', 'سطوح سیگنال ' + (sig.direction === 'BUY' ? 'خرید' : 'فروش') + ' — ' + pair) + '</div>' +
+        '<div class="levels" style="margin-top:8px">' +
+        '<div class="level-box"><div class="l-cap">' + O.ico('pin', 11) + ' ورود</div><div class="l-val">' + esc(O.fmtPrice(sig.entry, sig.pip)) + '</div></div>' +
+        '<div class="level-box sl"><div class="l-cap">' + O.ico('stop-sign', 11, 'c-red') + ' حد ضرر</div><div class="l-val">' + esc(O.fmtPrice(sig.sl, sig.pip)) + '</div></div>' +
+        '<div class="level-box tp"><div class="l-cap">' + O.ico('target', 11, 'c-green') + ' هدف</div><div class="l-val">' + esc(O.fmtPrice(sig.tp, sig.pip)) + '</div></div>' +
+        '</div></div>';
+    } else if (a && (a.support || a.resistance)) {
+      html += '<div class="hint" style="text-align:center">خط‌های خاکستری: حمایت/مقاومت کلیدی — از «سیگنال‌ها» می‌توانی ورود/SL/TP را هم روی نمودار بیاوری</div>';
+    }
     return html;
   };
 

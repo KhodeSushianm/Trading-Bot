@@ -18,7 +18,7 @@ const ctx = { console };
 ctx.globalThis = ctx;
 vm.createContext(ctx);
 for (const f of ['md5.js', 'fa.js', 'icons.js', 'config.js', 'indicators.js', 'session.js',
-  'technical.js', 'calendar.js', 'news.js', 'judge.js', 'journal.js', 'data.js', 'alerts.js',
+  'technical.js', 'calendar.js', 'news.js', 'judge.js', 'journal.js', 'data.js', 'alerts.js', 'chart.js',
   'briefing.js', 'ui.js']) {
   vm.runInContext(fs.readFileSync(path.join(WWW, f), 'utf8'), ctx, { filename: f });
 }
@@ -146,12 +146,24 @@ const alertMem = {
     { id: 'XAUUSD|below|3600', symbol: 'XAUUSD', dir: 'below', price: 3600, pip: 1, sticky: true, created_at: new Date(nowMs - 7200e3).toISOString(), last_fired: null }
   ])
 };
+// کش نمودار مصنوعی (۲۰۰ کندل H1) برای پوشش صفحهٔ نمودار در جاروی بدون-ایموجی
+const chartH1 = [];
+let cpx = 1.15;
+for (let ci = 0; ci < 200; ci++) {
+  const co = cpx, cc = co + Math.sin(ci / 6) * 0.0016;
+  chartH1.push({ t: nowMs - (200 - ci) * 3600e3, o: co, h: Math.max(co, cc) + 0.0006, l: Math.min(co, cc) - 0.0006, c: cc });
+  cpx = cc;
+}
+alertMem['chart.EURUSD'] = JSON.stringify(chartH1);
+
 const S = {
   cfg, settings, state,
   stats: O.computeStats(journalEntries, nowMs),
   journal: { load: () => journalEntries, raw: () => '' },
   storage: { get: k => alertMem[k] || '', set: (k, v) => { alertMem[k] = String(v); }, del: k => { delete alertMem[k]; } },
-  version: '0.16.0'
+  version: '0.17.0',
+  chartSym: 'EURUSD', chartTf: 'H1', chartBars: 120,
+  chartSig: { symbol: 'EURUSD', entry: 1.17, sl: 1.165, tp: 1.18, pip: 0.0001, direction: 'BUY' }
 };
 
 const pages = {
@@ -181,10 +193,18 @@ SBad.journal = { load: () => [], raw: () => '' };
 pages['calendar-bad'] = O.renderCalendar(SBad);
 pages['news-bad'] = O.renderNews(SBad);
 
+// صفحهٔ نمودار (v0.17.0) — با سیگنال و بدون کش
+pages['chart'] = O.renderChartPage(S);
+pages['chart-empty'] = O.renderChartPage(Object.assign({}, S, { chartSym: 'GBPUSD' }));
+
 for (const [name, html] of Object.entries(pages)) {
   noEmoji(html, 'page:' + name);
   if (!name.endsWith('-empty')) hasSvg(html, 'page:' + name);
 }
+
+// دکمهٔ نمودار روی کارت نماد (v0.17.0)
+assert(pages.home.includes('data-chart-open="EURUSD"'), 'chart button missing on symbol card');
+assert(pages.signals.includes('data-chart-sig="EURUSD"'), 'show-on-chart button missing on signal card');
 
 // کارت هشدارهای قیمت در خانه (v0.16.0) — بدون ایموجی و با دکمهٔ حذف
 assert(pages.home.includes('هشدارهای قیمت'), 'alerts card missing in home');

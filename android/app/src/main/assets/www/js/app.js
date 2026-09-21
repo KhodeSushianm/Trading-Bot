@@ -29,8 +29,9 @@
   var S = {
     cfg: null, settings: null, storage: null, journal: null,
     state: null, stats: null, tab: 'home', busy: false,
-    version: '0.16.0', lastBack: 0,
+    version: '0.17.0', lastBack: 0,
     deviceId: '', deviceCode: '', licensed: false,   // لایسنس (v0.14.0)
+    chartSym: null, chartTf: 'H1', chartBars: 120, chartSig: null,   // نمودار (v0.17.0)
     onbStage: null,               // 'license' | 'name' | 'bg' | null — مرحلهٔ خوش‌آمدگویی
     svcBusy: false, svcReady: false
   };
@@ -209,7 +210,8 @@
       journal: ['page-journal', function () { return O.renderJournal(S); }],
       settings: ['page-settings', function () { return O.renderSettings(S); }],
       briefing: ['page-briefing', function () { return O.renderBriefingPage(S); }],
-      about: ['page-about', function () { return O.renderAbout(S); }]
+      about: ['page-about', function () { return O.renderAbout(S); }],
+      chart: ['page-chart', function () { return O.renderChartPage(S); }]
     };
     var m = map[tab] || map.home;
     var el = document.getElementById(m[0]);
@@ -217,7 +219,7 @@
     el.classList.remove('hidden');
     el.scrollTop = 0;
     // تب‌های اصلی در نوار پایین «فعال» نمی‌شوند اگر زیرصفحه باشیم
-    if (tab === 'settings' || tab === 'briefing' || tab === 'about') {
+    if (tab === 'settings' || tab === 'briefing' || tab === 'about' || tab === 'chart') {
       document.querySelectorAll('.tab').forEach(function (t) { t.classList.remove('active'); });
     }
     if (tab === 'settings') document.getElementById('btn-settings').style.color = 'var(--text)';
@@ -332,6 +334,14 @@
       // قلاب _dup روی signalها برای رندر — داخل judgments هم هست (ref مشترک)
       S.stats = stats;
       try { S.storage.set('state.last', JSON.stringify(S.state)); } catch (e) { }
+      // کش نمودار (v0.17.0) — ۳۶۰ کندل H1 اخیر هر نماد برای صفحهٔ نمودار
+      // (H4 با resample4h از همین‌ها ساخته می‌شود؛ مشترک بین UI و سرویس)
+      try {
+        Object.keys(mkt.datasets).forEach(function (k) {
+          var h1 = mkt.datasets[k] && mkt.datasets[k].h1;
+          if (h1 && h1.length) S.storage.set('chart.' + k, JSON.stringify(h1.slice(-360)));
+        });
+      } catch (e) { }
 
       // اعلان اندروید: سیگنال تازه + خبر فوری (فقط در برابر چرخهٔ قبل)
       if (S.settings.notify_enabled !== false) {
@@ -545,7 +555,7 @@
   // ── رویدادها (delegation) ───────────────────────────────────
   function bindEvents() {
     document.addEventListener('click', function (ev) {
-      var t = ev.target.closest ? ev.target.closest('[data-tab],[data-action],[data-expand],[data-ext],[data-step],[data-alert-add],[data-alert-del],.cal-filter') : null;
+      var t = ev.target.closest ? ev.target.closest('[data-tab],[data-action],[data-expand],[data-ext],[data-step],[data-alert-add],[data-alert-del],[data-chart-open],[data-chart-sig],[data-chart-tf],[data-chart-bars],.cal-filter') : null;
       if (!t) return;
 
       if (t.dataset.ext) {
@@ -555,6 +565,34 @@
           else window.open(t.dataset.ext, '_blank');
         } catch (e) { }
         return;
+      }
+      if (t.dataset.chartOpen) {
+        S.chartSym = t.dataset.chartOpen; S.chartSig = null;
+        S.chartTf = 'H1'; S.chartBars = 120;
+        O.navigate('chart'); return;
+      }
+      if (t.dataset.chartSig) {
+        var symC = t.dataset.chartSig;
+        S.chartSym = symC; S.chartSig = null;
+        ((S.state && S.state.judgments) || []).forEach(function (j) {
+          if (j.signal && j.signal.symbol === symC) {
+            S.chartSig = {
+              symbol: symC, entry: j.signal.entry, sl: j.signal.sl, tp: j.signal.tp,
+              pip: j.signal.pip, direction: j.signal.direction
+            };
+          }
+        });
+        S.chartTf = 'H1'; S.chartBars = 120;
+        O.navigate('chart'); return;
+      }
+      if (t.dataset.chartTf) {
+        S.chartTf = t.dataset.chartTf === 'H4' ? 'H4' : 'H1';
+        S.chartBars = S.chartTf === 'H4' ? 60 : 120;
+        O.navigate('chart'); return;
+      }
+      if (t.dataset.chartBars) {
+        S.chartBars = parseInt(t.dataset.chartBars, 10) || 120;
+        O.navigate('chart'); return;
       }
       if (t.dataset.alertAdd) { showAlertAdd(t.dataset.alertAdd); return; }
       if (t.dataset.alertDel) {
@@ -1054,7 +1092,7 @@
     S.storage = O.makeStorage();
     loadSettings();
     S.journal = new O.Journal(S.storage);
-    try { S.version = (typeof ODINNative !== 'undefined' && ODINNative.getVersion()) || '0.16.0'; } catch (e) { }
+    try { S.version = (typeof ODINNative !== 'undefined' && ODINNative.getVersion()) || '0.17.0'; } catch (e) { }
     document.getElementById('splash-ver').textContent = 'v' + S.version + ' · android';
     applyUserName();
 
