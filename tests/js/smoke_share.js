@@ -24,7 +24,7 @@ const sig = {
   pip: 0.0001, is_gold: false, rr: 2.0, now, session_fa: 'لندن/نیویورک'
 };
 
-const spec = O.buildShareSpec(sig, { version: '0.18.0' });
+const spec = O.buildShareSpec(sig, { version: '0.19.0' });
 
 // ── هویت و جهت ──
 assert.strictEqual(spec.brand, 'ODIN ASSISTANT');
@@ -54,7 +54,7 @@ assert.strictEqual(spec.session, 'لندن/نیویورک');
 assert.strictEqual(spec.footerTg, '@Khode_Sushian');
 assert(spec.footerName.includes('Sushian Khoshkhani'));
 assert(spec.disclaimer.includes('پیشنهاد است'));
-assert.strictEqual(spec.version, 'v0.18.0');
+assert.strictEqual(spec.version, 'v0.19.0');
 
 // ── بدون ایموجی (کل spec) ──
 assert(!O.EMOJI_RE.test(JSON.stringify(spec)), 'emoji in share spec');

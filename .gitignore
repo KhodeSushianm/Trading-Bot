@@ -31,3 +31,12 @@ Thumbs.db
 build/
 dist/
 installer/Output/
+
+# دادهٔ اجرای اپ/تست‌ها وقتی data_dir به پوشهٔ اجرا می‌افتد (legacy/portable)
+/alerts.json
+/chart_*.json
+/license.dat
+/trial.dat
+/signals.jsonl
+/config.local.yaml
+/state.last.json

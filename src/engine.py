@@ -246,7 +246,8 @@ def _send_telegram(cfg: dict, text: str, log: LogFn, label: str = "گزارش") 
 #  چرخه تحلیل (گزارش دوره‌ای)
 # ══════════════════════════════════════════════════════════════
 def run_cycle(cfg: Optional[dict] = None, on_log: LogFn = _noop,
-              now_override: Optional[datetime] = None) -> dict:
+              now_override: Optional[datetime] = None,
+              on_alert: Optional[Callable[[list], None]] = None) -> dict:
     """یک چرخه کامل تحلیل.
 
     Args:
@@ -390,9 +391,56 @@ def run_cycle(cfg: Optional[dict] = None, on_log: LogFn = _noop,
             sent_signals.append({"symbol": sig.symbol, "direction": sig.direction,
                                  "score": sig.score, "max_score": sig.max_score,
                                  "sent": sent, "text": text,
-                                 "entry": sig.entry, "sl": sig.sl, "tp": sig.tp})
+                                 "entry": sig.entry, "sl": sig.sl, "tp": sig.tp,
+                                 # v0.19.0 — فیلدهای کارت سیگنال (popup/اشتراک تصویر/نمودار)
+                                 "pip": sig.pip, "is_gold": bool(getattr(sig, "is_gold", False)),
+                                 "rr": sig.rr, "stars": getattr(sig, "stars", 0),
+                                 "session_fa": getattr(sig, "session_fa", ""),
+                                 "fa_name": getattr(sig, "fa_name", ""),
+                                 "now": now.isoformat()})
         _save_signal_state(state)
     result["signals"] = sent_signals
+
+    # ── هشدارهای قیمت (v0.19.0 — همزاد js/alerts.js) ──────────
+    fired_alerts = []
+    try:
+        from src import alerts as _alerts
+        fired_alerts = _alerts.check_alerts(mkt.get("analyses") or [], now=now)
+        for fa_ in fired_alerts:
+            _sym = fa_["symbol"]
+            _dir = "بالاتر از" if fa_["dir"] == "above" else "پایین‌تر از"
+            log(f"هشدار قیمت: {_sym} به {fa_['_price']} رسید ({_dir} {fa_['price']})")
+            _txt = (f"هشدار قیمت — {_sym}\n"
+                    f"{_sym} به سطح {fa_['price']} رسید ({_dir})\n"
+                    f"قیمت فعلی: {fa_['_price']} — ساعت {datetime.now(timezone.utc).astimezone():%H:%M}")
+            _send_telegram(cfg, _txt, log, label=f"هشدار قیمت {_sym}")
+        if fired_alerts and on_alert is not None:
+            on_alert(fired_alerts)
+    except Exception as e:
+        log(f"[!] بررسی هشدار قیمت ناموفق: {str(e)[:100]}")
+    result["alerts_fired"] = fired_alerts
+
+    # ── کش نمودار (v0.19.0) — برای ChartDialog پنل، مثل chart.<SYM> اندروید ──
+    try:
+        import json as _json
+        _cdir = app_paths.data_dir()
+        _cdir.mkdir(parents=True, exist_ok=True)
+        for _sym, _md in (mkt.get("datasets") or {}).items():
+            _rows = {"h1": [], "h4": []}
+            for _tf in ("h1", "h4"):
+                _df = getattr(_md, _tf, None)
+                if _df is None or len(_df) == 0:
+                    continue
+                _tail = _df.tail(360 if _tf == "h1" else 140)
+                for _ts, _row in _tail.iterrows():
+                    _rows[_tf].append({
+                        "t": int(_ts.timestamp() * 1000),
+                        "o": float(_row["Open"]), "h": float(_row["High"]),
+                        "l": float(_row["Low"]), "c": float(_row["Close"])})
+            (_cdir / f"chart_{_sym}.json").write_text(
+                _json.dumps(_rows, separators=(",", ":")), encoding="utf-8")
+    except Exception as e:
+        log(f"[i] ذخیرهٔ کش نمودار ناموفق: {str(e)[:80]}")
 
     # ── دادهٔ ساختاریافته برای داشبورد پنل ───────────────────
     result["ranking"] = list(mkt["ranking"])
@@ -408,7 +456,8 @@ def run_cycle(cfg: Optional[dict] = None, on_log: LogFn = _noop,
     result["symbols_summary"] = [
         {"symbol": a.symbol, "verdict": a.verdict, "trend": a.trend,
          "adx": round(a.adx, 1), "rsi": round(a.rsi, 1), "price": a.price,
-         "pip": a.pip} for a in mkt["analyses"]]
+         "pip": a.pip, "support": a.support, "resistance": a.resistance}
+        for a in mkt["analyses"]]
 
     # بخش فاندامنتال به‌صورت مستقل (برای تب جداگانه در پنل)
     fund_parts = []
@@ -601,13 +650,17 @@ class BotLoop:
                  on_fundamental: Callable[[str], None] | None = None,
                  on_signal: Callable[[str], None] | None = None,
                  on_journal: Callable[[str], None] | None = None,
-                 cfg_provider: Callable[[], dict] = load_config):
+                 cfg_provider: Callable[[], dict] = load_config,
+                 on_alert: Callable[[list], None] | None = None,
+                 on_signal_card: Callable[[list], None] | None = None):
         self.on_log = on_log
         self.on_report = on_report
         self.on_briefing = on_briefing or on_report
         self.on_fundamental = on_fundamental or (lambda _: None)
         self.on_signal = on_signal or self.on_report
         self.on_journal = on_journal or self.on_report
+        self.on_alert = on_alert or (lambda _: None)
+        self.on_signal_card = on_signal_card or (lambda _: None)
         self._journal_done: set[str] = set()
         self.cfg_provider = cfg_provider
         self._stop = threading.Event()
@@ -720,6 +773,11 @@ class BotLoop:
             self.state["signals_total"] += len(sigs)
             # سیگنال‌ها در تب جداگانهٔ خودشان هم نمایش داده می‌شوند
             self.on_signal("\n\n".join(x["text"] for x in sigs))
+            # v0.19.0 — کارت ساختاریافته برای popup متحرک / اشتراک تصویر
+            self.on_signal_card(list(sigs))
+        if res.get("alerts_fired"):
+            self.state.setdefault("price_alerts_fired", 0)
+            self.state["price_alerts_fired"] += len(res["alerts_fired"])
 
     # ── حلقه اصلی ─────────────────────────────────────────────
     def _run(self) -> None:
@@ -757,7 +815,7 @@ class BotLoop:
         self.on_log("⏹ ربات متوقف شد")
 
     def _do_cycle(self, cfg: dict) -> None:
-        res = run_cycle(cfg, on_log=self.on_log)
+        res = run_cycle(cfg, on_log=self.on_log, on_alert=self.on_alert)
         self._publish(res, "report")
         self.state["last_run"] = time.time()
         self.state["cycles"] += 1

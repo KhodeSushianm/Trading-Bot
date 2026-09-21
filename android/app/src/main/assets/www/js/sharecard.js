@@ -44,7 +44,7 @@
       disclaimer: 'این یک پیشنهاد است، نه دستور معامله — مسئولیت هر معامله با خودت است.',
       footerName: 'سازنده: Sushian Khoshkhani',
       footerTg: '@Khode_Sushian',
-      version: 'v' + (opt.version || '0.18.0')
+      version: 'v' + (opt.version || '0.19.0')
     };
   };
 

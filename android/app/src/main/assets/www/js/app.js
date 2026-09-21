@@ -29,7 +29,7 @@
   var S = {
     cfg: null, settings: null, storage: null, journal: null,
     state: null, stats: null, tab: 'home', busy: false,
-    version: '0.18.0', lastBack: 0,
+    version: '0.19.0', lastBack: 0,
     deviceId: '', deviceCode: '', licensed: false,   // لایسنس (v0.14.0)
     chartSym: null, chartTf: 'H1', chartBars: 120, chartSig: null,   // نمودار (v0.17.0)
     onbStage: null,               // 'license' | 'name' | 'bg' | null — مرحلهٔ خوش‌آمدگویی
@@ -1164,7 +1164,7 @@
     S.storage = O.makeStorage();
     loadSettings();
     S.journal = new O.Journal(S.storage);
-    try { S.version = (typeof ODINNative !== 'undefined' && ODINNative.getVersion()) || '0.18.0'; } catch (e) { }
+    try { S.version = (typeof ODINNative !== 'undefined' && ODINNative.getVersion()) || '0.19.0'; } catch (e) { }
     document.getElementById('splash-ver').textContent = 'v' + S.version + ' · android';
     applyUserName();
 

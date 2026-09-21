@@ -22,15 +22,17 @@ import subprocess
 import sys
 import threading
 import time
+from datetime import datetime, timezone
 from pathlib import Path
 
 from PySide6.QtCore import QSize, Qt, QTimer
 from PySide6.QtGui import QColor, QFont, QFontDatabase, QIcon, QPainter, QPixmap
 from PySide6.QtWidgets import (QApplication, QCheckBox, QFrame, QHBoxLayout, QLabel,
-                               QLineEdit, QMainWindow, QMessageBox, QPlainTextEdit,
+                               QLineEdit, QListWidget, QListWidgetItem, QMenu,
+                               QMainWindow, QMessageBox, QPlainTextEdit,
                                QPushButton, QScrollArea, QStackedWidget,
-                               QVBoxLayout, QWidget, QDialog, QDialogButtonBox,
-                               QFormLayout, QComboBox)
+                               QSystemTrayIcon, QVBoxLayout, QWidget, QDialog,
+                               QDialogButtonBox, QFormLayout, QComboBox)
 
 from src import app_paths
 from src.config import load_config, save_local_config
@@ -41,8 +43,8 @@ from src.ui import dwm, effects, icons
 from src.ui.backdrop import paint_glass, render_backdrop
 from src.ui.splash import WelcomeSplash
 from src.ui.theme import DARK, Space, build_qss
-from src.ui.widgets import (Card, DashedCard, InkCard, LineChart, NavRail, RingGauge,
-                            StatTile, StatusPill, Toast)
+from src.ui.widgets import (CandleChart, Card, DashedCard, InkCard, LineChart, NavRail,
+                            RingGauge, StatTile, StatusPill, Toast)
 from src.license import (check_and_enforce_license, activate_program,
                          get_device_id, get_device_code, is_activated,
                          deactivate_program, start_trial, trial_status)
@@ -205,7 +207,13 @@ class MainWindow(QMainWindow):
                             on_fundamental=lambda r: self.q.put(("fundamental", r)),
                             on_signal=lambda r: self.q.put(("signal", r)),
                             on_journal=lambda r: self.q.put(("journal", r)),
-                            cfg_provider=load_config)
+                            cfg_provider=load_config,
+                            on_alert=lambda lst: self.q.put(("alert", lst)),
+                            on_signal_card=lambda lst: self.q.put(("signal_card", lst)))
+        self._last_signals: list = []
+        self._sig_popup = None
+        self._chart_dialog = None
+        self._alerts_dialog = None
         self._sig_signature = ""
         self._ev_signature = ""
         self._last_ranking = None
@@ -218,6 +226,11 @@ class MainWindow(QMainWindow):
         self.tick = QTimer(self)
         self.tick.timeout.connect(self._tick)
         self.tick.start(1000)
+
+        # v0.19.0 — tray: بستن پنجره = رفتن به پس‌زمینه (حلقه/هشدارها زنده می‌مانند)
+        self._force_quit = False
+        self._tray_hint_shown = False
+        self._init_tray()
 
         # v0.15.0 — وضعیت دسترسی در لاگ پنل شفاف باشد (لایسنس یا تریال)
         try:
@@ -310,6 +323,10 @@ class MainWindow(QMainWindow):
         self.btn_brief.clicked.connect(self._on_briefing)
         self.btn_live = _circle("live", "گزارش زنده")
         self.btn_live.clicked.connect(lambda: self.nav._select(self.TAB_LOG))   # noqa: SLF001
+        self.btn_alerts = _circle("bell", "هشدارهای قیمت")
+        self.btn_alerts.clicked.connect(self._open_alerts)
+        self.btn_chart = _circle("chart", "نمودار کندل‌استیک")
+        self.btn_chart.clicked.connect(lambda: self._open_chart())
         self.avatar = QLabel()
         self.avatar.setFixedSize(40, 40)
         self.avatar.setStyleSheet(
@@ -325,6 +342,8 @@ class MainWindow(QMainWindow):
         h.addWidget(self.btn_once)
         h.addWidget(self.btn_brief)
         h.addWidget(self.btn_live)
+        h.addWidget(self.btn_alerts)
+        h.addWidget(self.btn_chart)
         h.addWidget(self.clock_lbl)
         h.addWidget(self.avatar)
         return h
@@ -503,6 +522,13 @@ class MainWindow(QMainWindow):
     # ── سایر صفحه‌ها ──────────────────────────────────────────
     def _page_signals(self) -> QWidget:
         w, lay = self._page_frame("سیگنال‌ها", "سیگنال‌های صادرشده با دلایل کامل")
+        bar = QHBoxLayout()
+        self.btn_share_sig = _btn("اشتراک تصویر آخرین سیگنال", "", "send",
+                                  "کارت تصویری برند (۱۰۸۰×۱۳۵۰) — ذخیره در گالری + کلیپ‌بورد")
+        self.btn_share_sig.clicked.connect(self._share_last_signal)
+        bar.addWidget(self.btn_share_sig)
+        bar.addStretch(1)
+        lay.addLayout(bar)
         self.sig_view = _plain(None, "هنوز سیگنالی صادر نشده.\n"
                                "داور فقط وقتی سیگنال می‌دهد که هیچ وتویی فعال نباشد "
                                "و امتیاز ≥ ۷ از ۱۱ شود.")
@@ -675,6 +701,11 @@ class MainWindow(QMainWindow):
                 self._toast_signal(payload)
             elif kind == "journal":
                 self._fill(self.journal_view, payload, self.TAB_JOURNAL, "کارنامه")
+            elif kind == "alert":
+                self._on_price_alerts(payload)
+            elif kind == "signal_card":
+                self._last_signals = payload or []
+                self._show_signal_popup(self._last_signals)
             elif kind == "tg_msg":
                 # از thread ورکر تلگرام فقط به صف می‌آید؛ دست‌زدن به ویجت از
                 # thread غیر-GUI در Qt تعریف‌نشده/کرش‌خیز است.
@@ -690,6 +721,326 @@ class MainWindow(QMainWindow):
 
     def _log(self, msg: str) -> None:
         self.log_view.appendPlainText(msg)
+
+    # ── tray + پس‌زمینه (v0.19.0) ─────────────────────────────
+    def _init_tray(self) -> None:
+        self.tray = None
+        try:
+            if not QSystemTrayIcon.isSystemTrayAvailable():
+                return
+            ico = Path(__file__).resolve().parent / "assets" / "icon.png"
+            icon = QIcon(str(ico)) if ico.exists() else self.windowIcon()
+            self.tray = QSystemTrayIcon(icon, self)
+            menu = QMenu()
+            a = menu.addAction("بازکردن ODIN ASSISTANT")
+            a.triggered.connect(self._tray_show)
+            a2 = menu.addAction("تحلیل همین حالا")
+            a2.triggered.connect(self._on_once)
+            menu.addSeparator()
+            a3 = menu.addAction("هشدارهای قیمت…")
+            a3.triggered.connect(self._open_alerts)
+            a4 = menu.addAction("نمودار کندل‌استیک…")
+            a4.triggered.connect(lambda: self._open_chart())
+            menu.addSeparator()
+            a5 = menu.addAction("خروج")
+            a5.triggered.connect(self._quit_force)
+            self.tray.setContextMenu(menu)
+            self.tray.setToolTip("ODIN ASSISTANT — دستیار تحلیل و سیگنال")
+            self.tray.activated.connect(self._tray_activated)
+            self.tray.show()
+        except Exception:
+            self.tray = None
+
+    def _tray_activated(self, reason) -> None:
+        try:
+            if reason in (QSystemTrayIcon.Trigger, QSystemTrayIcon.DoubleClick):
+                self._tray_show()
+        except Exception:
+            pass
+
+    def _tray_show(self) -> None:
+        self.showNormal()
+        self.raise_()
+        self.activateWindow()
+
+    def _quit_force(self) -> None:
+        self._force_quit = True
+        try:
+            if self.tray is not None:
+                self.tray.hide()
+        except Exception:
+            pass
+        QApplication.quit()
+
+    def closeEvent(self, event) -> None:
+        close_to_tray = True
+        try:
+            close_to_tray = bool((self.cfg.get("ui") or {}).get("close_to_tray", True))
+        except Exception:
+            pass
+        if self.tray is not None and close_to_tray and not self._force_quit:
+            event.ignore()
+            self.hide()
+            if not self._tray_hint_shown:
+                self._tray_hint_shown = True
+                try:
+                    self.tray.showMessage(
+                        "ODIN ASSISTANT در پس‌زمینه فعال است",
+                        "حلقهٔ تحلیل، سیگنال‌ها و هشدارهای قیمت با اعلان ادامه دارند. "
+                        "خروج کامل: منوی tray ← خروج",
+                        QSystemTrayIcon.Information, 6000)
+                except Exception:
+                    pass
+            return
+        super().closeEvent(event)
+
+    # ── اعلان‌های زیبا به‌جای خروجی ترمینالی (v0.19.0) ─────────
+    def _on_price_alerts(self, fired: list) -> None:
+        try:
+            lines = []
+            for f in (fired or [])[:3]:
+                d = "بالاتر از" if f.get("dir") == "above" else "پایین‌تر از"
+                lines.append(f"{f['symbol']} به {f.get('_price')} رسید ({d} {f['price']})")
+            title = f"هشدار قیمت — {len(fired or [])} مورد فعال شد"
+            body = "\n".join(lines)
+            self.toast.show_message(title, body, "bell")
+            if self.tray is not None:
+                try:
+                    self.tray.showMessage(title, body, QSystemTrayIcon.Information, 8000)
+                except Exception:
+                    pass
+        except Exception:
+            pass
+
+    def _show_signal_popup(self, sigs: list) -> None:
+        """کارت سیگنال متحرک روی پنجره (همزاد کارت اندروید) — نه متن ترمینالی."""
+        try:
+            if not sigs:
+                return
+            from src.report.signal import fmt_price
+            from src.fa import fa_num, jalali_fa, hhmm_teh
+
+            sent = [x for x in sigs if x.get("sent")] or sigs
+            sig = sent[0]
+            extra = len(sigs) - 1
+            if self._sig_popup is not None:
+                try:
+                    self._close_popup(self._sig_popup)
+                except Exception:
+                    pass
+
+            buy = str(sig.get("direction", "")).upper().startswith("B")
+            acc = T.green_text if buy else T.red_text
+            acc_bg = T.green_tint if buy else T.red_tint
+            pair = str(sig["symbol"])
+            if len(pair) == 6:
+                pair = pair[:3] + "/" + pair[3:]
+            stars_n = max(0, min(5, int(sig.get("stars") or 0)))
+            pip = float(sig.get("pip") or 0.0001)
+
+            card = QFrame(self)
+            card.setObjectName("sig_popup")
+            card.setFixedSize(396, 272)
+            card.setStyleSheet(
+                "QFrame#sig_popup { background: qlineargradient(x1:0, y1:0, x2:1, y2:1,"
+                f" stop:0 #1A1A1F, stop:0.55 {T.ink_card}, stop:1 #0A0A0D);"
+                " border-radius: 22px; }"
+                " QFrame#sig_popup QLabel { color: #FFFFFF; background: transparent; }"
+                f" QFrame#sig_popup QLabel#sp_dir {{ color: {acc}; background: {acc_bg};"
+                " border-radius: 13px; padding: 4px 14px; font-weight: 800; font-size: 12px; }"
+                f" QFrame#sig_popup QLabel#sp_tile {{ background: {T.ink_tile}; border-radius: 12px; }}"
+                " QFrame#sig_popup QPushButton { background: rgba(255,255,255,.12); color:#fff;"
+                " border:none; border-radius:11px; padding:7px 12px; font-weight:700; font-size:11px; }"
+                " QFrame#sig_popup QPushButton:hover { background: rgba(255,255,255,.24); }")
+
+            v = QVBoxLayout(card)
+            v.setContentsMargins(18, 16, 18, 14)
+            v.setSpacing(7)
+
+            row1 = QHBoxLayout()
+            dir_lbl = QLabel("سیگنال خرید" if buy else "سیگنال فروش")
+            dir_lbl.setObjectName("sp_dir")
+            row1.addWidget(dir_lbl)
+            row1.addStretch(1)
+            if extra > 0:
+                cap = QLabel("+" + fa_num(extra) + " سیگنال دیگر")
+                cap.setStyleSheet("color:rgba(255,255,255,.5);font-size:10px")
+                row1.addWidget(cap)
+            close_b = QPushButton("✕")
+            close_b.setFixedSize(26, 26)
+            close_b.clicked.connect(lambda: self._close_popup(card))
+            row1.addWidget(close_b)
+            v.addLayout(row1)
+
+            pair_lbl = QLabel(pair)
+            pair_lbl.setStyleSheet("font-size:23px;font-weight:800;direction:ltr")
+            v.addWidget(pair_lbl)
+
+            meta = QLabel(f"{sig.get('fa_name', '')}  ·  امتیاز {fa_num(sig.get('score', 0))}"
+                          f" از {fa_num(sig.get('max_score', 11))}  ·  "
+                          + "★" * stars_n + "☆" * (5 - stars_n))
+            meta.setStyleSheet("color:rgba(255,255,255,.62);font-size:11px")
+            v.addWidget(meta)
+
+            tiles = QHBoxLayout()
+            tiles.setSpacing(8)
+            for cap_t, val, col in (("ورود", fmt_price(float(sig["entry"]), pip), "#FFFFFF"),
+                                    ("حد ضرر", fmt_price(float(sig["sl"]), pip), "#FF9A9A"),
+                                    ("هدف", fmt_price(float(sig["tp"]), pip), "#7BE0B0")):
+                tl = QLabel("<div style='font-size:9px;color:rgba(255,255,255,.5)'>" + cap_t + "</div>"
+                            "<div style='font-size:14px;font-weight:800;color:" + col +
+                            ";direction:ltr'>" + val + "</div>")
+                tl.setObjectName("sp_tile")
+                tl.setAlignment(Qt.AlignCenter)
+                tiles.addWidget(tl)
+            v.addLayout(tiles)
+
+            when = QLabel("")
+            try:
+                _now = sig.get("now")
+                if isinstance(_now, str):
+                    _now = datetime.fromisoformat(_now)
+                if _now is not None:
+                    if _now.tzinfo is None:
+                        from datetime import timezone as _tz
+                        _now = _now.replace(tzinfo=_tz.utc)
+                    when.setText(jalali_fa(_now) + "  ·  ساعت " + fa_num(hhmm_teh(_now)) + " تهران")
+            except Exception:
+                pass
+            when.setStyleSheet("color:rgba(255,255,255,.5);font-size:10px")
+            v.addWidget(when)
+            v.addStretch(1)
+
+            btns = QHBoxLayout()
+            btns.setSpacing(8)
+            b_chart = QPushButton("نمودار")
+            b_share = QPushButton("اشتراک تصویر")
+            b_det = QPushButton("جزئیات")
+            b_chart.clicked.connect(lambda _s=sig: self._open_chart_for_signal(_s))
+            b_share.clicked.connect(lambda _s=sig: self._share_signal(_s))
+            b_det.clicked.connect(lambda c=card: (self._close_popup(c),
+                                                  self.nav._select(self.TAB_SIGNAL)))  # noqa: SLF001
+            btns.addWidget(b_chart)
+            btns.addWidget(b_share)
+            btns.addWidget(b_det)
+            v.addLayout(btns)
+
+            x = max(12, self.width() - card.width() - 18)
+            y = max(60, self.height() - card.height() - 66)
+            card.move(x, y)
+            card.show()
+            card.raise_()
+            try:
+                effects.fade(card, 0.0, 1.0, effects.DUR_MED)
+                effects.rise(card, dy=18, ms=getattr(effects, "DUR_MED", 260))
+            except Exception:
+                pass
+            self._sig_popup = card
+            QTimer.singleShot(24000, lambda c=card: self._close_popup(c))
+            if self.tray is not None:
+                try:
+                    self.tray.showMessage(
+                        ("سیگنال خرید — " if buy else "سیگنال فروش — ") + pair,
+                        "ورود " + fmt_price(float(sig["entry"]), pip) +
+                        " · حد ضرر " + fmt_price(float(sig["sl"]), pip) +
+                        " · هدف " + fmt_price(float(sig["tp"]), pip),
+                        QSystemTrayIcon.Information, 8000)
+                except Exception:
+                    pass
+        except Exception as e:
+            self.q.put(("log", f"[!] کارت سیگنال ناموفق: {str(e)[:110]}"))
+
+    def _close_popup(self, card) -> None:
+        try:
+            if self._sig_popup is card:
+                self._sig_popup = None
+            card.deleteLater()
+        except Exception:
+            pass
+
+    def _sr_for(self, symbol: str):
+        try:
+            for row in (self.loop.state.get("symbols_summary") or []):
+                if row.get("symbol") == symbol:
+                    return row.get("support"), row.get("resistance")
+        except Exception:
+            pass
+        return None, None
+
+    def _open_chart_for_signal(self, sig: dict) -> None:
+        lv = []
+        try:
+            lv = [(float(sig["entry"]), QColor(T.text), "ورود", False),
+                  (float(sig["sl"]), QColor(T.red), "حد ضرر", True),
+                  (float(sig["tp"]), QColor(T.green), "هدف", True)]
+        except Exception:
+            lv = []
+        self._open_chart(symbol=sig.get("symbol"), levels=lv,
+                         sr=self._sr_for(sig.get("symbol", "")))
+
+    # ── اشتراک کارت تصویری سیگنال ────────────────────────────
+    def _share_signal(self, sig: dict) -> None:
+        try:
+            from src.report.sharecard import build_share_spec, render_card_pixmap
+            spec = build_share_spec(sig, version=app_paths.APP_VERSION)
+            pm = render_card_pixmap(spec)
+            pics = Path.home() / "Pictures" / "ODIN"
+            try:
+                pics.mkdir(parents=True, exist_ok=True)
+            except Exception:
+                pics = Path.home()
+            fname = ("odin-signal-" + spec["pair"].replace("/", "") +
+                     "-" + time.strftime("%Y%m%d-%H%M%S") + ".png")
+            fpath = pics / fname
+            pm.save(str(fpath), "PNG")
+            try:
+                QApplication.clipboard().setPixmap(pm)
+            except Exception:
+                pass
+            self.toast.show_message(
+                "کارت سیگنال ساخته شد",
+                "در Pictures/ODIN ذخیره و در کلیپ‌بورد کپی شد — آمادهٔ اشتراک",
+                "send")
+            try:
+                from PySide6.QtGui import QDesktopServices
+                from PySide6.QtCore import QUrl
+                QDesktopServices.openUrl(QUrl.fromLocalFile(str(pics)))
+            except Exception:
+                pass
+        except Exception as e:
+            self.toast.show_message("ساخت کارت ناموفق بود", str(e)[:120], "shield")
+
+    def _share_last_signal(self) -> None:
+        sigs = ([x for x in (self._last_signals or []) if x.get("sent")]
+                or (self._last_signals or []))
+        if not sigs:
+            self.toast.show_message("سیگنالی برای اشتراک نیست",
+                                    "پس از اولین سیگنالِ چرخه، این دکمه فعال می‌شود",
+                                    "bell")
+            return
+        self._share_signal(sigs[0])
+
+    # ── دیالوگ‌های هشدار قیمت و نمودار ────────────────────────
+    def _open_alerts(self) -> None:
+        try:
+            if self._alerts_dialog is None:
+                self._alerts_dialog = AlertsDialog(self)
+            self._alerts_dialog.refresh()
+            self._alerts_dialog.show()
+            self._alerts_dialog.raise_()
+            self._alerts_dialog.activateWindow()
+        except Exception as e:
+            self.toast.show_message("هشدارها باز نشد", str(e)[:100], "shield")
+
+    def _open_chart(self, symbol: str = None, levels=None, sr=(None, None)) -> None:
+        try:
+            dlg = ChartDialog(self, symbol=symbol, levels=levels, sr=sr)
+            self._chart_dialog = dlg
+            dlg.show()
+            dlg.raise_()
+            dlg.activateWindow()
+        except Exception as e:
+            self.toast.show_message("نمودار باز نشد", str(e)[:100], "shield")
 
     # ── تیک ───────────────────────────────────────────────────
     def _tick(self) -> None:
@@ -1150,6 +1501,230 @@ class MainWindow(QMainWindow):
 
 
 # ══════════════════════════════════════════════════════════════
+#  دیالوگ هشدارهای قیمت (v0.19.0)
+# ══════════════════════════════════════════════════════════════
+class AlertsDialog(QDialog):
+    """مدیریت هشدارهای سطح قیمت — همان مدل js/alerts.js (src/alerts.py)."""
+
+    def __init__(self, parent=None, t=DARK):
+        super().__init__(parent)
+        self._t = t
+        self.setWindowTitle("هشدارهای قیمت — ODIN ASSISTANT")
+        self.setLayoutDirection(Qt.RightToLeft)
+        self.setMinimumSize(540, 580)
+        self._pips = {}
+        try:
+            cfg = load_config()
+            for sym in cfg.get("symbols", []):
+                self._pips[sym["name"]] = float(sym.get("pip", 0.0001))
+        except Exception:
+            pass
+        if not self._pips:
+            self._pips = {k: 0.0001 for k in
+                          ("EURUSD", "GBPUSD", "USDJPY", "USDCAD", "AUDUSD", "USDCHF")}
+            self._pips["XAUUSD"] = 1.0
+            self._pips["USDJPY"] = 0.01
+
+        from src.fa import fa_num  # noqa: F401  (برای سازگاری بصری)
+        root = QVBoxLayout(self)
+        root.setContentsMargins(22, 20, 22, 20)
+        root.setSpacing(12)
+
+        desc = QLabel("وقتی قیمت از سطح تعیین‌شده عبور کرد، اعلان می‌گیری — "
+                      "در پنل، در tray (حتی وقتی پنجره بسته است) و در تلگرامِ وصل. "
+                      "هشدار یک‌بارمصرف پس از فعال‌شدن حذف می‌شود.")
+        desc.setWordWrap(True)
+        desc.setStyleSheet(f"color:{t.text_2};font-size:12px")
+        root.addWidget(desc)
+
+        form = QFormLayout()
+        form.setSpacing(10)
+        self.cmb_sym = QComboBox()
+        self.cmb_sym.addItems(list(self._pips.keys()))
+        self.cmb_dir = QComboBox()
+        self.cmb_dir.addItem("عبور به بالا", "above")
+        self.cmb_dir.addItem("عبور به پایین", "below")
+        self.txt_price = QLineEdit()
+        self.txt_price.setPlaceholderText("مثلاً 1.1800")
+        self.txt_price.setStyleSheet("text-align:center;font-weight:700;letter-spacing:1px")
+        self.chk_sticky = QCheckBox("تکرارشونده (حداکثر ساعتی یک‌بار یادآوری شود)")
+        form.addRow("نماد:", self.cmb_sym)
+        form.addRow("جهت:", self.cmb_dir)
+        form.addRow("قیمت:", self.txt_price)
+        form.addRow("", self.chk_sticky)
+        root.addLayout(form)
+
+        self.btn_add = _btn("افزودن هشدار", "primary", "bell", "")
+        self.btn_add.clicked.connect(self._on_add)
+        root.addWidget(self.btn_add)
+
+        self.status = QLabel("")
+        self.status.setStyleSheet("font-size:11px")
+        self.status.setWordWrap(True)
+        root.addWidget(self.status)
+
+        self.list = QListWidget()
+        self.list.setStyleSheet(f"background:{t.card};border:1px solid {t.border};"
+                                f"border-radius:12px;font-size:12px")
+        root.addWidget(self.list, 1)
+
+        self.btn_del = _btn("حذف هشدار انتخاب‌شده", "", "stop", "")
+        self.btn_del.clicked.connect(self._on_del)
+        root.addWidget(self.btn_del)
+        self.refresh()
+
+    def refresh(self) -> None:
+        from src import alerts as alert_store
+        self.list.clear()
+        for a in alert_store.load_alerts():
+            d = "بالاتر از" if a.get("dir") == "above" else "پایین‌تر از"
+            kind = "تکرارشونده" if a.get("sticky") else "یک‌بارمصرف"
+            it = QListWidgetItem(f"{a['symbol']} — {d} {a['price']}   ({kind})")
+            it.setData(Qt.UserRole, a.get("id"))
+            self.list.addItem(it)
+
+    def _on_add(self) -> None:
+        from src import alerts as alert_store
+        raw = self.txt_price.text().strip().replace("٫", ".")
+        try:
+            price = float(raw)
+        except ValueError:
+            self.status.setText("قیمت نامعتبر — عدد لاتین وارد کن")
+            self.status.setStyleSheet(f"color:{self._t.red_text};font-size:11px")
+            return
+        sym = self.cmb_sym.currentText()
+        ok, why = alert_store.add_alert(
+            sym, self.cmb_dir.currentData(), price,
+            sticky=self.chk_sticky.isChecked(),
+            pip=self._pips.get(sym, 0.0001))
+        if ok:
+            self.status.setText(f"هشدار {sym} ثبت شد — در چرخهٔ تحلیل بعدی بررسی می‌شود")
+            self.status.setStyleSheet(f"color:{self._t.green_text};font-size:11px")
+            self.txt_price.setText("")
+            self.refresh()
+        else:
+            msg = {"duplicate": "این هشدار قبلاً ثبت شده",
+                   "max": f"حداکثر {alert_store.MAX_ALERTS} هشدار فعال — یکی را حذف کن",
+                   }.get(why, "نامعتبر")
+            self.status.setText(msg)
+            self.status.setStyleSheet(f"color:{self._t.red_text};font-size:11px")
+
+    def _on_del(self) -> None:
+        from src import alerts as alert_store
+        it = self.list.currentItem()
+        if it is None:
+            return
+        alert_store.remove_alert(it.data(Qt.UserRole))
+        self.refresh()
+
+
+# ══════════════════════════════════════════════════════════════
+#  دیالوگ نمودار کندل‌استیک (v0.19.0)
+# ══════════════════════════════════════════════════════════════
+class ChartDialog(QDialog):
+    """نمودار H1/H4 از کش چرخه‌ها (chart_<SYM>.json) + سطوح سیگنال."""
+
+    def __init__(self, parent=None, symbol: str = None, levels=None,
+                 sr=(None, None), t=DARK):
+        super().__init__(parent)
+        self._t = t
+        self._levels_ext = list(levels or [])
+        self._sr = sr or (None, None)
+        self._pips = {}
+        try:
+            cfg = load_config()
+            for sym in cfg.get("symbols", []):
+                self._pips[sym["name"]] = float(sym.get("pip", 0.0001))
+        except Exception:
+            pass
+        if not self._pips:
+            self._pips = {"EURUSD": 0.0001, "GBPUSD": 0.0001, "USDJPY": 0.01,
+                          "USDCAD": 0.0001, "AUDUSD": 0.0001, "USDCHF": 0.0001,
+                          "XAUUSD": 1.0}
+        syms = list(self._pips.keys())
+        self._sym = symbol if symbol in self._pips else (syms[0] if syms else "EURUSD")
+        self._tf = "h1"
+
+        self.setWindowTitle(f"نمودار کندل‌استیک — {self._sym} · ODIN ASSISTANT")
+        self.setLayoutDirection(Qt.RightToLeft)
+        self.resize(920, 600)
+
+        root = QVBoxLayout(self)
+        root.setContentsMargins(18, 16, 18, 16)
+        root.setSpacing(10)
+
+        bar = QHBoxLayout()
+        self.cmb_sym = QComboBox()
+        self.cmb_sym.addItems(syms)
+        self.cmb_sym.setCurrentText(self._sym)
+        self.cmb_sym.currentTextChanged.connect(self._on_sym)
+        self.btn_h1 = _btn("H1", "", "", "کندل‌های یک‌ساعته")
+        self.btn_h4 = _btn("H4", "", "", "کندل‌های چهارساعته")
+        self.btn_h1.setCheckable(True)
+        self.btn_h4.setCheckable(True)
+        self.btn_h1.setChecked(True)
+        self.btn_h1.clicked.connect(lambda: self._on_tf("h1"))
+        self.btn_h4.clicked.connect(lambda: self._on_tf("h4"))
+        self.lbl_info = QLabel("")
+        self.lbl_info.setStyleSheet(f"color:{t.text_3};font-size:11px")
+        bar.addWidget(QLabel("نماد:"))
+        bar.addWidget(self.cmb_sym)
+        bar.addSpacing(10)
+        bar.addWidget(self.btn_h1)
+        bar.addWidget(self.btn_h4)
+        bar.addStretch(1)
+        bar.addWidget(self.lbl_info)
+        root.addLayout(bar)
+
+        self.chart = CandleChart(t=t)
+        root.addWidget(self.chart, 1)
+        self.load()
+
+    def _on_sym(self, sym: str) -> None:
+        self._sym = sym
+        self.setWindowTitle(f"نمودار کندل‌استیک — {sym} · ODIN ASSISTANT")
+        self.load()
+
+    def _on_tf(self, tf: str) -> None:
+        self._tf = tf
+        self.btn_h1.setChecked(tf == "h1")
+        self.btn_h4.setChecked(tf == "h4")
+        self.load()
+
+    def load(self) -> None:
+        import json as _json
+        try:
+            f = app_paths.data_dir() / f"chart_{self._sym}.json"
+            if not f.exists():
+                self.chart.set_data([])
+                self.lbl_info.setText("کش نمودار نیست — یک چرخهٔ تحلیل اجرا کن")
+                return
+            data = _json.loads(f.read_text(encoding="utf-8"))
+            candles = data.get(self._tf) or []
+            pip = self._pips.get(self._sym, 0.0001)
+            levels = list(self._levels_ext)
+            sup, res = self._sr
+            from src.report.signal import fmt_price
+            if sup:
+                levels.append((float(sup), QColor(self._t.text_3),
+                               "حمایت " + fmt_price(float(sup), pip), True))
+            if res:
+                levels.append((float(res), QColor(self._t.text_3),
+                               "مقاومت " + fmt_price(float(res), pip), True))
+            self.chart.set_data(candles[-240:], pip, levels)
+            if candles:
+                from datetime import datetime as _dt, timezone as _tz
+                from src.fa import jalali_fa
+                last_t = _dt.fromtimestamp(candles[-1]["t"] / 1000, tz=_tz.utc)
+                self.lbl_info.setText(f"{len(candles)} کندل · آخرین: {jalali_fa(last_t)}")
+            else:
+                self.lbl_info.setText("کندلی در کش نیست")
+        except Exception as e:
+            self.chart.set_data([])
+            self.lbl_info.setText(f"خطا در بارگذاری نمودار: {str(e)[:60]}")
+
+
+# ══════════════════════════════════════════════════════════════
 #  خودآزمون و ورودی
 # ══════════════════════════════════════════════════════════════
 def _selftest() -> int:
@@ -1180,6 +1755,35 @@ def _selftest() -> int:
     assert win.windowTitle().startswith("ODIN Assistant"), \
         f"عنوان پنجره باید با برند شروع شود: {win.windowTitle()!r}"
     assert f"سلام {win.user_name}" in win.greet_lbl.text(), "سلام بزرگ در هدر"
+
+    # v0.19.0 — اجزای تازه: دیالوگ هشدارها، دیالوگ نمودار، کارت سیگنال، اشتراک
+    ad = AlertsDialog(win)
+    ad.refresh()
+    ad.close()
+    cd = ChartDialog(win)
+    cd.load()
+    cd.close()
+    fake_sig = {"symbol": "EURUSD", "direction": "BUY", "score": 10, "max_score": 11,
+                "sent": True, "text": "", "entry": 1.17, "sl": 1.165, "tp": 1.18,
+                "pip": 0.0001, "is_gold": False, "rr": 2.0, "stars": 5,
+                "session_fa": "لندن", "fa_name": "یورو به دلار آمریکا",
+                "now": datetime.now(timezone.utc).isoformat()}
+    win._last_signals = [fake_sig]
+    win._show_signal_popup([fake_sig])
+    app.processEvents()
+    assert win._sig_popup is not None, "کارت سیگنال متحرک ساخته نشد"
+    from src.report.sharecard import build_share_spec, render_card_pixmap
+    _spec = build_share_spec(fake_sig, version=app_paths.APP_VERSION)
+    assert _spec["pair"] == "EUR/USD" and _spec["footerTg"] == "@Khode_Sushian"
+    _pm = render_card_pixmap(_spec)
+    assert not _pm.isNull() and _pm.width() == 1080 and _pm.height() == 1350, \
+        "کارت تصویری ۱۰۸۰×۱۳۵۰ رندر نشد"
+    from src import alerts as _al
+    _al.add_alert("EURUSD", "above", 9.9999, pip=0.0001)
+    _fired = _al.check_alerts([{"symbol": "EURUSD", "price": 10.5, "pip": 0.0001}])
+    assert len(_fired) == 1, "هشدار قیمت در موتور فعال نشد"
+    assert _al.check_alerts([{"symbol": "EURUSD", "price": 10.5, "pip": 0.0001}]) == [], \
+        "هشدار یک‌بارمصرف باید پس از فعال‌شدن حذف شود"
 
     # رگرسیون باگ «صفحه سیاه تا درگ»
     from PySide6.QtWidgets import QGraphicsOpacityEffect
