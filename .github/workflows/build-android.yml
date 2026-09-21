@@ -14,16 +14,16 @@ jobs:
 
     steps:
     - name: Checkout code
-      uses: actions/checkout@v5
+      uses: actions/checkout@v4
 
     - name: Set up JDK 17
-      uses: actions/setup-java@v5
+      uses: actions/setup-java@v4
       with:
         java-version: '17'
         distribution: 'temurin'
 
     - name: Setup Gradle
-      uses: gradle/actions/setup-gradle@v4
+      uses: gradle/actions/setup-gradle@v3
       with:
         gradle-version: '8.5'
         cache-disabled: true
@@ -32,62 +32,64 @@ jobs:
       run: |
         cd android
         mkdir -p gradle/wrapper
-        echo "distributionBase=GRADLE_USER_HOME" > gradle/wrapper/gradle-wrapper.properties
-        echo "distributionPath=wrapper/dists" >> gradle/wrapper/gradle-wrapper.properties
-        echo "distributionUrl=https\\://services.gradle.org/distributions/gradle-8.5-bin.zip" >> gradle/wrapper/gradle-wrapper.properties
-        echo "zipStoreBase=GRADLE_USER_HOME" >> gradle/wrapper/gradle-wrapper.properties
-        echo "zipStorePath=wrapper/dists" >> gradle/wrapper/gradle-wrapper.properties
-        
-    - name: Download Gradle Wrapper JAR
-      run: |
-        cd android
+        cat > gradle/wrapper/gradle-wrapper.properties << PROPS
+distributionBase=GRADLE_USER_HOME
+distributionPath=wrapper/dists
+distributionUrl=https\://services.gradle.org/distributions/gradle-8.5-bin.zip
+zipStoreBase=GRADLE_USER_HOME
+zipStorePath=wrapper/dists
+PROPS
         curl -L -o gradle/wrapper/gradle-wrapper.jar \
-          https://raw.githubusercontent.com/gradle/gradle/v8.5.0/gradle/wrapper/gradle-wrapper.jar
-      
-    - name: Create gradlew script
-      run: |
-        cd android
-        printf '#!/bin/sh\nAPP_HOME=$(cd "$(dirname "$0")" && pwd -P)\nCLASSPATH=$APP_HOME/gradle/wrapper/gradle-wrapper.jar\nif [ -n "$JAVA_HOME" ] ; then\n    JAVACMD="$JAVA_HOME/bin/java"\nelse\n    JAVACMD="java"\nfi\nexec "$JAVACMD" -classpath "$CLASSPATH" org.gradle.wrapper.GradleWrapperMain "$@"' > gradlew
+          "https://github.com/gradle/gradle/raw/v8.5.0/gradle/wrapper/gradle-wrapper.jar"
+        cat > gradlew << 'SCRIPT'
+#!/bin/sh
+APP_HOME=$(cd "$(dirname "$0")" && pwd -P)
+CLASSPATH=$APP_HOME/gradle/wrapper/gradle-wrapper.jar
+if [ -n "$JAVA_HOME" ] ; then
+    JAVACMD="$JAVA_HOME/bin/java"
+else
+    JAVACMD="java"
+fi
+exec "$JAVACMD" -classpath "$CLASSPATH" org.gradle.wrapper.GradleWrapperMain "$@"
+SCRIPT
         chmod +x gradlew
 
-    - name: Create keystore properties (for debug build)
+    - name: Create debug keystore
       run: |
         cd android
+        keytool -genkey -v -keystore debug.keystore -alias androiddebugkey \
+          -storepass android -keypass android -keyalg RSA -keysize 2048 \
+          -validity 10000 -dname "CN=Android Debug,O=Android,C=US"
         echo "storeFile=debug.keystore" > keystore.properties
         echo "storePassword=android" >> keystore.properties
         echo "keyAlias=androiddebugkey" >> keystore.properties
         echo "keyPassword=android" >> keystore.properties
-        
-        if [ ! -f debug.keystore ]; then
-          keytool -genkey -v -keystore debug.keystore -alias androiddebugkey \
-            -storepass android -keypass android -keyalg RSA -keysize 2048 \
-            -validity 10000 -dname "CN=Android Debug,O=Android,C=US"
-        fi
 
-    - name: Build Debug APK with Gradle
+    - name: Build Debug APK
       run: |
         cd android
-        ./gradlew clean assembleDebug --stacktrace --no-daemon
+        ./gradlew clean assembleDebug --no-daemon --stacktrace
 
-    - name: Locate APK
+    - name: Locate and verify APK
       id: locate_apk
       run: |
         cd android
         APK_PATH=$(find app/build/outputs/apk/debug -name "*.apk" -type f | head -n 1)
         if [ -z "$APK_PATH" ]; then
           echo "Error: APK file not found!"
-          find . -name "*.apk" || true
+          find app/build -name "*.apk" || true
           exit 1
         fi
         echo "apk_path=$APK_PATH" >> $GITHUB_OUTPUT
         echo "APK found at: $APK_PATH"
-        cp "$APK_PATH" ./app-debug.apk
+        cp "$APK_PATH" odin-assistant.apk
+        ls -lh odin-assistant.apk
 
     - name: Create Release
       if: startsWith(github.ref, 'refs/tags/')
       uses: softprops/action-gh-release@v2
       with:
-        files: ./android/app-debug.apk
+        files: odin-assistant.apk
         body: |
           🚀 **نسخه جدید اندروید منتشر شد!**
 
@@ -107,5 +109,5 @@ jobs:
       uses: actions/upload-artifact@v4
       with:
         name: Odin-Android-Debug
-        path: ./android/app-debug.apk
+        path: odin-assistant.apk
         retention-days: 5
