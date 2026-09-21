@@ -80,7 +80,7 @@ with tempfile.TemporaryDirectory() as td:
     lf = lic.get_license_file_path()
     check(lf.exists(), "license.dat ساخته شد")
     data = json.loads(lf.read_text(encoding="utf-8"))
-    check(data["device_id"] == did and data["version"] == "2.0", "device_id کامل قفل شد")
+    check(data["device_id"] == did and data["version"] == "2.1", "device_id کامل قفل شد (نسخهٔ رکورد 2.1)")
 
     # کپی license.dat روی «دستگاه دیگر» نباید کار کند
     saved = dict(data)
@@ -104,6 +104,59 @@ with tempfile.TemporaryDirectory() as td:
     check(lic._cli(["check", "6F1F-8540-078F-9898", "AB12CD34EF56"]) == 0, "check کلید درست → ۰")
     check(lic._cli(["check", "AAAA-BBBB-CCCC-DDDD", "AB12CD34EF56"]) == 1, "check کلید غلط → ۱")
     check(lic._cli(["gen", "xyz"]) == 2, "gen با کد نامعتبر → ۲")
+    check(lic._cli(["gen", "AB12-CD34-EF56", "--until", "2030-12-31"]) == 0, "gen --until → ۰")
+    check(lic._cli(["gen", "AB12-CD34-EF56", "--days", "30"]) == 0, "gen --days → ۰")
+
+    print("=" * 70)
+    print("۵) کلید زمان‌دار (v0.15.0)")
+    print("=" * 70)
+    from datetime import datetime, timedelta
+    kt = lic.generate_license_key("AB12-CD34-EF56", until="2030-12-31")
+    check(kt == "19DB-2DFA-F0E7-0082-301231", f"بُرِد مشترک زمان‌دار با JS: {kt}")
+    key16, exp8 = lic.parse_key_input(kt)
+    check(exp8 == "20301231" and len(key16) == 16, "پارس پسوند تاریخ")
+    check(lic.validate_license(kt, "AB12-CD34-EF56")[0], "کلید زمان‌دار معتبر است")
+    check(not lic.validate_license(kt, "AB12-CD34-EF56", now=datetime(2031, 1, 1))[0],
+          "پس از انقضا رد می‌شود")
+    check(not lic.validate_license("19DB-2DFA-F0E7-0082", "AB12-CD34-EF56")[0],
+          "حذف پسوند تاریخ → رد (HMAC روی تاریخ هم هست)")
+    try:
+        lic.parse_key_input("19DB2DFAF0E70082-310231")
+        check(False, "۳۱ فوریه باید رد شود")
+    except ValueError:
+        check(True, "تاریخ نامعتبر (۳۱ فوریه) رد می‌شود")
+    kd = lic.generate_license_key(code, 90)
+    _, e90 = lic.parse_key_input(kd)
+    delta = (datetime.strptime(e90, "%Y%m%d").date() - datetime.now().date()).days
+    check(delta in (89, 90), f"--days 90 → انقضا ~۹۰ روز (={delta})")
+
+    print("=" * 70)
+    print("۶) دورهٔ آزمایشی ۷ روزه + ضدِ ساعت")
+    print("=" * 70)
+    t0 = lic.trial_status()
+    check(not t0["exists"] and not t0["active"], "تریال شروع نشده")
+    ok, _m = lic.check_and_enforce_license()
+    check(not ok, "بدون لایسنس/تریال → دروازه بسته")
+    check(lic.start_trial()[0], "start_trial موفق")
+    check(not lic.start_trial()[0], "start_trial دوباره → رد (ضدتقلب)")
+    t1 = lic.trial_status()
+    check(t1["active"] and t1["days_left"] == 7, "روز ۰ → فعال، ۷ روز باقی")
+    ok, msg = lic.check_and_enforce_license()
+    check(ok and "آزمایشی" in msg, "دروازه با تریال باز است")
+    t2 = lic.trial_status(now=datetime.now() + timedelta(days=6, hours=12))
+    check(t2["active"] and t2["days_left"] == 1, "روز ۶.۵ → ۱ روز باقی")
+    t3 = lic.trial_status(now=datetime.now() + timedelta(days=7, hours=3))
+    check(not t3["active"] and t3["days_left"] == 0, "روز ۷.۱ → تمام")
+    t4 = lic.trial_status(now=datetime.now() - timedelta(hours=96))
+    check(t4["tampered"] and not t4["active"], "عقب‌کشیدن ساعت → tampered")
+    kdev = lic.generate_license_key(code, until="2030-12-31")
+    ok, msg = lic.activate_program(kdev, "تستر")
+    check(ok, "فعال‌سازی با کلید زمان‌دار")
+    check(lic.is_activated(), "is_activated با کلید زمان‌دار")
+    check(not lic.is_activated(now=datetime(2031, 1, 2)), "is_activated پس از انقضا → False")
+    data = json.loads(lic.get_license_file_path().read_text(encoding="utf-8"))
+    check(data.get("expires_at") == "20301231" and data.get("version") == "2.1",
+          "expires_at/version در license.dat ذخیره شد")
 
 print("=" * 70)
 if FAILS:

@@ -1,4 +1,6 @@
-/* لایسنس و قفل دستگاه — همزاد دقیقِ src/license.py برای اندروید (v0.14.0)
+/* لایسنس و قفل دستگاه — همزاد دقیقِ src/license.py برای اندروید.
+ * v0.15.0: کلید زمان‌دار (انقضا در خود رشتهٔ کلید) + دورهٔ آزمایشی ۷ روزه
+ * با high-water-mark ضدِ عقب‌کشیدن ساعت. کلیدهای دائمیِ v0.14 بدون تغییر معتبرند.
  *
  * طرح (یکسان در دو پلتفرم — یک ابزار تولید کلید برای هر دو کافی است):
  *   device_id   = SHA-256 هگز (۶۴ کاراکتر) — در اندروید از ANDROID_ID
@@ -137,19 +139,64 @@
     return O.formatCode(String(deviceId || '').slice(0, 12).toUpperCase());
   };
 
-  /** تولید کلید برای یک کد دستگاه — «XXXX-XXXX-XXXX-XXXX» یا '' اگر کد نامعتبر */
-  O.licenseKeyFor = function (deviceCode) {
-    var code = O.normalizeCode(deviceCode);
-    if (code.length !== 12) return '';
-    return O.formatCode(hmacSha256Hex(SECRET, code).toUpperCase().slice(0, 16));
+  O.LICENSE_TRIAL_DAYS = 7;
+  var ROLLBACK_MS = 48 * 3600 * 1000;   // تلورانس عقب‌رفتن ساعت (مثل پایتون)
+  var TOUCH_MS = 6 * 3600 * 1000;       // throttle به‌روزرسانی last_seen
+
+  function pad2(n) { return (n < 10 ? '0' : '') + n; }
+  function ymd8(d) { return '' + d.getFullYear() + pad2(d.getMonth() + 1) + pad2(d.getDate()); }
+
+  /**
+   * رشتهٔ کلید → {key:16hex, expiry8:'YYYYMMDD'|null} یا null اگر بدقالبه.
+   * دائمی: ۱۶ هگز · زمان‌دار: ۱۶ هگز + ۶ رقم YYMMDD (مثل parse_key_input پایتون)
+   */
+  O.parseKeyInput = function (raw) {
+    var s = String(raw == null ? '' : raw).replace(/[^0-9A-Fa-f]/g, '').toUpperCase();
+    if (s.length === 16) return { key: s, expiry8: null };
+    if (s.length === 22) {
+      var e = s.slice(16);
+      var yy = +e.slice(0, 2), mm = +e.slice(2, 4), dd = +e.slice(4, 6);
+      if (mm < 1 || mm > 12 || dd < 1 || dd > 31) return null;
+      var d = new Date(2000 + yy, mm - 1, dd);
+      if (d.getMonth() !== mm - 1 || d.getDate() !== dd) return null;   // مثلاً ۳۱ فوریه
+      return { key: s.slice(0, 16), expiry8: '20' + e };
+    }
+    return null;
   };
 
-  O.validateKey = function (key, deviceCode) {
-    var k = O.normalizeCode(key);
-    if (k.length !== 16) return false;
-    var exp = O.licenseKeyFor(deviceCode);
-    return exp !== '' && O.normalizeCode(exp) === k;
+  /** تولید کلید — expiry8 اختیاری ('YYYYMMDD'). هم‌فرمت با generate_license_key پایتون */
+  O.licenseKeyFor = function (deviceCode, expiry8) {
+    var code = O.normalizeCode(deviceCode);
+    if (code.length !== 12) return '';
+    var msg = expiry8 ? (code + '|' + expiry8) : code;
+    var mac = O.formatCode(hmacSha256Hex(SECRET, msg).toUpperCase().slice(0, 16));
+    return expiry8 ? (mac + '-' + expiry8.slice(2)) : mac;
   };
+
+  /** اعتبارسنجی: HMAC + انقضا (تاریخ محلی دستگاه، مثل datetime.now پایتون) */
+  O.validateKey = function (key, deviceCode, nowMs) {
+    var p = O.parseKeyInput(key);
+    if (!p) return false;
+    var exp = O.licenseKeyFor(deviceCode, p.expiry8);
+    if (exp === '' || O.normalizeKey(exp) !== O.normalizeKey(key)) return false;
+    if (p.expiry8 && ymd8(new Date(nowMs || Date.now())) > p.expiry8) return false;
+    return true;
+  };
+
+  /** کلید کاربر را به قالب فشردهٔ ذخیره‌سازی نرمال کن (بدون خط‌تیره) */
+  O.normalizeKey = function (key) {
+    var p = O.parseKeyInput(key);
+    if (!p) return '';
+    return p.key + (p.expiry8 ? p.expiry8.slice(2) : '');
+  };
+
+  function rolledBack(lastSeenIso, nowMs) {
+    if (!lastSeenIso) return false;
+    var ls = Date.parse(lastSeenIso);
+    if (!isFinite(ls)) return false;
+    return (nowMs || Date.now()) < ls - ROLLBACK_MS;
+  }
+  O.rolledBack = rolledBack;
 
   // ── چرخهٔ ذخیره (SharedPreferences — کلید license.dat مثل دسکتاپ) ──
   O.licLoad = function (storage) {
@@ -159,22 +206,36 @@
     } catch (e) { return null; }
   };
 
-  /** قفل دو لایه: device_id ذخیره‌شده == دستگاه فعلی، و کلید HMAC درست */
-  O.licIsActive = function (storage, deviceId) {
+  /** قفل‌ها: device_id == دستگاه فعلی · HMAC درست · انقضا نگذشته · ساعت دستکاری نشده */
+  O.licIsActive = function (storage, deviceId, nowMs) {
+    var now = nowMs || Date.now();
     var d = O.licLoad(storage);
     if (!d || !deviceId || d.device_id !== deviceId) return false;
-    return O.validateKey(d.license_key, O.deviceCodeFromId(deviceId));
+    if (rolledBack(d.last_seen, now)) return false;
+    if (!O.validateKey(d.license_key, O.deviceCodeFromId(deviceId), now)) return false;
+    // last_seen را (با throttle) جلو ببر — مبنای تشخیص دستکاری ساعت
+    try {
+      if (!d.last_seen || now - Date.parse(d.last_seen) > TOUCH_MS) {
+        d.last_seen = new Date(now).toISOString();
+        storage.set('license.dat', JSON.stringify(d));
+      }
+    } catch (e) { }
+    return true;
   };
 
-  O.licActivate = function (storage, key, deviceId, userName) {
-    if (!O.validateKey(key, O.deviceCodeFromId(deviceId))) return false;
+  O.licActivate = function (storage, key, deviceId, userName, nowMs) {
+    var now = nowMs || Date.now();
+    if (!O.validateKey(key, O.deviceCodeFromId(deviceId), now)) return false;
+    var p = O.parseKeyInput(key);
     try {
       storage.set('license.dat', JSON.stringify({
-        license_key: O.normalizeCode(key),
+        license_key: O.normalizeKey(key),
         device_id: deviceId,
         user_name: userName || '',
-        activated_at: new Date().toISOString(),
-        version: '2.0'
+        expires_at: p ? p.expiry8 : null,
+        activated_at: new Date(now).toISOString(),
+        last_seen: new Date(now).toISOString(),
+        version: '2.1'
       }));
       return true;
     } catch (e) { return false; }
@@ -182,5 +243,44 @@
 
   O.licDeactivate = function (storage) {
     try { storage.del('license.dat'); } catch (e) { }
+  };
+
+  // ── دورهٔ آزمایشی (trial.dat — مثل trial پایتون) ────────────────
+  O.trialStatus = function (storage, nowMs) {
+    var now = nowMs || Date.now();
+    var t = null;
+    try { var raw = storage.get('trial.dat'); t = raw ? JSON.parse(raw) : null; } catch (e) { t = null; }
+    if (!t) return { exists: false, active: false, daysLeft: 0, tampered: false };
+    if (rolledBack(t.last_seen, now)) return { exists: true, active: false, daysLeft: 0, tampered: true };
+    var started = Date.parse(t.started_at);
+    if (!isFinite(started)) return { exists: true, active: false, daysLeft: 0, tampered: true };
+    var days = t.days || O.LICENSE_TRIAL_DAYS;
+    var used = Math.max(0, (now - started) / 86400000);
+    return { exists: true, active: used < days, daysLeft: Math.max(0, days - Math.floor(used)), tampered: false };
+  };
+
+  O.trialStart = function (storage, nowMs) {
+    if (O.trialStatus(storage, nowMs).exists) return false;   // یک‌بار بیشتر نه (ضدتقلب)
+    var now = new Date(nowMs || Date.now());
+    try {
+      storage.set('trial.dat', JSON.stringify({
+        started_at: now.toISOString(), last_seen: now.toISOString(),
+        days: O.LICENSE_TRIAL_DAYS
+      }));
+      return true;
+    } catch (e) { return false; }
+  };
+
+  O.trialTouch = function (storage, nowMs) {
+    var now = nowMs || Date.now();
+    try {
+      var raw = storage.get('trial.dat');
+      if (!raw) return;
+      var t = JSON.parse(raw);
+      if (!t.last_seen || now - Date.parse(t.last_seen) > TOUCH_MS) {
+        t.last_seen = new Date(now).toISOString();
+        storage.set('trial.dat', JSON.stringify(t));
+      }
+    } catch (e) { }
   };
 })(typeof ODIN !== 'undefined' ? ODIN : (globalThis.ODIN = {}));

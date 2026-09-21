@@ -29,7 +29,7 @@
   var S = {
     cfg: null, settings: null, storage: null, journal: null,
     state: null, stats: null, tab: 'home', busy: false,
-    version: '0.14.2', lastBack: 0,
+    version: '0.15.0', lastBack: 0,
     deviceId: '', deviceCode: '', licensed: false,   // لایسنس (v0.14.0)
     onbStage: null,               // 'license' | 'name' | 'bg' | null — مرحلهٔ خوش‌آمدگویی
     svcBusy: false, svcReady: false
@@ -257,8 +257,8 @@
   //   اعلان سیگنال و خبر فوری همین‌جا انجام می‌شود.
   O.cycleCore = function (opts) {
     opts = opts || {};
-    // گیت لایسنس (v0.14.0) — بدون فعال‌سازی هیچ چرخه‌ای اجرا نمی‌شود
-    if (!S.licensed) return Promise.reject(new Error('not-activated'));
+    // گیت دسترسی (v0.15.0) — بدون لایسنس/تریال هیچ چرخه‌ای اجرا نمی‌شود
+    if (!S.accessOK) return Promise.reject(new Error('not-activated'));
     var log = opts.log || function () { };
     var nowMs = Date.now();
     var prevNewsSnap = S.state ? S.state.newsSnap : null;
@@ -368,10 +368,12 @@
   O.runAnalysis = function (opts) {
     opts = opts || {};
     var silent = !!opts.silent;
-    if (!S.licensed) {
+    if (!S.accessOK) {
       if (!silent) {
-        O.toast('برنامه فعال نشده است — اول لایسنس را وارد کن');
-        O.showActivation(function () { O.navigate(S.tab); });
+        O.toast(S.trial && S.trial.exists
+          ? 'دورهٔ آزمایشی تمام شده — کلید لایسنس را وارد کن'
+          : 'برنامه فعال نشده است — اول لایسنس را وارد کن');
+        O.showActivation(function () { O.navigate(S.tab); }, S.trial && S.trial.exists ? 'expired' : null);
       }
       return;
     }
@@ -431,10 +433,15 @@
     } catch (e) { S.deviceId = ''; }
     S.deviceCode = S.deviceId ? O.deviceCodeFromId(S.deviceId) : '';
     S.licensed = !!(S.deviceId && O.licIsActive(S.storage, S.deviceId));
-    if (!S.licensed) {
-      svcLog('سرویس متوقف شد — برنامه فعال‌سازی نشده است');
+    S.trial = O.trialStatus(S.storage);
+    S.accessOK = S.licensed || !!(S.trial && S.trial.active);
+    if (!S.accessOK) {
+      var why = (S.trial && S.trial.exists)
+        ? (S.trial.tampered ? 'دورهٔ آزمایشی نامعتبر (دستکاری ساعت)' : 'دورهٔ آزمایشی به پایان رسیده')
+        : 'برنامه فعال‌سازی نشده است';
+      svcLog('سرویس متوقف شد — ' + why);
       O.native.notifyOngoing('ODIN ASSISTANT — فعال‌سازی لازم است',
-        'برای شروع رصد بازار، اپ را باز کن و با کلید لایسنس فعالش کن');
+        why + ' — برای شروع رصد بازار، اپ را باز کن و با کلید لایسنس فعالش کن');
       O.native.stopBackground();
       return;
     }
@@ -455,10 +462,18 @@
     if (!O.SERVICE_MODE || !S.svcReady || S.svcBusy) return;
     try {
       loadSettings();                            // تنظیمات تازه (کاربر شاید در UI تغییر داده)
-      if (!S.licensed || !O.licIsActive(S.storage, S.deviceId)) {   // غیرفعال شد؟
-        S.licensed = false;
+      // بازبررسی دسترسی هر چرخه (انقضای لایسنس زمان‌دار یا پایان تریال)
+      if (!S.licensed || !O.licIsActive(S.storage, S.deviceId)) {
+        S.trial = O.trialStatus(S.storage);
+        S.licensed = !!(S.deviceId && O.licIsActive(S.storage, S.deviceId));
+        S.accessOK = S.licensed || !!(S.trial && S.trial.active);
+      } else {
+        S.accessOK = true;
+      }
+      if (!S.accessOK) {
+        var whyTick = (S.trial && S.trial.exists) ? 'دورهٔ آزمایشی به پایان رسیده' : 'لایسنس معتبر نیست';
         O.native.notifyOngoing('ODIN ASSISTANT — فعال‌سازی لازم است',
-          'رصد متوقف شد؛ اپ را باز کن و با کلید لایسنس فعالش کن');
+          whyTick + ' — رصد متوقف شد؛ اپ را باز کن و فعال‌سازی کن');
         O.native.stopBackground();
         return;
       }
@@ -748,6 +763,12 @@
     setInterval(function () {
       try {
         if (!S.settings) return;
+        // تازة‌سازی وضعیت دسترسی (تریال/لایسنس زمان‌دار ممکن است وسط کار تمام شود)
+        if (!S.licensed) {
+          S.trial = O.trialStatus(S.storage);
+          S.accessOK = !!(S.trial && S.trial.active);
+          O.trialTouch(S.storage);
+        }
         if (S.busy) return;
         if (typeof document !== 'undefined' && document.hidden) return;
         if (O.modalOpen()) return;
@@ -771,21 +792,61 @@
       [{
         label: 'متوجه شدم — بزن بریم', cls: 'primary', fn: function () {
           S.storage.set('disclaimer.ok', '1');
-          askLicense();
+          trialGate();
         }
       }]);
   }
 
-  // v0.14.0 — فعال‌سازی لایسنس: کد دستگاه → سازنده → کلید اختصاصی
-  function askLicense() {
+  // v0.15.0 — دروازهٔ دسترسی: لایسنس فعال یا دورهٔ آزمایشی یا «هدیهٔ خوش‌آمدگویی»
+  function trialGate() {
     if (S.licensed) { askName(); return; }
-    O.showActivation(function () { askName(); });
+    var t = O.trialStatus(S.storage);
+    S.trial = t;
+    S.accessOK = t.active;
+    if (t.active) { askName(); return; }
+    if (t.exists) {                       // تمام‌شده یا دستکاری‌شده
+      O.showActivation(function () { askName(); }, t.tampered ? 'tampered' : 'expired');
+      return;
+    }
+    // تریال شروع نشده → مودال هدیه
+    S.onbStage = 'trial';
+    O.modal(O.ico('seal', 18) + ' هدیهٔ خوش‌آمدگویی — ۷ روز رایگان',
+      'همهٔ امکانات ODIN ASSISTANT — تحلیل، سیگنال، <b>رصد پس‌زمینه</b> و کارنامهٔ دقت — به مدت <b>۷ روز</b> رایگان و بدون محدودیت.<br><br>' +
+      'بعد از پایان، کلید لایسنس مخصوص دستگاهت را از تلگرام سازنده بگیر (<span dir="ltr">@Khode_Sushian</span> — در صفحهٔ «دربارهٔ ما» هم هست).<br><br>' +
+      '<span style="color:var(--text-3)">اگر همین حالا کلید داری، می‌توانی فعال‌سازی کنی.</span>',
+      [
+        {
+          label: 'شروع ۷ روز رایگان', cls: 'primary', fn: function () {
+            O.trialStart(S.storage);
+            S.trial = O.trialStatus(S.storage);
+            S.accessOK = S.trial.active;
+            S.onbStage = null;
+            O.toast('دورهٔ آزمایشی شروع شد — ۷ روز تمام‌امکانات');
+            askName();
+          }
+        },
+        {
+          label: 'کلید لایسنس دارم', cls: 'ghost', fn: function () {
+            S.onbStage = null;
+            O.showActivation(function () { askName(); });
+          }
+        }
+      ]);
   }
 
-  O.showActivation = function (onDone) {
+  O.showActivation = function (onDone, reason) {
     S.onbStage = 'license';
+    var note = '';
+    if (reason === 'expired') {
+      note = '<div class="hint" style="color:var(--red-text);margin-bottom:8px">دورهٔ آزمایشی به پایان رسیده — برای ادامه، کلید لایسنس را وارد کن.</div>';
+    } else if (reason === 'tampered') {
+      note = '<div class="hint" style="color:var(--red-text);margin-bottom:8px">ساعت دستگاه به عقب برگشته — دورهٔ آزمایشی نامعتبر شد. با کلید لایسنس فعال‌سازی کن.</div>';
+    } else if (reason === 'key-expired') {
+      note = '<div class="hint" style="color:var(--red-text);margin-bottom:8px">لایسنس زمان‌دار منقضی شده — کلید تمدید را از سازنده بگیر.</div>';
+    }
     O.modal(O.ico('seal', 18) + ' فعال‌سازی برنامه',
-      '<div class="set-sub" style="margin-bottom:10px">«کد دستگاه» زیر را برای سازنده (Sushian Khoshkhani) بفرست و کلید اختصاصی‌ات را دریافت کن. هر کلید فقط روی همان دستگاه کار می‌کند.</div>' +
+      note +
+      '<div class="set-sub" style="margin-bottom:10px">«کد دستگاه» زیر را برای سازنده (Sushian Khoshkhani — تلگرام <span dir="ltr">@Khode_Sushian</span>) بفرست و کلید اختصاصی‌ات را دریافت کن. هر کلید فقط روی همان دستگاه کار می‌کند. کلیدهای زمان‌دار یک بخش تاریخ هم دارند — <b>کل رشتهٔ دریافتی</b> را وارد کن.</div>' +
       '<input id="onb-code" class="text-input" readonly value="' + O.esc(S.deviceCode || '') + '" style="letter-spacing:2px;text-align:center;font-weight:700;direction:ltr">' +
       '<input id="onb-key" class="text-input" placeholder="XXXX-XXXX-XXXX-XXXX" maxlength="24" autocomplete="off" autocorrect="off" spellcheck="false" style="margin-top:8px;text-align:center;letter-spacing:1px;direction:ltr">' +
       '<div id="onb-err" class="hint" style="color:var(--red-text);min-height:20px;margin-top:6px"></div>',
@@ -805,6 +866,8 @@
             if (S.deviceId && O.validateKey(key, S.deviceCode) &&
                 O.licActivate(S.storage, key, S.deviceId, S.settings.user_name)) {
               S.licensed = true;
+              S.accessOK = true;
+              S.licenseInfo = O.licLoad(S.storage);
               S.onbStage = null;
               closeModal();
               O.toast('برنامه فعال شد');
@@ -904,7 +967,7 @@
     S.storage = O.makeStorage();
     loadSettings();
     S.journal = new O.Journal(S.storage);
-    try { S.version = (typeof ODINNative !== 'undefined' && ODINNative.getVersion()) || '0.14.2'; } catch (e) { }
+    try { S.version = (typeof ODINNative !== 'undefined' && ODINNative.getVersion()) || '0.15.0'; } catch (e) { }
     document.getElementById('splash-ver').textContent = 'v' + S.version + ' · android';
     applyUserName();
 
@@ -916,6 +979,11 @@
     if (!S.deviceId) S.deviceId = 'deadbeefcafebabedeadbeefcafebabe';  // حالت مرورگر/توسعه
     S.deviceCode = O.deviceCodeFromId(S.deviceId);
     S.licensed = O.licIsActive(S.storage, S.deviceId);
+    // دورهٔ آزمایشی (v0.15.0): دسترسی = لایسنس معتبر یا تریال فعال
+    S.trial = O.trialStatus(S.storage);
+    O.trialTouch(S.storage);
+    S.accessOK = S.licensed || !!(S.trial && S.trial.active);
+    S.licenseInfo = O.licLoad(S.storage);
 
     // بارگذاری آخرین وضعیت (رندر فوری بدون مصرف اینترنت)
     try {
@@ -937,7 +1005,7 @@
       document.getElementById('app').classList.remove('hidden');
       setTimeout(function () { splash.style.display = 'none'; }, 500);
       if (S.storage.get('disclaimer.ok') !== '1') showDisclaimer();
-      else askLicense();
+      else trialGate();
     }, 1500);
   }
 

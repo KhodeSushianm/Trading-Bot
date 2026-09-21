@@ -45,7 +45,7 @@ from src.ui.widgets import (Card, DashedCard, InkCard, LineChart, NavRail, RingG
                             StatTile, StatusPill, Toast)
 from src.license import (check_and_enforce_license, activate_program,
                          get_device_id, get_device_code, is_activated,
-                         deactivate_program)
+                         deactivate_program, start_trial, trial_status)
 
 _FA_DIGITS = str.maketrans("0123456789", "۰۱۲۳۴۵۶۷۸۹")
 T = DARK
@@ -218,6 +218,17 @@ class MainWindow(QMainWindow):
         self.tick = QTimer(self)
         self.tick.timeout.connect(self._tick)
         self.tick.start(1000)
+
+        # v0.15.0 — وضعیت دسترسی در لاگ پنل شفاف باشد (لایسنس یا تریال)
+        try:
+            if not is_activated():
+                _t = trial_status()
+                if _t.get("active"):
+                    self.q.put(("log", f"دورهٔ آزمایشی — {_t['days_left']} روز باقی است؛ پس از پایان، کلید لایسنس وارد کنید"))
+                elif _t.get("exists") and not _t.get("tampered"):
+                    self.q.put(("log", "دورهٔ آزمایشی تمام شده — برای ادامه، کلید لایسنس وارد کنید"))
+        except Exception:
+            pass
 
         self._splash = None
         if show_splash and bool(uicfg.get("splash", True)):
@@ -926,9 +937,10 @@ class MainWindow(QMainWindow):
         
         # توضیحات
         desc_lbl = QLabel(
-            "۱) «کد دستگاه» زیر را کپی کرده و برای سازنده (Sushian Khoshkhani) بفرستید.\n"
-            "۲) کلید لایسنس مخصوص همین دستگاه را دریافت و اینجا وارد کنید.\n\n"
-            "هر کلید فقط روی همان دستگاه کار می‌کند و قابل انتقال نیست."
+            "۱) «کد دستگاه» زیر را کپی کرده و برای سازنده (Sushian Khoshkhani — تلگرام @Khode_Sushian) بفرستید.\n"
+            "۲) کلید لایسنس مخصوص همین دستگاه را دریافت و اینجا وارد کنید.\n"
+            "   کلیدهای زمان‌دار یک بخش تاریخ هم دارند — کل رشتهٔ دریافتی را وارد کنید.\n\n"
+            "یا «شروع دورهٔ آزمایشی» را بزنید: ۷ روز استفادهٔ کامل و رایگان."
         )
         desc_lbl.setWordWrap(True)
         desc_lbl.setStyleSheet(f"color: {T.text_2}; font-size: 13px;")
@@ -959,7 +971,7 @@ class MainWindow(QMainWindow):
         
         # فیلد کلید لایسنس
         self.license_input = QLineEdit()
-        self.license_input.setPlaceholderText("XXXX-XXXX-XXXX-XXXX")
+        self.license_input.setPlaceholderText("XXXX-XXXX-XXXX-XXXX[-YYMMDD]")
         self.license_input.setMinimumHeight(40)
         self.license_input.setStyleSheet("""
             QLineEdit {
@@ -1065,7 +1077,23 @@ class MainWindow(QMainWindow):
             }}
         """)
         
+        trial_btn = QPushButton("شروع دورهٔ آزمایشی ۷ روزه")
+        trial_btn.setMinimumHeight(40)
+        trial_btn.setCursor(Qt.PointingHandCursor)
+        trial_btn.setStyleSheet(f"""
+            QPushButton {{
+                background-color: {T.raised};
+                color: {T.text};
+                border: none;
+                border-radius: 8px;
+                font-size: 12px;
+                font-weight: bold;
+            }}
+            QPushButton:hover {{ background-color: {T.rgba('#000000', 0.08)}; }}
+        """)
+
         btn_layout.addWidget(cancel_btn)
+        btn_layout.addWidget(trial_btn)
         btn_layout.addWidget(activate_btn)
         layout.addLayout(btn_layout)
         
@@ -1100,7 +1128,19 @@ class MainWindow(QMainWindow):
                 self.status_lbl.setText(message)
                 self.status_lbl.setStyleSheet("font-size: 12px; color: #FF5D5D;")
         
+        def on_trial():
+            ok, msg = start_trial()
+            if ok:
+                self.status_lbl.setText(msg + " — همهٔ امکانات فعال است")
+                self.status_lbl.setStyleSheet("font-size: 12px; color: #4CAF50;")
+                self.activation_result = True
+                dialog.accept()
+            else:
+                self.status_lbl.setText(msg)
+                self.status_lbl.setStyleSheet("font-size: 12px; color: #FF5D5D;")
+
         activate_btn.clicked.connect(on_activate)
+        trial_btn.clicked.connect(on_trial)
         cancel_btn.clicked.connect(dialog.reject)
         
         # اجرای دیالوگ

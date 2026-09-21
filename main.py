@@ -351,6 +351,14 @@ def _selftest() -> int:
     # بُرِد مشترک با license.js اندروید (همان secret، همان HMAC) — در smoke_license.js هم هست
     assert lic.generate_license_key("AB12-CD34-EF56") == "6F1F-8540-078F-9898", \
         "بُرِد آزمایشی مشترک پایتون/JS تغییر کرده — secret دو طرف باید یکی بماند"
+    # کلید زمان‌دار (v0.15.0) — انقضا داخل رشتهٔ کلید؛ بُرِد مشترک با js/license.js
+    timed = lic.generate_license_key("AB12-CD34-EF56", until="2030-12-31")
+    assert timed == "19DB-2DFA-F0E7-0082-301231", f"بُرِد کلید زمان‌دار عوض شده: {timed}"
+    assert lic.validate_license(timed, "AB12-CD34-EF56")[0], "کلید زمان‌دار معتبر باید پاس شود"
+    assert not lic.validate_license(timed, "AB12-CD34-EF56", now=datetime(2031, 1, 1))[0], \
+        "کلید زمان‌دار باید پس از انقضا رد شود"
+    assert not lic.validate_license("19DB-2DFA-F0E7-0082", "AB12-CD34-EF56")[0], \
+        "حذف پسوند تاریخ نباید کلید زمان‌دار را معتبر کند"
 
     print(f"SELFTEST OK — {len(evs)} رویداد پارس شد، {len(cases)} حالت جهت‌دهی، "
           f"{len(veto_cases)} وتو، سیگنال {sg.score}/{sg.max_score}، "

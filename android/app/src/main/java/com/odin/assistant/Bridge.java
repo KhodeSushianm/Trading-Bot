@@ -51,7 +51,7 @@ public class Bridge {
 
     private static final String UA =
             "Mozilla/5.0 (Linux; Android 13) AppleWebKit/537.36 (KHTML, like Gecko) "
-                    + "Chrome/126.0.0.0 Mobile Safari/537.36 ODINAssistant/0.14.2";
+                    + "Chrome/126.0.0.0 Mobile Safari/537.36 ODINAssistant/0.15.0";
 
     private final Context ctx;          // همیشه غیرnull (application context ترجیحاً)
     private final Activity act;         // در حالت سرویس null است
@@ -156,7 +156,7 @@ public class Bridge {
         try {
             return ctx.getPackageManager().getPackageInfo(ctx.getPackageName(), 0).versionName;
         } catch (Exception e) {
-            return "0.14.2";
+            return "0.15.0";
         }
     }
 

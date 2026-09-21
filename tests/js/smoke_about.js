@@ -17,7 +17,7 @@ const O = ctx.ODIN;
 assert(O && typeof O.renderAbout === 'function', 'renderAbout missing');
 
 const S = {
-  version: '0.14.2',
+  version: '0.15.0',
   settings: {
     user_name: 'سوشیان', judge_enabled: true, min_score: 7, veto: {},
     fund_enabled: true, news_enabled: true, tv_enabled: true,
@@ -31,7 +31,7 @@ assert(about.includes('دربارهٔ ما'), 'page title missing');
 assert(about.includes('Sushian Khoshkhani'), 'creator name missing');
 assert(about.includes('© 2026 Sushian Khoshkhani — All rights reserved.'), 'copyright line missing');
 assert(about.includes('CN=Sushian Khoshkhani, OU=ODIN Assistant, O=Sushian Khoshkhani, C=IR'), 'cert subject missing');
-assert(about.includes('۰.۱۴.۲'), 'persian version missing');
+assert(about.includes('۰.۱۵.۰'), 'persian version missing');
 // اثر انگشت کلید امضای v0.13.0 (کلید تازه به نام Sushian Khoshkhani)
 assert(about.includes('bd11159e003b55b9ae53cd26c192dc6b2bea2840c787fddbd0f523a947cb5189'), 'cert SHA-256 fingerprint missing');
 // بدون ایموجی — همه‌جا آیکون SVG (v0.13.0)

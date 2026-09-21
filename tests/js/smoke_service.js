@@ -73,14 +73,26 @@ const realMarketStatus = O.marketStatus;
   assert(calls.ongoing.some(([t, b]) => (t + ' ' + b).includes('فعال‌سازی')), 'unlicensed ongoing must ask for activation');
   console.log('  ✅ فاز ۰ — بدون لایسنس: سرویس صادقانه می‌ایستد (stopBackground + اعلان فعال‌سازی)');
 
-  // فعال‌سازی با کلید درست (همان طرح HMAC پایتون)
+  // ── فاز ۰.۵ (v0.15.0): دورهٔ آزمایشی ۷ روزه → سرویس بدون کلید دسترسی دارد ──
+  const pstorage = { get: k => prefs.get(k) || '', set: (k, v) => prefs.set(k, String(v)), del: k => prefs.delete(k) };
+  assert(O.trialStart(pstorage), 'trial must start');
+  ctx.ODIN.S.svcReady = false;
+  calls.stopBg = 0; calls.cycleDone.length = 0; calls.ongoing.length = 0; calls.notify.length = 0;
+  O.svcStart();
+  await waitFor(() => calls.cycleDone.length > 0, 240000, 'trial-based cycleDone');
+  assert.strictEqual(calls.stopBg, 0, 'trial grants background access — service must not stop');
+  console.log('  ✅ فاز ۰.۵ — با تریال ۷ روزه، رصد پس‌زمینه بدون کلید کار می‌کند');
+
+  // فعال‌سازی با کلید دائمی درست (همان طرح HMAC پایتون)
   const code = O.deviceCodeFromId(DEVICE_ID);
   const key = O.licenseKeyFor(code);
   prefs.set('license.dat', JSON.stringify({
-    license_key: O.normalizeCode(key), device_id: DEVICE_ID,
-    user_name: 'تستر', activated_at: new Date().toISOString(), version: '2.0'
+    license_key: O.normalizeKey(key), device_id: DEVICE_ID,
+    user_name: 'تستر', activated_at: new Date().toISOString(), version: '2.1'
   }));
   calls.stopBg = 0;
+  ctx.ODIN.S.svcReady = false;      // init دوباره تا لایسنس اعمال شود
+  calls.cycleDone.length = 0; calls.ongoing.length = 0;
 
   O.svcStart();   // فاز ۱: آماده‌سازی + اولین tick با وضعیت واقعی بازار
 
