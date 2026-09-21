@@ -699,7 +699,7 @@
       '</div>';
 
     html += '<div class="card ink"><div class="ink-title">دربارهٔ ODIN ASSISTANT</div>' +
-      '<div class="ink-cap" style="margin-top:6px;line-height:2.2">نسخهٔ اندروید ' + O.faNum(S.version || '0.14.1') + ' — همراه نسخهٔ ویندوز (0.8.1)<br>' +
+      '<div class="ink-cap" style="margin-top:6px;line-height:2.2">نسخهٔ اندروید ' + O.faNum(S.version || '0.14.2') + ' — همراه نسخهٔ ویندوز (0.8.1)<br>' +
       O.ico('clock', 11) + ' همهٔ ساعت‌های اپ به وقت تهران است (منطق داخلی موتور UTC — هماهنگ با نسخهٔ دسکتاپ).<br>' +
       O.ico('seal', 11) + ' <b style="color:#fff">غیرخودکار:</b> این اپ هیچ معامله‌ای انجام نمی‌دهد و به هیچ بروکری وصل نیست.</div>' +
       '<button class="btn ghost sm" data-tab="about" style="margin-top:10px;width:100%">' + O.ico('info', 13) + ' دربارهٔ ما، حق نشر و اصالت برنامه ' + O.ico('chevron-left', 12) + '</button></div>';
@@ -717,7 +717,7 @@
 
   // ── دربارهٔ ما (حق نشر، سازنده، اصالت امضا) ─────────────────
   O.renderAbout = function (S) {
-    var ver = S.version || '0.14.1';
+    var ver = S.version || '0.14.2';
     var html = '<div class="action-row"><button class="btn ghost" data-tab="settings">' + O.ico('chevron-right', 14) + ' بازگشت</button></div>' +
       pt('info', 'دربارهٔ ما') +
       '<div class="page-sub">سازنده، حق نشر و راهِ تشخیص نسخهٔ اصلی</div>';
@@ -731,6 +731,24 @@
       '<div class="ink-cap" style="margin-top:4px"><span dir="ltr">ODIN ASSISTANT</span> — نسخهٔ اندروید ' + O.faNum(ver) + '</div>' +
       '<div style="margin-top:12px;padding-top:12px;border-top:1px solid rgba(255,255,255,.14);font-size:12.5px;color:rgba(255,255,255,.85)">' +
       'سازنده و توسعه‌دهنده: <b style="color:#fff">Sushian Khoshkhani</b></div>' +
+      '<a class="tg-pill" href="#" data-ext="https://t.me/Khode_Sushian">' +
+        O.ico('telegram', 15) + ' <span dir="ltr">@Khode_Sushian</span></a>' +
+      '<div class="ink-cap" style="margin-top:8px">تلگرام سازنده — خرید لایسنس، پشتیبانی و ارتباط مستقیم</div>' +
+      '</div>';
+
+    // تیم پروژه (v0.14.2)
+    html += '<div class="card"><div class="section-title" style="margin-top:0">' + ct('user', 'تیم پروژه', 13) + '</div>' +
+      '<div class="team-row"><span class="team-ico">' + O.ico('seal', 17) + '</span>' +
+        '<div class="team-main"><div class="team-role">سازنده و توسعه‌دهنده</div>' +
+        '<div class="team-name" dir="ltr">Sushian Khoshkhani</div></div>' +
+        '<a class="tg-pill on-card team-tg" href="#" data-ext="https://t.me/Khode_Sushian" title="تلگرام سازنده">' +
+        O.ico('telegram', 13) + ' <span dir="ltr">@Khode_Sushian</span></a></div>' +
+      '<div class="team-row"><span class="team-ico">' + O.ico('briefcase', 17) + '</span>' +
+        '<div class="team-main"><div class="team-role">مدیر پروژه</div>' +
+        '<div class="team-name" dir="ltr">Reza Khoshkhani</div></div></div>' +
+      '<div class="team-row"><span class="team-ico">' + O.ico('coins', 17) + '</span>' +
+        '<div class="team-main"><div class="team-role">اسپانسر پروژه</div>' +
+        '<div class="team-name" dir="ltr">Karen Khoshkhani</div></div></div>' +
       '</div>';
 
     // حق نشر و مالکیت
@@ -752,11 +770,13 @@
       'کلید امضای برنامه از نسخهٔ ۰.۱۳.۰ با هویت کامل Sushian Khoshkhani صادر شده است.' +
       '</div></div>';
 
-    // منبع رسمی — بدون لینک بیرونی؛ نسخهٔ رسمی فقط مستقیم از سازنده
+    // منبع رسمی — بدون لینک گیت‌هاب؛ نسخهٔ رسمی فقط مستقیم از سازنده (تلگرام رسمی)
     html += '<div class="card"><div class="section-title" style="margin-top:0">' + ct('link', 'منبع رسمی', 13) + '</div>' +
       '<div class="hint" style="line-height:2.2">' +
       'نسخهٔ رسمی برنامه فقط <b>مستقیماً از خودِ سازنده (Sushian Khoshkhani)</b> عرضه می‌شود.' +
-      'فایل نصبی را از واسطه‌ها، کانال‌ها یا صفحات متفرقه نگیرید؛ هر نسخه‌ای که امضای بالا را نداشته باشد رسمی نیست.' +
+      ' فایل نصبی را از واسطه‌ها، کانال‌ها یا صفحات متفرقه نگیرید؛ هر نسخه‌ای که امضای بالا را نداشته باشد رسمی نیست.<br>' +
+      'راه ارتباطی رسمی (خرید لایسنس و پشتیبانی): تلگرام ' +
+      '<a href="#" data-ext="https://t.me/Khode_Sushian" style="color:var(--text);font-weight:700;text-decoration:none" dir="ltr">@Khode_Sushian</a>' +
       '</div></div>';
 
     // سلب مسئولیت (غیرخودکار)

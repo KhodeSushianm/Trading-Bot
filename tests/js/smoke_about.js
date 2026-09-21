@@ -17,7 +17,7 @@ const O = ctx.ODIN;
 assert(O && typeof O.renderAbout === 'function', 'renderAbout missing');
 
 const S = {
-  version: '0.14.1',
+  version: '0.14.2',
   settings: {
     user_name: 'سوشیان', judge_enabled: true, min_score: 7, veto: {},
     fund_enabled: true, news_enabled: true, tv_enabled: true,
@@ -31,15 +31,23 @@ assert(about.includes('دربارهٔ ما'), 'page title missing');
 assert(about.includes('Sushian Khoshkhani'), 'creator name missing');
 assert(about.includes('© 2026 Sushian Khoshkhani — All rights reserved.'), 'copyright line missing');
 assert(about.includes('CN=Sushian Khoshkhani, OU=ODIN Assistant, O=Sushian Khoshkhani, C=IR'), 'cert subject missing');
-assert(about.includes('۰.۱۴.۱'), 'persian version missing');
+assert(about.includes('۰.۱۴.۲'), 'persian version missing');
 // اثر انگشت کلید امضای v0.13.0 (کلید تازه به نام Sushian Khoshkhani)
 assert(about.includes('bd11159e003b55b9ae53cd26c192dc6b2bea2840c787fddbd0f523a947cb5189'), 'cert SHA-256 fingerprint missing');
 // بدون ایموجی — همه‌جا آیکون SVG (v0.13.0)
 assert(!O.EMOJI_RE.test(about), 'emoji left in about page');
-// برنامه با هدف فروش است — هیچ لینک دانلود/گیت‌هابی نباید در اپ باشد
+// برنامه با هدف فروش است — هیچ لینک دانلود/گیت‌هابی نباید در اپ باشد؛
+// تنها لینک خارجی مجاز: تلگرام رسمی سازنده (v0.14.2)
 assert(!about.includes('github.com'), 'github link must be removed from about page');
 assert(!about.includes('KhodeSushianm'), 'repo link must be removed from about page');
-assert(!about.includes('data-ext'), 'external link button must be removed from about page');
+const exts = about.match(/data-ext="([^"]+)"/g) || [];
+assert(exts.length > 0, 'creator telegram link missing');
+assert(exts.every(x => x === 'data-ext="https://t.me/Khode_Sushian"'),
+  'only the official telegram link is allowed on about page: ' + exts.join(','));
+assert(about.includes('@Khode_Sushian'), 'telegram id missing');
+assert(about.includes('تیم پروژه'), 'team card missing');
+assert(about.includes('مدیر پروژه') && about.includes('Reza Khoshkhani'), 'project manager missing');
+assert(about.includes('اسپانسر پروژه') && about.includes('Karen Khoshkhani'), 'sponsor missing');
 assert(about.includes('مستقیماً از خودِ سازنده'), 'official-source note (no link) missing');
 assert(about.includes('غیرخودکار'), 'disclaimer missing');
 

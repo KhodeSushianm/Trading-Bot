@@ -593,3 +593,34 @@ body {
 
 /* دکمهٔ «توقف رصد» داخل اعلان ماندگار با بقیهٔ اکشن‌ها یکی است */
 .brief-line .ico, .hint .ico, .card-sub .ico, .set-sub .ico, .news-src .ico { vertical-align: -0.2em; }
+
+/* ══════════════════════════════════════════════════════════════
+   v0.14.2 — پیل تلگرام (ارتباط با سازنده) و فهرست تیم پروژه
+   ══════════════════════════════════════════════════════════════ */
+.tg-pill {
+  display: inline-flex; align-items: center; gap: 7px; text-decoration: none;
+  border-radius: var(--r-pill); padding: 8px 16px; margin-top: 12px;
+  background: rgba(255,255,255,.14); color: #fff;
+  border: 1px solid rgba(255,255,255,.22);
+  font-size: 12.5px; font-weight: 700; cursor: pointer;
+  transition: transform .12s, background .15s;
+}
+.tg-pill:active { transform: scale(.95); background: rgba(255,255,255,.24); }
+.tg-pill.on-card {
+  background: var(--raised); color: var(--text); border-color: var(--border-strong);
+  padding: 5px 13px; margin-top: 0; font-size: 11px;
+}
+.team-row {
+  display: flex; align-items: center; gap: 11px;
+  padding: 11px 2px; border-bottom: 1px solid var(--divider);
+}
+.team-row:last-child { border-bottom: none; }
+.team-ico {
+  width: 38px; height: 38px; border-radius: 12px; flex: 0 0 auto;
+  background: var(--raised); color: var(--text-2);
+  display: flex; align-items: center; justify-content: center;
+}
+.team-main { flex: 1; min-width: 0; }
+.team-role { font-size: 10.5px; color: var(--text-3); font-weight: 500; }
+.team-name { font-size: 13px; font-weight: 700; }
+.team-tg { flex: 0 0 auto; display: inline-flex; }
