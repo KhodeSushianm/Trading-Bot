@@ -1,11 +1,8 @@
 package com.odin.assistant;
 
 import android.app.Activity;
-import android.app.Notification;
-import android.app.NotificationChannel;
-import android.app.NotificationManager;
-import android.app.PendingIntent;
 import android.content.ContentValues;
+import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.net.Uri;
@@ -13,7 +10,9 @@ import android.os.Build;
 import android.os.Environment;
 import android.os.Handler;
 import android.os.Looper;
+import android.os.PowerManager;
 import android.provider.MediaStore;
+import android.provider.Settings;
 import android.util.Base64;
 import android.view.HapticFeedbackConstants;
 import android.view.WindowManager;
@@ -36,7 +35,14 @@ import java.util.concurrent.Executors;
 /**
  * پل نیتیو ↔ وب: درخواست HTTP (بدون محدودیت CORS)، حافظهٔ محلی
  * (ژورنال و تنظیمات)، اعلان اندروید، اشتراک‌گذاری، ذخیره در دانلودها،
- * لرزش لمسی، روشن‌نگه‌داشتن صفحه و بازکردن لینک بیرونی.
+ * لرزش لمسی، روشن‌نگه‌داشتن صفحه، بازکردن لینک بیرونی و — از v0.13.0 —
+ * کنترل سرویس «رصد پس‌زمینه» (OdinService) و مجوزهای پایداری آن.
+ *
+ * دو حالت ساخت (v0.13.0):
+ *   • از MainActivity:  Bridge(activity, activity, web) — همهٔ قابلیت‌ها
+ *   • از OdinService:   Bridge(appCtx, null, web) — حالت بی‌سر؛ HTTP،
+ *     حافظه، اعلان‌ها و زمان‌بندی چرخه کار می‌کنند و قابلیت‌های وابسته به
+ *     رابط (لرزش، اشتراک، صفحهٔ روشن، خروج) بی‌صدا رد می‌شوند.
  *
  * پاسخ HTTP به‌صورت Base64 به JS برمی‌گردد تا متن UTF-8 (فارسی/XML)
  * بدون خرابی کدگذاری منتقل شود.
@@ -45,21 +51,21 @@ public class Bridge {
 
     private static final String UA =
             "Mozilla/5.0 (Linux; Android 13) AppleWebKit/537.36 (KHTML, like Gecko) "
-                    + "Chrome/126.0.0.0 Mobile Safari/537.36 ODINAssistant/0.10.0";
+                    + "Chrome/126.0.0.0 Mobile Safari/537.36 ODINAssistant/0.13.0";
 
-    private static final String CH_ID = "signals";
-    private static final int NOTIF_ID = 1001;
-
-    private final Activity act;
+    private final Context ctx;          // همیشه غیرnull (application context ترجیحاً)
+    private final Activity act;         // در حالت سرویس null است
     private final WebView web;
     private final Handler ui = new Handler(Looper.getMainLooper());
     private final ExecutorService pool = Executors.newFixedThreadPool(4);
     private final SharedPreferences prefs;
 
-    public Bridge(Activity act, WebView web) {
-        this.act = act;
-        this.web = web;
-        this.prefs = act.getSharedPreferences("odin", Activity.MODE_PRIVATE);
+    public Bridge(Context context, Activity activity, WebView webView) {
+        Context app = context.getApplicationContext();
+        this.ctx = app != null ? app : context;
+        this.act = activity;
+        this.web = webView;
+        this.prefs = this.ctx.getSharedPreferences("odin", Context.MODE_PRIVATE);
     }
 
     /** درخواست HTTP روی thread پس‌زمینه؛ نتیجه با ODIN.httpDone به JS برمی‌گردد. */
@@ -127,6 +133,8 @@ public class Bridge {
     }
 
     // ── حافظهٔ محلی (ژورنال append-only، تنظیمات، کش) ──────────────
+    // SharedPreferences مشترک بین WebView رابط و WebView سرویس — ژورنال،
+    // ضداسپم (sent_signals) و state.last در هر دو حالت یکی می‌ماند.
     @JavascriptInterface
     public String getPref(String key) {
         return prefs.getString(key, "");
@@ -146,9 +154,9 @@ public class Bridge {
     @JavascriptInterface
     public String getVersion() {
         try {
-            return act.getPackageManager().getPackageInfo(act.getPackageName(), 0).versionName;
+            return ctx.getPackageManager().getPackageInfo(ctx.getPackageName(), 0).versionName;
         } catch (Exception e) {
-            return "0.10.0";
+            return "0.13.0";
         }
     }
 
@@ -157,7 +165,10 @@ public class Bridge {
         ui.post(new Runnable() {
             @Override
             public void run() {
-                Toast.makeText(act, msg, Toast.LENGTH_SHORT).show();
+                try {
+                    Toast.makeText(ctx, msg, Toast.LENGTH_SHORT).show();
+                } catch (Exception ignored) {
+                }
             }
         });
     }
@@ -165,13 +176,16 @@ public class Bridge {
     @JavascriptInterface
     public void openExternal(String url) {
         try {
-            act.startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(url)));
+            Intent i = new Intent(Intent.ACTION_VIEW, Uri.parse(url));
+            i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            ctx.startActivity(i);
         } catch (Exception ignored) {
         }
     }
 
     @JavascriptInterface
     public void exit() {
+        if (act == null) return;
         ui.post(new Runnable() {
             @Override
             public void run() {
@@ -182,15 +196,14 @@ public class Bridge {
 
     @JavascriptInterface
     public void haptic() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-            ui.post(new Runnable() {
-                @Override
-                public void run() {
-                    act.getWindow().getDecorView()
-                            .performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP);
-                }
-            });
-        }
+        if (act == null) return;
+        ui.post(new Runnable() {
+            @Override
+            public void run() {
+                act.getWindow().getDecorView()
+                        .performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP);
+            }
+        });
     }
 
     // ── اعلان اندروید (سیگنال جدید / خبر فوری) ────────────────────
@@ -200,52 +213,120 @@ public class Bridge {
         ui.post(new Runnable() {
             @Override
             public void run() {
-                try {
-                    NotificationManager nm =
-                            (NotificationManager) act.getSystemService(Activity.NOTIFICATION_SERVICE);
-                    if (nm == null || !nm.areNotificationsEnabled()) return;
-
-                    long[] vib = {0, 250, 150, 250};
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                        NotificationChannel ch = new NotificationChannel(
-                                CH_ID, "سیگنال‌ها و اخبار", NotificationManager.IMPORTANCE_HIGH);
-                        ch.setDescription("اعلان سیگنال جدید و خبر فوری — دستیار اودین");
-                        ch.enableVibration(true);
-                        ch.setVibrationPattern(vib);
-                        nm.createNotificationChannel(ch);
-                    }
-
-                    Intent tap = new Intent(act, MainActivity.class);
-                    tap.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
-                    int piFlags = PendingIntent.FLAG_UPDATE_CURRENT;
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                        piFlags |= PendingIntent.FLAG_IMMUTABLE;
-                    }
-                    PendingIntent pi = PendingIntent.getActivity(act, 0, tap, piFlags);
-
-                    Notification.Builder b = Build.VERSION.SDK_INT >= Build.VERSION_CODES.O
-                            ? new Notification.Builder(act, CH_ID)
-                            : new Notification.Builder(act);
-                    b.setContentTitle(title)
-                            .setContentText(body)
-                            .setStyle(new Notification.BigTextStyle().bigText(body))
-                            .setSmallIcon(R.drawable.ic_stat_odin)
-                            .setContentIntent(pi)
-                            .setAutoCancel(true);
-                    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) {
-                        b.setVibrate(vib);
-                        b.setDefaults(Notification.DEFAULT_SOUND);
-                    }
-                    nm.notify(NOTIF_ID, b.build());
-                } catch (Exception ignored) {
-                }
+                Notif.signal(ctx, title, body);
             }
         });
+    }
+
+    @JavascriptInterface
+    public boolean notificationsEnabled() {
+        return Notif.enabled(ctx);
+    }
+
+    /** صفحهٔ تنظیمات اعلان‌های اپ (برای راهنمایی کاربر وقتی مجوز رد شده). */
+    @JavascriptInterface
+    public void openNotificationSettings() {
+        try {
+            Intent i;
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                i = new Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS)
+                        .putExtra(Settings.EXTRA_APP_PACKAGE, ctx.getPackageName());
+            } else {
+                i = new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS)
+                        .setData(Uri.parse("package:" + ctx.getPackageName()));
+            }
+            i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            ctx.startActivity(i);
+        } catch (Exception ignored) {
+        }
+    }
+
+    // ── رصد پس‌زمینه (v0.13.0) — OdinService ──────────────────────
+    /** شروع/زنده‌نگه‌داشتن سرویس رصد. فقط وقتی اپ در پیش‌زمینه است صدا شود. */
+    @JavascriptInterface
+    public void startBackground() {
+        try {
+            Notif.ensureChannels(ctx);
+            Intent i = new Intent(ctx, OdinService.class);
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                ctx.startForegroundService(i);
+            } else {
+                ctx.startService(i);
+            }
+        } catch (Exception ignored) {
+            // اگر OEM اجازه نداد، اپ مثل قبل با تازه‌سازی در پیش‌زمینه کار می‌کند
+        }
+    }
+
+    @JavascriptInterface
+    public void stopBackground() {
+        try {
+            ctx.stopService(new Intent(ctx, OdinService.class));
+        } catch (Exception ignored) {
+        }
+    }
+
+    @JavascriptInterface
+    public boolean bgRunning() {
+        return OdinService.RUNNING;
+    }
+
+    /** JS (حالت سرویس) بعد از هر چرخه: زمان‌بندی tick بعدی به دست نیتیو. */
+    @JavascriptInterface
+    public void bgCycleDone(final int nextMinutes) {
+        ui.post(new Runnable() {
+            @Override
+            public void run() {
+                OdinService s = OdinService.INSTANCE;
+                if (s != null) s.onCycleDone(nextMinutes);
+            }
+        });
+    }
+
+    /** به‌روزرسانی اعلان ماندگار «در حال رصد» (خلاصهٔ آخرین چرخه). */
+    @JavascriptInterface
+    public void notifyOngoing(final String title, final String body) {
+        ui.post(new Runnable() {
+            @Override
+            public void run() {
+                Notif.postMonitor(ctx, title, body);
+            }
+        });
+    }
+
+    // ── پایداری رصد: بهینه‌سازی باتری ────────────────────────────
+    @JavascriptInterface
+    public boolean isIgnoringBattery() {
+        try {
+            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) return true;
+            PowerManager pm = (PowerManager) ctx.getSystemService(Context.POWER_SERVICE);
+            return pm == null || pm.isIgnoringBatteryOptimizations(ctx.getPackageName());
+        } catch (Exception e) {
+            return true;
+        }
+    }
+
+    /**
+     * دیالوگ سیستمی «نادیده‌گرفتن بهینه‌سازی باتری» — بدون آن، Doze ممکن است
+     * چرخه‌های پس‌زمینه را ساعت‌ها عقب بیندازد. اگر قبلاً داده شده، بی‌صدا رد می‌شود.
+     */
+    @JavascriptInterface
+    public void requestIgnoreBattery() {
+        try {
+            if (isIgnoringBattery()) return;
+            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) return;
+            Intent i = new Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS)
+                    .setData(Uri.parse("package:" + ctx.getPackageName()));
+            i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            ctx.startActivity(i);
+        } catch (Exception ignored) {
+        }
     }
 
     // ── اشتراک‌گذاری متن (شیتر اندروید) ──────────────────────────
     @JavascriptInterface
     public void shareText(final String subject, final String text) {
+        if (act == null) return;
         ui.post(new Runnable() {
             @Override
             public void run() {
@@ -273,19 +354,20 @@ public class Bridge {
                 cv.put(MediaStore.Downloads.MIME_TYPE, "application/json");
                 cv.put(MediaStore.Downloads.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS);
                 cv.put(MediaStore.Downloads.IS_PENDING, 1);
-                Uri uri = act.getContentResolver()
+                Uri uri = ctx.getContentResolver()
                         .insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, cv);
                 if (uri == null) return "insert-failed";
-                OutputStream os = act.getContentResolver().openOutputStream(uri);
+                OutputStream os = ctx.getContentResolver().openOutputStream(uri);
                 if (os == null) return "open-failed";
                 os.write(content.getBytes("UTF-8"));
                 os.close();
                 cv.clear();
                 cv.put(MediaStore.Downloads.IS_PENDING, 0);
-                act.getContentResolver().update(uri, cv, null, null);
+                ctx.getContentResolver().update(uri, cv, null, null);
                 return "ok";
             }
             // API 24-28: نوشتن مستقیم در Downloads عمومی (یک‌بار مجوز لازم است)
+            if (act == null) return "permission";
             if (act.checkSelfPermission(android.Manifest.permission.WRITE_EXTERNAL_STORAGE)
                     != android.content.pm.PackageManager.PERMISSION_GRANTED) {
                 act.requestPermissions(new String[]{
@@ -307,6 +389,7 @@ public class Bridge {
     // ── روشن‌نگه‌داشتن صفحه (فقط هنگام تحلیل) ────────────────────
     @JavascriptInterface
     public void keepScreenOn(final boolean on) {
+        if (act == null) return;
         ui.post(new Runnable() {
             @Override
             public void run() {

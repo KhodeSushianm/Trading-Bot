@@ -558,3 +558,32 @@ body {
   #tabbar { max-width: 560px; right: auto; left: 50%; transform: translateX(50%); }
   #toast-root { transform: translateX(-50%); }
 }
+
+/* ══════════════════════════════════════════════════════════════
+   v0.13.0 — سامانهٔ آیکون SVG (جایگزین ایموجی در همهٔ بخش‌ها)
+   ══════════════════════════════════════════════════════════════ */
+.ico { display: inline-block; vertical-align: -0.215em; flex: 0 0 auto; }
+.ico.c-green { color: var(--green); }
+.ico.c-red { color: var(--red); }
+.ico.c-amber { color: #D98E04; }
+.ico.c-green-lt { color: #7BE0B0; }
+.ico.c-red-lt { color: #FF9A9A; }
+
+/* عنوان‌ها با آیکون هم‌تراز می‌شوند */
+.page-title { display: flex; align-items: center; gap: 9px; }
+.card-title, .ink-title, .section-title { display: flex; align-items: center; gap: 6px; }
+.l-cap { display: flex; align-items: center; justify-content: center; gap: 4px; }
+#progress-title { display: flex; align-items: center; gap: 8px; }
+
+/* آیکون بزرگ حالت خالی */
+.empty-state .e-ico { display: flex; justify-content: center; color: var(--text-3); }
+
+/* آیکون مدرک/وتو در ستون خودشان با سرخط متن تراز شوند */
+.ev-row .ev-icon { display: flex; align-items: flex-start; padding-top: 5px; }
+.veto-row .v-icon { display: flex; align-items: flex-start; padding-top: 3px; }
+
+/* ستاره‌های امتیاز سیگنال */
+.stars-row { display: inline-flex; align-items: center; gap: 2px; color: #D98E04; }
+
+/* دکمهٔ «توقف رصد» داخل اعلان ماندگار با بقیهٔ اکشن‌ها یکی است */
+.brief-line .ico, .hint .ico, .card-sub .ico, .set-sub .ico, .news-src .ico { vertical-align: -0.2em; }

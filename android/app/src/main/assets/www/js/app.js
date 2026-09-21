@@ -2,22 +2,41 @@
  *
  * جریان تحلیل دقیقاً آینهٔ run_cycle دسکتاپ است:
  *   داده ← تحلیل تکنیکال ← قدرت ارزها ← تریدینگ‌ویو ← تقویم ← اخبار
- *   ← ژورنال (بستن سیگنال‌های باز) ← ⚖️ داور ← ثبت سیگنال‌ها (با کنترل اسپم)
- * تفاوت: تلگرام ندارد و هیچ معامله‌ای انجام نمی‌دهد. تازه‌سازی خودکار
- * (اختیاری) فقط «تحلیل» را تکرار می‌کند — آن هم فقط وقتی اپ باز و بازار فعال است.
+ *   ← ژورنال (بستن سیگنال‌های باز) ← داور ← ثبت سیگنال‌ها (با کنترل اسپم)
+ *
+ * v0.13.0 — دو حالت اجرا:
+ *   ۱) UI (پیش‌فرض): رابط کامل + تازه‌سازی خودکار وقتی اپ باز است.
+ *   ۲) سرویس (?svc=1): بدون رابط؛ OdinService یک WebView بی‌سر با همین
+ *      صفحه می‌سازد و با تیکِ بومی (Handler) چرخه را تکرار می‌کند تا بدون
+ *      باز کردن اپ هم سیگنال/خبر فوری با اعلان اندروید برسد.
+ *      زمان‌بندی عمداً بومی است: pauseTimers و throttling مرورگر روی
+ *      تایمرهای JS اثر دارند، روی Handler اندروید نه.
+ *
+ * هستهٔ مشترک هر دو حالت: O.cycleCore — بدون هیچ تماسی با DOM.
+ * تفاوت با دسکتاپ: تلگرام ندارد و هیچ معامله‌ای نمی‌کند.
  */
 (function (O) {
   'use strict';
 
+  // حالت سرویس: از کوئری‌استرینگ URL (WebView بی‌سر) — در Node/تست false
+  O.SERVICE_MODE = (function () {
+    try {
+      return typeof location !== 'undefined' && !!location.search &&
+        location.search.indexOf('svc=1') >= 0;
+    } catch (e) { return false; }
+  })();
+
   var S = {
     cfg: null, settings: null, storage: null, journal: null,
     state: null, stats: null, tab: 'home', busy: false,
-    version: '0.12.0', lastBack: 0
+    version: '0.13.0', lastBack: 0,
+    onbStage: null,               // 'name' | 'bg' | null — مرحلهٔ خوش‌آمدگویی
+    svcBusy: false, svcReady: false
   };
   O.S = S;
 
   var DEFAULT_SETTINGS = {
-    user_name: 'سوشیان',
+    user_name: 'تریدر',
     judge_enabled: true,
     min_score: 7,
     veto: {
@@ -25,7 +44,8 @@
       range_market: true, volatility_spike: true, breaking_news: true
     },
     fund_enabled: true, news_enabled: true, tv_enabled: true,
-    auto_refresh_enabled: true, auto_refresh_min: 15, notify_enabled: true
+    auto_refresh_enabled: true, auto_refresh_min: 15, notify_enabled: true,
+    background_enabled: true      // v0.13: رصد پس‌زمینه (در خوش‌آمدگویی پرسیده می‌شود)
   };
 
   function buildCfg() {
@@ -55,11 +75,63 @@
     try { S.storage.set('settings', JSON.stringify(S.settings)); } catch (e) { }
   }
 
-  // ── ابزار UI ────────────────────────────────────────────────
+  // ── پل نیتیو (اعلان، اشتراک، ذخیره فایل، رصد پس‌زمینه) ────────
+  // همه با گارد: در مرورگر/تست بدون ODINNative بی‌صدا رد می‌شوند.
+  O.native = {
+    notify: function (title, body) {
+      try { if (typeof ODINNative !== 'undefined' && ODINNative.notify) ODINNative.notify(title, body); } catch (e) { }
+    },
+    share: function (subject, text) {
+      try {
+        if (typeof ODINNative !== 'undefined' && ODINNative.shareText) { ODINNative.shareText(subject, text); return true; }
+      } catch (e) { }
+      return false;
+    },
+    saveDownload: function (name, content) {
+      try { if (typeof ODINNative !== 'undefined' && ODINNative.saveDownload) return ODINNative.saveDownload(name, content); } catch (e) { }
+      return '';
+    },
+    keepScreenOn: function (on) {
+      try { if (typeof ODINNative !== 'undefined' && ODINNative.keepScreenOn) ODINNative.keepScreenOn(on); } catch (e) { }
+    },
+    // ── رصد پس‌زمینه (v0.13.0) ─────────────────────────────────
+    startBackground: function () {
+      try { if (typeof ODINNative !== 'undefined' && ODINNative.startBackground) ODINNative.startBackground(); } catch (e) { }
+    },
+    stopBackground: function () {
+      try { if (typeof ODINNative !== 'undefined' && ODINNative.stopBackground) ODINNative.stopBackground(); } catch (e) { }
+    },
+    bgRunning: function () {
+      try { if (typeof ODINNative !== 'undefined' && ODINNative.bgRunning) return !!ODINNative.bgRunning(); } catch (e) { }
+      return false;
+    },
+    notifyOngoing: function (title, body) {
+      try { if (typeof ODINNative !== 'undefined' && ODINNative.notifyOngoing) ODINNative.notifyOngoing(title, body); } catch (e) { }
+    },
+    bgCycleDone: function (nextMin) {
+      try { if (typeof ODINNative !== 'undefined' && ODINNative.bgCycleDone) ODINNative.bgCycleDone(nextMin | 0); } catch (e) { }
+    },
+    requestIgnoreBattery: function () {
+      try { if (typeof ODINNative !== 'undefined' && ODINNative.requestIgnoreBattery) ODINNative.requestIgnoreBattery(); } catch (e) { }
+    },
+    isIgnoringBattery: function () {
+      try { if (typeof ODINNative !== 'undefined' && ODINNative.isIgnoringBattery) return !!ODINNative.isIgnoringBattery(); } catch (e) { }
+      return true;
+    },
+    notificationsEnabled: function () {
+      try { if (typeof ODINNative !== 'undefined' && ODINNative.notificationsEnabled) return !!ODINNative.notificationsEnabled(); } catch (e) { }
+      return true;
+    },
+    openNotificationSettings: function () {
+      try { if (typeof ODINNative !== 'undefined' && ODINNative.openNotificationSettings) ODINNative.openNotificationSettings(); } catch (e) { }
+    }
+  };
+
+  // ── ابزار UI (فقط حالت رابط) ────────────────────────────────
   var toastTimer = null;
   O.toast = function (msg) {
     var el = document.getElementById('toast-root');
-    el.textContent = msg;
+    el.innerHTML = O.icoStr(O.esc(msg), 13);   // ایموجی احتمالی → آیکون
     el.classList.remove('hidden', 'out');
     if (toastTimer) clearTimeout(toastTimer);
     toastTimer = setTimeout(function () {
@@ -88,27 +160,6 @@
   function closeModal() { document.getElementById('modal-root').classList.add('hidden'); }
   O.modalOpen = function () { return !document.getElementById('modal-root').classList.contains('hidden'); };
 
-  // ── پل نیتیو (اعلان، اشتراک، ذخیره فایل، روشن‌نگه‌داشتن صفحه) ──
-  // همه با گارد: در مرورگر/تست بدون ODINNative بی‌صدا رد می‌شوند.
-  O.native = {
-    notify: function (title, body) {
-      try { if (typeof ODINNative !== 'undefined' && ODINNative.notify) ODINNative.notify(title, body); } catch (e) { }
-    },
-    share: function (subject, text) {
-      try {
-        if (typeof ODINNative !== 'undefined' && ODINNative.shareText) { ODINNative.shareText(subject, text); return true; }
-      } catch (e) { }
-      return false;
-    },
-    saveDownload: function (name, content) {
-      try { if (typeof ODINNative !== 'undefined' && ODINNative.saveDownload) return ODINNative.saveDownload(name, content); } catch (e) { }
-      return '';
-    },
-    keepScreenOn: function (on) {
-      try { if (typeof ODINNative !== 'undefined' && ODINNative.keepScreenOn) ODINNative.keepScreenOn(on); } catch (e) { }
-    }
-  };
-
   var progLog = null;
   function progressOpen(title) {
     progLog = document.getElementById('progress-log');
@@ -123,7 +174,8 @@
     var d = document.createElement('div');
     d.className = 'ln';
     var t = O.tehran(new Date());               // لاگ پیشرفت هم به وقت تهران
-    d.textContent = '[' + O.hhmm(t) + ':' + String(t.getUTCSeconds()).padStart(2, '0') + '] ' + msg;
+    d.innerHTML = '[' + O.hhmm(t) + ':' + String(t.getUTCSeconds()).padStart(2, '0') + '] ' +
+      O.icoStr(O.esc(msg), 12);
     progLog.appendChild(d);
     progLog.scrollTop = progLog.scrollHeight;
   }
@@ -134,7 +186,9 @@
   }
   function progressDone(keepOpen) {
     document.querySelector('.spinner').style.display = 'none';
-    document.getElementById('progress-title').textContent = keepOpen ? 'تحلیل تمام شد (با خطا)' : '✅ تحلیل کامل شد';
+    document.getElementById('progress-title').innerHTML = keepOpen
+      ? O.ico('alert', 15, 'c-amber') + ' تحلیل تمام شد (با خطا)'
+      : O.ico('check-circle', 15, 'c-green-lt') + ' تحلیل کامل شد';
     if (keepOpen) document.getElementById('progress-close').classList.remove('hidden');
     else progressClose(900);
   }
@@ -183,6 +237,7 @@
 
   // دکمهٔ برگشت گوشی (از MainActivity فراخوانی می‌شود)
   O.back = function () {
+    if (S.onbStage) return;                     // خوش‌آمدگویی اجباری — رد نمی‌شود
     if (O.modalOpen()) { closeModal(); return; }
     if (S.busy) return;
     if (S.tab !== 'home') { O.navigate('home'); return; }
@@ -195,33 +250,28 @@
     O.toast('برای خروج، دوباره بزنید');
   };
 
-  // ── چرخهٔ تحلیل ─────────────────────────────────────────────
-  // opts.silent → بدون پنجرهٔ پیشرفت و بدون پیام‌های اضافه (تازه‌سازی خودکار)
-  O.runAnalysis = function (opts) {
+  // ── هستهٔ چرخهٔ تحلیل (بدون DOM — مشترک بین UI و سرویس) ─────
+  // opts.log: تابع لاگ اختیاری. خروجی: Promise<{mkt, judgments, signals,
+  //   newSignals, resolved, stats, nowMs}> — ژورنال/ضداسپام/state.last/
+  //   اعلان سیگنال و خبر فوری همین‌جا انجام می‌شود.
+  O.cycleCore = function (opts) {
     opts = opts || {};
-    var silent = !!opts.silent;
-    if (S.busy) { if (!silent) O.toast('تحلیل قبلی هنوز در جریان است'); return; }
-    S.busy = true;
-    var btn = document.getElementById('btn-analyze');
-    if (btn) btn.disabled = true;
-    if (silent) { progLog = null; }
-    else progressOpen('در حال تحلیل...');
-    O.native.keepScreenOn(true);              // تا پایان تحلیل، صفحه خاموش نشود
-
+    var log = opts.log || function () { };
     var nowMs = Date.now();
     var prevNewsSnap = S.state ? S.state.newsSnap : null;
-    O.runPipeline(S.cfg, S.storage, progressLog).then(function (mkt) {
+
+    return O.runPipeline(S.cfg, S.storage, log).then(function (mkt) {
       var status = O.marketStatus(new Date(nowMs));
 
-      // 📔 ژورنال اول (مثل دسکتاپ): سیگنال‌های باز از روی کندل‌ها بسته می‌شوند
+      // ژورنال اول (مثل دسکتاپ): سیگنال‌های باز از روی کندل‌ها بسته می‌شوند
       var resolved = [];
       try {
         if (S.cfg.journal.enabled !== false) {
-          resolved = O.resolveOpenSignals(S.journal, mkt.datasets, nowMs, S.cfg, progressLog);
+          resolved = O.resolveOpenSignals(S.journal, mkt.datasets, nowMs, S.cfg, log);
         }
-      } catch (e) { progressLog('[!] پیگیری ژورنال ناموفق: ' + e); }
+      } catch (e) { log('[!] پیگیری ژورنال ناموفق: ' + e); }
 
-      // ⚖️ داور
+      // داور
       var judgments = [];
       if (S.cfg.judge.enabled !== false) {
         var ctx = {
@@ -232,15 +282,15 @@
           eventVetoMinutes: +(S.cfg.fundamental.veto_minutes_before) || 30
         };
         try { judgments = O.judgeAll(mkt.analyses, mkt.datasets, ctx); }
-        catch (e) { progressLog('[!] خطای داور: ' + e); }
+        catch (e) { log('[!] خطای داور: ' + e); }
       } else {
-        progressLog('[i] داور امتیازدهی در تنظیمات غیرفعال است');
+        log('[i] داور امتیازدهی در تنظیمات غیرفعال است');
       }
 
       var signals = judgments.filter(function (j) { return j.signal; }).map(function (j) { return j.signal; });
-      progressLog(signals.length
-        ? '⚖️ داور: ' + O.faNum(signals.length) + ' سیگنال صادر شد 🎯'
-        : '⚖️ داور: هیچ سیگنالی صادر نشد (دلیل هر نماد در صفحهٔ سیگنال‌ها هست)');
+      log(signals.length
+        ? 'داور: ' + O.faNum(signals.length) + ' سیگنال صادر شد'
+        : 'داور: هیچ سیگنالی صادر نشد (دلیل هر نماد در صفحهٔ سیگنال‌ها هست)');
 
       // ثبت در ژورنال با کنترل اسپم (cooldown)
       var sentState = {};
@@ -254,9 +304,9 @@
         if (dec.go) {
           newSignals.push(sig);
           sentState[sig.symbol + '|' + sig.direction] = { ts: new Date(nowMs).toISOString(), score: sig.score };
-          progressLog('🎯 سیگنال ' + sig.symbol + ' (' + (sig.direction === 'BUY' ? 'خرید' : 'فروش') + ') در ژورنال ثبت شد');
+          log('سیگنال ' + sig.symbol + ' (' + (sig.direction === 'BUY' ? 'خرید' : 'فروش') + ') در ژورنال ثبت شد');
         } else {
-          progressLog('[i] سیگنال ' + sig.symbol + ' تکراری است — ' + dec.why);
+          log('[i] سیگنال ' + sig.symbol + ' تکراری است — ' + dec.why);
         }
         sig._dup = !dec.go;
         sig._dupWhy = dec.why;
@@ -280,16 +330,16 @@
       S.stats = stats;
       try { S.storage.set('state.last', JSON.stringify(S.state)); } catch (e) { }
 
-      // 🔔 اعلان اندروید: سیگنال تازه + خبر فوری (فقط در برابر چرخهٔ قبل)
+      // اعلان اندروید: سیگنال تازه + خبر فوری (فقط در برابر چرخهٔ قبل)
       if (S.settings.notify_enabled !== false) {
         if (newSignals.length) {
           var nTitle = newSignals.length === 1
-            ? '🎯 سیگنال جدید: ' + newSignals[0].symbol + ' (' + (newSignals[0].direction === 'BUY' ? 'خرید' : 'فروش') + ')'
-            : '🎯 ' + O.faNum(newSignals.length) + ' سیگنال جدید صادر شد';
+            ? 'سیگنال جدید — ' + newSignals[0].symbol + ' (' + (newSignals[0].direction === 'BUY' ? 'خرید' : 'فروش') + ')'
+            : O.faNum(newSignals.length) + ' سیگنال جدید صادر شد';
           var nBody = newSignals.slice(0, 3).map(function (sg) {
             return sg.symbol + ' · امتیاز ' + O.faNum(sg.score) + '/۱۱ · ورود ' + O.fmtPrice(sg.entry, sg.pip) +
               ' · حد ضرر ' + O.fmtPrice(sg.sl, sg.pip) + ' · هدف ' + O.fmtPrice(sg.tp, sg.pip);
-          }).join('\n') + '\n🕒 ' + O.faNum(O.hhmmTeh(new Date(nowMs))) + ' به وقت تهران — پیشنهاد است، نه دستور معامله';
+          }).join('\n') + '\n' + O.faNum(O.hhmmTeh(new Date(nowMs))) + ' به وقت تهران — پیشنهاد است، نه دستور معامله';
           O.native.notify(nTitle, nBody);
         }
         if (prevNewsSnap && mkt.newsSnap && mkt.newsSnap.ok) {
@@ -297,25 +347,47 @@
           (prevNewsSnap.ok ? prevNewsSnap.items : []).forEach(function (i) { if (i.breaking) seenBr[i.link] = 1; });
           var freshBr = mkt.newsSnap.items.filter(function (i) { return i.breaking && !seenBr[i.link]; });
           if (freshBr.length) {
-            O.native.notify('🚨 خبر فوری — ' + freshBr[0].source,
+            O.native.notify('خبر فوری — ' + freshBr[0].source,
               freshBr.slice(0, 2).map(function (i) { return O.headlineFa(i, 110); }).join('\n'));
           }
         }
       }
 
+      return {
+        mkt: mkt, judgments: judgments, signals: signals, newSignals: newSignals,
+        resolved: resolved, stats: stats, nowMs: nowMs
+      };
+    });
+  };
+
+  // ── چرخهٔ تحلیل (حالت رابط) ─────────────────────────────────
+  // opts.silent → بدون پنجرهٔ پیشرفت و بدون پیام‌های اضافه (تازه‌سازی خودکار)
+  O.runAnalysis = function (opts) {
+    opts = opts || {};
+    var silent = !!opts.silent;
+    if (S.busy) { if (!silent) O.toast('تحلیل قبلی هنوز در جریان است'); return; }
+    S.busy = true;
+    var btn = document.getElementById('btn-analyze');
+    if (btn) btn.disabled = true;
+    if (silent) { progLog = null; }
+    else progressOpen('در حال تحلیل...');
+    O.native.keepScreenOn(true);              // تا پایان تحلیل، صفحه خاموش نشود
+
+    O.cycleCore({ log: progressLog }).then(function (res) {
+      var mkt = res.mkt;
       if (!silent) progressDone(mkt.errors > 0 && !mkt.analyses.length);
       if (!O.modalOpen()) O.navigate(S.tab === 'settings' ? 'home' : S.tab);
       O.renderHeaderStatus();
       if (!mkt.analyses.length) {
-        if (silent) O.toast('⚠️ تازه‌سازی خودکار: داده‌ای نرسید — اتصال اینترنت را بررسی کن');
-        else O.modal('❌ داده‌ای نرسید',
+        if (silent) O.toast('تازه‌سازی خودکار: داده‌ای نرسید — اتصال اینترنت را بررسی کن');
+        else O.modal(O.ico('x-circle', 17, 'c-red') + ' داده‌ی نرسید',
           'هیچ نمادی تحلیل نشد — اتصال اینترنت را بررسی کن و دوباره تلاش کن.<br><br>منابع لازم: Yahoo Finance (قیمت‌ها)، ForexFactory (تقویم)، فیدهای خبری RSS.',
           [{ label: 'باشه', cls: 'primary' }]);
       } else if (!silent) {
-        var msg = signals.length
-          ? '🎯 ' + O.faNum(signals.length) + ' سیگنال صادر شد — صفحهٔ سیگنال‌ها را ببین'
-          : '⛔ سیگنالی صادر نشد — دلیل هر نماد در صفحهٔ سیگنال‌ها هست';
-        if (resolved.length) msg += ' · 📔 ' + O.faNum(resolved.length) + ' نتیجهٔ ژورنال بسته شد';
+        var msg = res.signals.length
+          ? O.faNum(res.signals.length) + ' سیگنال صادر شد — صفحهٔ سیگنال‌ها را ببین'
+          : 'سیگنالی صادر نشد — دلیل هر نماد در صفحهٔ سیگنال‌ها هست';
+        if (res.resolved.length) msg += ' · ' + O.faNum(res.resolved.length) + ' نتیجهٔ ژورنال بسته شد';
         O.toast(msg);
       }
       S.busy = false;
@@ -323,14 +395,84 @@
       var b2 = document.getElementById('btn-analyze');
       if (b2) b2.disabled = false;
     }).catch(function (e) {
-      progressLog('❌ خطای غیرمنتظره: ' + (e && e.message || e));
-      if (silent) O.toast('⚠️ تازه‌سازی خودکار ناموفق بود');
+      progressLog('خطای غیرمنتظره: ' + (e && e.message || e));
+      if (silent) O.toast('تازه‌سازی خودکار ناموفق بود');
       else progressDone(true);
       S.busy = false;
       O.native.keepScreenOn(false);
       var b3 = document.getElementById('btn-analyze');
       if (b3) b3.disabled = false;
     });
+  };
+
+  // ── حالت سرویس (پس‌زمینه — بدون DOM) ────────────────────────
+  // OdinService بعد از بارگذاری صفحه ODIN.svcStart() را صدا می‌زند و
+  // زمان‌بندی چرخه‌های بعدی با bgCycleDone(nextMin) به دست نیتیو می‌افتد.
+  O.svcStart = function () {
+    if (!O.SERVICE_MODE || S.svcReady) return;
+    S.storage = O.makeStorage();
+    loadSettings();
+    S.journal = new O.Journal(S.storage);
+    try { S.version = (typeof ODINNative !== 'undefined' && ODINNative.getVersion()) || S.version; } catch (e) { }
+    try {
+      var raw = S.storage.get('state.last');
+      if (raw) S.state = JSON.parse(raw);
+    } catch (e) { S.state = null; }
+    S.svcReady = true;
+    svcLog('سرویس رصد آماده شد — اولین چرخه شروع می‌شود');
+    O.svcTick();
+  };
+
+  function svcLog(m) {
+    try { console.log('[odin-svc] ' + O.noEmoji(String(m))); } catch (e) { }
+  }
+
+  O.svcTick = function () {
+    if (!O.SERVICE_MODE || !S.svcReady || S.svcBusy) return;
+    try {
+      loadSettings();                            // تنظیمات تازه (کاربر شاید در UI تغییر داده)
+      var nextMin = Math.max(5, Math.min(240, S.settings.auto_refresh_min || 15));
+
+      if (S.settings.background_enabled === false) {   // از UI خاموش شده
+        O.native.notifyOngoing('رصد بازار — متوقف', 'رصد پس‌زمینه در تنظیمات خاموش است');
+        O.native.bgCycleDone(30);
+        return;
+      }
+      var stt = O.marketStatus(new Date());
+      if (!stt.open) {
+        O.native.notifyOngoing('رصد بازار — دستیار اودین',
+          'بازار بسته است (' + O.noEmoji(stt.reason_fa) + ') — بررسی هر ۳۰ دقیقه');
+        O.native.bgCycleDone(30);
+        return;
+      }
+      if (S.settings.judge_enabled === false) {
+        O.native.notifyOngoing('رصد بازار — دستیار اودین', 'داور در تنظیمات خاموش است — سیگنالی صادر نمی‌شود');
+        O.native.bgCycleDone(nextMin);
+        return;
+      }
+
+      S.svcBusy = true;
+      O.cycleCore({ log: svcLog }).then(function (res) {
+        S.svcBusy = false;
+        var summary = 'آخرین تحلیل ' + O.faNum(O.hhmmTeh(new Date())) + ' تهران · ' +
+          (res.newSignals.length
+            ? O.faNum(res.newSignals.length) + ' سیگنال تازه صادر شد'
+            : 'سیگنال تازه‌ای صادر نشد') +
+          (res.resolved.length ? ' · ' + O.faNum(res.resolved.length) + ' نتیجهٔ ژورنال بسته شد' : '') +
+          ' · چرخهٔ بعدی تا ' + O.faNum(nextMin) + ' دقیقه';
+        O.native.notifyOngoing('رصد بازار — دستیار اودین', summary);
+        O.native.bgCycleDone(nextMin);
+      }).catch(function (e) {
+        S.svcBusy = false;
+        svcLog('خطای چرخه: ' + (e && e.message || e));
+        O.native.notifyOngoing('رصد بازار — خطا', 'تحلیل ناموفق بود — تلاش مجدد در ۱۰ دقیقه');
+        O.native.bgCycleDone(10);
+      });
+    } catch (e) {
+      S.svcBusy = false;
+      svcLog('خطای غیرمنتظره svcTick: ' + e);
+      try { O.native.bgCycleDone(10); } catch (e2) { }
+    }
   };
 
   // ── رویدادها (delegation) ───────────────────────────────────
@@ -353,7 +495,8 @@
         if (body) {
           body.classList.toggle('closed');
           var arrow = t.querySelector('span');
-          if (arrow) arrow.textContent = body.classList.contains('closed') ? '▾' : '▴';
+          if (arrow) arrow.innerHTML = body.classList.contains('closed')
+            ? O.ico('chevron-down', 12) : O.ico('chevron-up', 12);
         }
         return;
       }
@@ -392,6 +535,8 @@
       }
       if (act === 'share-briefing') { shareBriefing(); return; }
       if (act === 'journal-save') { saveJournalFile(); return; }
+      if (act === 'ignore-battery') { O.native.requestIgnoreBattery(); setTimeout(function () { O.navigate('settings'); }, 1200); return; }
+      if (act === 'open-notif-settings') { O.native.openNotificationSettings(); return; }
       if (act === 'clear-cache') {
         S.storage.del('cache.calendar');
         S.storage.del('state.last');
@@ -401,17 +546,28 @@
         return;
       }
       if (act === 'reset-settings') {
-        O.modal('بازنشانی تنظیمات؟', 'همهٔ تنظیمات به حالت پیش‌فرض برمی‌گردند. ژورنال پاک نمی‌شود.', [
-          { label: 'بازنشانی', cls: 'red', fn: function () { S.settings = JSON.parse(JSON.stringify(DEFAULT_SETTINGS)); saveSettings(); O.navigate('settings'); O.toast('تنظیمات بازنشانی شد'); } },
+        O.modal(O.ico('refresh', 17) + ' بازنشانی تنظیمات؟', 'همهٔ تنظیمات به حالت پیش‌فرض برمی‌گردند. ژورنال پاک نمی‌شود.', [
+          {
+            label: 'بازنشانی', cls: 'red', fn: function () {
+              S.settings = JSON.parse(JSON.stringify(DEFAULT_SETTINGS)); saveSettings();
+              O.navigate('settings'); O.toast('تنظیمات بازنشانی شد');
+            }
+          },
           { label: 'بی‌خیال', cls: 'ghost' }
         ]);
         return;
       }
       if (act === 'journal-export') { exportJournal(); return; }
       if (act === 'journal-clear') {
-        O.modal('🗑️ پاک‌کردن ژورنال؟',
+        O.modal(O.ico('trash', 17, 'c-red') + ' پاک‌کردن ژورنال؟',
           'همهٔ سیگنال‌ها و نتایج از بین می‌روند و کارنامهٔ دقت صفر می‌شود. این کار برگشت‌پذیر نیست.<br>اگر می‌خواهی نگهش داری، اول خروجی JSONL بگیر.', [
-          { label: 'پاک کن', cls: 'red', fn: function () { S.journal.clear(); S.storage.del('sent_signals.json'); S.stats = O.computeStats([], Date.now()); O.navigate('journal'); O.toast('ژورنال پاک شد'); } },
+          {
+            label: 'پاک کن', cls: 'red', fn: function () {
+              S.journal.clear(); S.storage.del('sent_signals.json');
+              S.stats = O.computeStats([], Date.now());
+              O.navigate('journal'); O.toast('ژورنال پاک شد');
+            }
+          },
           { label: 'بی‌خیال', cls: 'ghost' }
         ]);
         return;
@@ -426,13 +582,27 @@
       if (key.startsWith('veto.')) {
         S.settings.veto[key.slice(5)] = t.checked;
       } else if (key === 'user_name') {
-        S.settings.user_name = String(t.value || '').trim() || 'سوشیان';
+        S.settings.user_name = String(t.value || '').trim() || 'تریدر';
         applyUserName();
+      } else if (key === 'background_enabled') {
+        // رصد پس‌زمینه: سرویس نیتیو روشن/خاموش شود (v0.13.0)
+        S.settings.background_enabled = t.checked;
+        saveSettings();
+        if (t.checked) {
+          O.native.startBackground();
+          if (!O.native.isIgnoringBattery()) O.native.requestIgnoreBattery();
+          O.toast('رصد پس‌زمینه روشن شد — بدون باز کردن اپ هم سیگنال می‌رسد');
+        } else {
+          O.native.stopBackground();
+          O.toast('رصد پس‌زمینه خاموش شد');
+        }
+        O.navigate('settings');
+        return;
       } else {
         S.settings[key] = t.checked;
       }
       saveSettings();
-      O.toast('ذخیره شد ✓');
+      O.toast('ذخیره شد');
     });
 
     document.getElementById('progress-close').addEventListener('click', function () { progressClose(0); });
@@ -440,9 +610,9 @@
   }
 
   function applyUserName() {
-    var n = S.settings.user_name;
-    document.getElementById('greet').textContent = 'سلام ' + n + '!';
-    document.getElementById('splash-name').textContent = 'خوش اومدی ' + n;
+    var n = String(S.settings.user_name || '').trim();
+    document.getElementById('greet').textContent = n ? 'سلام ' + n + '!' : 'سلام!';
+    document.getElementById('splash-name').textContent = n ? 'خوش اومدی ' + n : 'خوش اومدی';
   }
 
   function exportJournal() {
@@ -454,12 +624,12 @@
       ta.style.position = 'fixed'; ta.style.opacity = '0';
       document.body.appendChild(ta);
       ta.select();
-      try { document.execCommand('copy'); O.toast('در کلیپ‌بورد کپی شد ✓'); }
+      try { document.execCommand('copy'); O.toast('در کلیپ‌بورد کپی شد'); }
       catch (e) { O.modal('خروجی ژورنال', '<div class="text-input" style="max-height:200px;overflow:auto;font-size:10px;direction:ltr;user-select:text;-webkit-user-select:text">' + O.esc(raw) + '</div>', [{ label: 'بستن', cls: 'ghost' }]); }
       document.body.removeChild(ta);
     }
     if (navigator.clipboard && navigator.clipboard.writeText) {
-      navigator.clipboard.writeText(raw).then(function () { O.toast('در کلیپ‌بورد کپی شد ✓'); }).catch(fallbackCopy);
+      navigator.clipboard.writeText(raw).then(function () { O.toast('در کلیپ‌بورد کپی شد'); }).catch(fallbackCopy);
     } else fallbackCopy();
   }
 
@@ -469,7 +639,7 @@
     if (!raw.trim()) { O.toast('ژورنال خالی است'); return; }
     var name = 'odin-journal-' + O.dayKeyTeh(new Date()) + '.jsonl';
     var res = O.native.saveDownload(name, raw);
-    if (res === 'ok') O.toast('💾 ذخیره شد: دانلودها/' + name);
+    if (res === 'ok') O.toast('ذخیره شد: دانلودها/' + name);
     else if (res === 'permission') O.toast('مجوز حافظه لازم است — پس از اجازه، دوباره بزن');
     else if (!res) O.toast('ذخیرهٔ فایل ممکن نیست — از «کپی JSONL» استفاده کن');
     else O.toast('خطا در ذخیره: ' + String(res).slice(0, 60));
@@ -482,9 +652,25 @@
     var txt = lines.join('\n') + '\n\n— دستیار اودین v' + S.version + ' (اندروید) · ساعت‌ها به وقت تهران';
     if (!O.native.share('بریفینگ دستیار اودین', txt)) {
       if (navigator.clipboard && navigator.clipboard.writeText) {
-        navigator.clipboard.writeText(txt).then(function () { O.toast('در کلیپ‌بورد کپی شد ✓'); }).catch(function () { O.toast('اشتراک‌گذاری ممکن نیست'); });
+        navigator.clipboard.writeText(txt).then(function () { O.toast('در کلیپ‌بورد کپی شد'); }).catch(function () { O.toast('اشتراک‌گذاری ممکن نیست'); });
       } else O.toast('اشتراک‌گذاری ممکن نیست');
     }
+  }
+
+  // ── همگام‌سازی با سرویس پس‌زمینه ────────────────────────────
+  // وقتی رصد پس‌زمینه فعال است، چرخه‌ها در WebView سرویس اجرا می‌شوند و
+  // نتیجه در state.last می‌نشیند؛ رابط فقط آن را تازه می‌خواند (واکشی دوبله نه).
+  function syncFromStorage() {
+    try {
+      var raw = S.storage.get('state.last');
+      if (!raw) return;
+      var st = JSON.parse(raw);
+      if (st && st.ranAt && (!S.state || st.ranAt > S.state.ranAt)) {
+        S.state = st;
+        try { S.stats = O.computeStats(S.journal.load(), Date.now()); } catch (e) { }
+        if (!S.busy && !O.modalOpen() && !S.onbStage) O.navigate(S.tab);
+      }
+    } catch (e) { }
   }
 
   // ── ساعت و شمارش معکوس زنده ─────────────────────────────────
@@ -509,13 +695,15 @@
       });
       O.renderHeaderStatus();
     }, 15000);
-    // 🔄 تازه‌سازی خودکار — فقط وقتی اپ باز است، بازار فعال است و فاصله رسیده
+    // تازه‌سازی خودکار — اگر سرویس پس‌زمینه فعال باشد فقط همگام‌سازی می‌کنیم
     setInterval(function () {
       try {
-        if (!S.settings || S.settings.auto_refresh_enabled === false) return;
+        if (!S.settings) return;
         if (S.busy) return;
         if (typeof document !== 'undefined' && document.hidden) return;
         if (O.modalOpen()) return;
+        if (O.native.bgRunning()) { syncFromStorage(); return; }
+        if (S.settings.auto_refresh_enabled === false) return;
         if (!S.state || !S.state.ranAt) return;
         var iv = Math.max(5, S.settings.auto_refresh_min || 15) * 60000;
         if (Date.now() - S.state.ranAt < iv) return;
@@ -527,11 +715,81 @@
 
   // ── خوش‌آمدگویی و راه‌اندازی ────────────────────────────────
   function showDisclaimer() {
-    O.modal('⚠️ قبل از شروع — دو قول صادقانه',
-      '<b>۱) این اپ معاملهٔ خودکار نمی‌کند.</b> هیچ معامله‌ای انجام نمی‌دهد، به هیچ بروکری وصل نیست و فقط تحلیل و سیگنال <u>پیشنهادی</u> می‌دهد. تصمیم و مسئولیت هر معامله با خودت است. تازه‌سازی خودکار (اگر از تنظیمات روشن باشد) فقط <u>تحلیل</u> را تکرار می‌کند — آن هم فقط وقتی اپ باز و بازار فعال است.<br><br>' +
-      '<b>۲) حلقهٔ صداقت.</b> وقتی سیگنالی صادر نشود، دلیلش شفاف گفته می‌شود؛ دادهٔ در دسترس نباشد، آن مدرک «۰ امتیاز با ❔» می‌گیرد — هیچ امتیازی ساخته نمی‌شود. نتایج سیگنال‌ها هم در ژورنال با قاعدهٔ محتاطانه ثبت می‌شود.<br><br>' +
+    O.modal(O.ico('alert', 17, 'c-amber') + ' قبل از شروع — دو قول صادقانه',
+      '<b>۱) این اپ معاملهٔ خودکار نمی‌کند.</b> هیچ معامله‌ای انجام نمی‌دهد، به هیچ بروکری وصل نیست و فقط تحلیل و سیگنال <u>پیشنهادی</u> می‌دهد. تصمیم و مسئولیت هر معامله با خودت است. رصد بازار (پیش‌زمینه یا تازه‌سازی خودکار) فقط <u>تحلیل</u> را تکرار می‌کند.<br><br>' +
+      '<b>۲) حلقهٔ صداقت.</b> وقتی سیگنالی صادر نشود، دلیلش شفاف گفته می‌شود؛ دادهٔ در دسترس نباشد، آن مدرک «۰ امتیاز با علامت نامشخص» می‌گیرد — هیچ امتیازی ساخته نمی‌شود. نتایج سیگنال‌ها هم در ژورنال با قاعدهٔ محتاطانه ثبت می‌شود.<br><br>' +
       '<span style="color:var(--text-3)">هیچ سیستمی سود را تضمین نمی‌کند. معامله در فارکس پرریسک است.</span>',
-      [{ label: 'متوجه شدم — بزن بریم', cls: 'primary', fn: function () { S.storage.set('disclaimer.ok', '1'); maybeFirstRun(); } }]);
+      [{
+        label: 'متوجه شدم — بزن بریم', cls: 'primary', fn: function () {
+          S.storage.set('disclaimer.ok', '1');
+          askName();
+        }
+      }]);
+  }
+
+  // v0.13.0 — پرسیدن نام در اولین اجرا (هدر «سلام {نام}!» می‌شود)
+  function askName() {
+    if (S.storage.get('onboarded.name') === '1') { askBackground(); return; }
+    S.onbStage = 'name';
+    O.modal(O.ico('user', 18) + ' اسمت چیه؟',
+      '<div class="set-sub" style="margin-bottom:10px">هدر برنامه و خوش‌آمدگویی با اسم خودت شخصی می‌شود.</div>' +
+      '<input id="onb-name" class="text-input" placeholder="مثلاً: سوشیان" maxlength="24" autocomplete="off" autocorrect="off" spellcheck="false">',
+      [{
+        label: 'ذخیره و ادامه', cls: 'primary', fn: function () {
+          var el = document.getElementById('onb-name');
+          var n = el ? String(el.value || '').trim() : '';
+          S.settings.user_name = n || 'تریدر';
+          saveSettings();
+          applyUserName();
+          S.storage.set('onboarded.name', '1');
+          S.onbStage = null;
+          askBackground();
+        }
+      }]);
+    setTimeout(function () {
+      var el = document.getElementById('onb-name');
+      if (el && el.focus) el.focus();
+    }, 350);
+  }
+
+  // v0.13.0 — پیشنهاد رصد پس‌زمینه (سیگنال بدون باز کردن اپ)
+  function askBackground() {
+    if (S.storage.get('onboarded.bg') === '1') { afterOnboard(); return; }
+    S.onbStage = 'bg';
+    O.modal(O.ico('activity', 18) + ' سیگنال بدون باز کردن اپ؟',
+      'رصد پس‌زمینه هر چند دقیقه یک‌بار بازار را تحلیل می‌کند و <b>سیگنال تازه یا خبر فوری</b> را با اعلان اندروید می‌فرستد — حتی وقتی اپ بسته است.<br><br>' +
+      '· یک اعلان ماندگار «در حال رصد» در نوار اعلان‌ها دیده می‌شود (طبیعی است و با یک لمس خاموش نمی‌شود — از تنظیمات اپ خاموشش کن).<br>' +
+      '· برای پایداری روی گوشی‌های سخت‌گیر، اجازهٔ «نادیده‌گرفتن بهینه‌سازی باتری» خواسته می‌شود.<br>' +
+      '· معامله همچنان هیچ‌وقت خودکار نیست — تصمیم با توست.',
+      [
+        {
+          label: 'شروع رصد', cls: 'primary', fn: function () {
+            S.settings.background_enabled = true;
+            saveSettings();
+            S.storage.set('onboarded.bg', '1');
+            S.onbStage = null;
+            O.native.startBackground();
+            if (!O.native.isIgnoringBattery()) O.native.requestIgnoreBattery();
+            O.toast('رصد پس‌زمینه فعال شد');
+            afterOnboard();
+          }
+        },
+        {
+          label: 'فعلاً نه', cls: 'ghost', fn: function () {
+            S.settings.background_enabled = false;
+            saveSettings();
+            S.storage.set('onboarded.bg', '1');
+            S.onbStage = null;
+            afterOnboard();
+          }
+        }
+      ]);
+  }
+
+  function afterOnboard() {
+    // اگر رصد پس‌زمینه روشن است (از قبل)، سرویس را زنده نگه داریم
+    if (S.settings.background_enabled !== false) O.native.startBackground();
+    maybeFirstRun();
   }
 
   function maybeFirstRun() {
@@ -545,7 +803,7 @@
     S.storage = O.makeStorage();
     loadSettings();
     S.journal = new O.Journal(S.storage);
-    try { S.version = (typeof ODINNative !== 'undefined' && ODINNative.getVersion()) || '0.12.0'; } catch (e) { }
+    try { S.version = (typeof ODINNative !== 'undefined' && ODINNative.getVersion()) || '0.13.0'; } catch (e) { }
     document.getElementById('splash-ver').textContent = 'v' + S.version + ' · android';
     applyUserName();
 
@@ -569,11 +827,12 @@
       document.getElementById('app').classList.remove('hidden');
       setTimeout(function () { splash.style.display = 'none'; }, 500);
       if (S.storage.get('disclaimer.ok') !== '1') showDisclaimer();
-      else maybeFirstRun();
+      else askName();
     }, 1500);
   }
 
-  if (typeof document !== 'undefined' && document.getElementById) {
+  // حالت سرویس هیچ UI بوت نمی‌کند؛ نیتیو بعد از بارگذاری صفحه svcStart را صدا می‌زند
+  if (typeof document !== 'undefined' && document.getElementById && !O.SERVICE_MODE) {
     if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);
     else boot();
   }

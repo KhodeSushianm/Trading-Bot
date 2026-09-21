@@ -10,14 +10,14 @@ const WWW = path.join(__dirname, '..', '..', 'android', 'app', 'src', 'main', 'a
 const ctx = { console };
 ctx.globalThis = ctx;
 vm.createContext(ctx);
-for (const f of ['fa.js', 'ui.js']) {
+for (const f of ['fa.js', 'icons.js', 'ui.js']) {
   vm.runInContext(fs.readFileSync(path.join(WWW, f), 'utf8'), ctx, { filename: f });
 }
 const O = ctx.ODIN;
 assert(O && typeof O.renderAbout === 'function', 'renderAbout missing');
 
 const S = {
-  version: '0.12.0',
+  version: '0.13.0',
   settings: {
     user_name: 'سوشیان', judge_enabled: true, min_score: 7, veto: {},
     fund_enabled: true, news_enabled: true, tv_enabled: true,
@@ -31,7 +31,11 @@ assert(about.includes('دربارهٔ ما'), 'page title missing');
 assert(about.includes('Sushian Khoshkhani'), 'creator name missing');
 assert(about.includes('© 2026 Sushian Khoshkhani — All rights reserved.'), 'copyright line missing');
 assert(about.includes('CN=Sushian Khoshkhani, OU=ODIN Assistant, O=Sushian Khoshkhani, C=IR'), 'cert subject missing');
-assert(about.includes('۰.۱۲.۰'), 'persian version missing');
+assert(about.includes('۰.۱۳.۰'), 'persian version missing');
+// اثر انگشت کلید امضای v0.13.0 (کلید تازه به نام Sushian Khoshkhani)
+assert(about.includes('bd11159e003b55b9ae53cd26c192dc6b2bea2840c787fddbd0f523a947cb5189'), 'cert SHA-256 fingerprint missing');
+// بدون ایموجی — همه‌جا آیکون SVG (v0.13.0)
+assert(!O.EMOJI_RE.test(about), 'emoji left in about page');
 // برنامه با هدف فروش است — هیچ لینک دانلود/گیت‌هابی نباید در اپ باشد
 assert(!about.includes('github.com'), 'github link must be removed from about page');
 assert(!about.includes('KhodeSushianm'), 'repo link must be removed from about page');
@@ -42,5 +46,7 @@ assert(about.includes('غیرخودکار'), 'disclaimer missing');
 const settings = O.renderSettings(S);
 assert(settings.includes('data-tab="about"'), 'settings entry to about missing');
 assert(!settings.includes('مسئولیت هر معامله'), 'long disclaimer should be moved out of settings');
+assert(!O.EMOJI_RE.test(settings), 'emoji left in settings page');
+assert(settings.includes('background_enabled'), 'background-monitor switch missing in settings');
 
 console.log('SMOKE ABOUT OK — ' + about.length + ' chars rendered');

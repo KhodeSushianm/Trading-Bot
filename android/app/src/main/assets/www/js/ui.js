@@ -1,5 +1,10 @@
 /* رندر صفحه‌ها — تم روشن شیشه‌ای، مونوکروم + سبز/قرمز معنایی فقط.
- * همهٔ متن‌ها فارسی؛ قیمت‌ها لاتین، شمارش‌ها فارسی (قرارداد src/fa.py). */
+ * همهٔ متن‌ها فارسی؛ قیمت‌ها لاتین، شمارش‌ها فارسی (قرارداد src/fa.py).
+ *
+ * v0.13.0 — ایموجی حذف شد: همه‌جا آیکون SVG (js/icons.js).
+ * رشته‌های موتور (judge/technical/calendar/session/journal/briefing) به‌خاطر
+ * تست parity دست‌نخورده‌اند؛ ایموجی‌هایشان در همین لایه با O.icoStr به آیکون
+ * تبدیل می‌شود. */
 (function (O) {
   'use strict';
 
@@ -9,6 +14,17 @@
     });
   }
   O.esc = esc;
+
+  // متن esc‌شدهٔ موتور → HTML با آیکون (ترتیب مهم: اول esc بعد icoStr)
+  function eico(s, size) { return O.icoStr(esc(s), size); }
+
+  // عنوان صفحه/کارت/بخش با آیکون
+  function pt(icon, text) {
+    return '<div class="page-title">' + O.ico(icon, 20) + '<span>' + text + '</span></div>';
+  }
+  function ct(icon, text, size) {
+    return O.ico(icon, size || 15) + '<span>' + text + '</span>';
+  }
 
   // رشته‌های موتور (وتو/سشن) عمداً UTC می‌مانند (تست parity با پایتون)؛
   // اینجا فقط معادل تهران به متن «بسته» اضافه می‌شود — تبدیل نمایشی.
@@ -21,11 +37,17 @@
   O.tehranize = tehranize;
 
   var VERDICT_CHIP = {
-    BUY_SETUP: ['buy', '🟢 ستاپ خرید'],
-    SELL_SETUP: ['sell', '🔴 ستاپ فروش'],
-    WAIT: ['wait', '⏳ انتظار'],
-    RANGE: ['range', '😴 رنج'],
-    DATA: ['data', '⚠️ داده ناقص']
+    BUY_SETUP: ['buy', 'dot-low', 'ستاپ خرید'],
+    SELL_SETUP: ['sell', 'dot-high', 'ستاپ فروش'],
+    WAIT: ['wait', 'hourglass', 'انتظار'],
+    RANGE: ['range', 'moon', 'رنج'],
+    DATA: ['data', 'alert', 'دادهٔ ناقص']
+  };
+
+  var IMPACT_ICO = {
+    HIGH: ['dot-high', 'c-red'],
+    MEDIUM: ['dot-med', 'c-amber'],
+    LOW: ['dot-low', 'c-green']
   };
 
   function agoFa(ms) {
@@ -60,7 +82,7 @@
     var el = document.getElementById('hdr-status');
     if (!el) return;
     el.innerHTML = '<span class="status-pill" data-state="' + (st.open ? 'ok' : 'err') + '">' +
-      '<i class="dot"></i>' + esc(st.open ? st.label : st.reason_fa) + '</span>';
+      '<i class="dot"></i>' + eico(st.open ? st.label : st.reason_fa, 12) + '</span>';
   };
 
   // ── خانه ────────────────────────────────────────────────────
@@ -70,13 +92,15 @@
     var html = '';
 
     html += '<div class="action-row">' +
-      '<button class="btn primary" data-action="analyze" id="btn-analyze">⟳ تحلیل تازه</button>' +
-      '<button class="btn ghost" data-action="briefing">🌅 بریفینگ</button>' +
+      '<button class="btn primary" data-action="analyze" id="btn-analyze">' + O.ico('refresh', 16) + ' تحلیل تازه</button>' +
+      '<button class="btn ghost" data-action="briefing">' + O.ico('sunrise', 16) + ' بریفینگ</button>' +
       '</div>';
     if (S.settings && S.settings.auto_refresh_enabled) {
-      html += '<div class="card-sub" style="margin:-4px 2px 10px">🔄 تازه‌سازی خودکار هر ' +
-        O.faNum(S.settings.auto_refresh_min || 15) + ' دقیقه — فقط وقتی اپ باز و بازار فعال است' +
-        (S.settings.notify_enabled === false ? '' : ' · اعلان سیگنال جدید روشن 🔔') + '</div>';
+      var bgOn = O.native && O.native.bgRunning && O.native.bgRunning();
+      html += '<div class="card-sub" style="margin:-4px 2px 10px">' + O.ico('refresh', 12) +
+        ' تازه‌سازی خودکار هر ' + O.faNum(S.settings.auto_refresh_min || 15) + ' دقیقه — ' +
+        (bgOn ? 'رصد پس‌زمینه فعال است (بدون باز کردن اپ هم سیگنال می‌رسد)' : 'فقط وقتی اپ باز و بازار فعال است') +
+        (S.settings.notify_enabled === false ? '' : ' · ' + O.ico('bell', 11) + ' اعلان سیگنال روشن') + '</div>';
     }
 
     var nowMs = Date.now();
@@ -91,20 +115,22 @@
 
     html += '<div class="card ink">' +
       '<div class="card-row"><div>' +
-      '<div class="ink-title">' + esc(status.open ? '🟢 ' + status.label : '🔒 ' + status.reason_fa) + '</div>' +
+      '<div class="ink-title">' + (status.open
+        ? O.ico('dot', 10, 'c-green-lt') + '<span>' + eico(status.label, 13) + '</span>'
+        : '<span>' + eico(status.reason_fa, 14) + '</span>') + '</div>' +
       '<div class="ink-cap" style="margin-top:3px">' + (status.open && status.sessions.length ? 'سشن‌های فعال: ' + esc(status.sessions.join(' + ')) : 'بازار فارکس ۲۴ ساعته، ۵ روز در هفته') + '</div>' +
-      (status.open ? '' : '<div class="ink-cap" style="margin-top:3px">' + esc(O.tehranMarketHint(status)) + '</div>') +
+      (status.open ? '' : '<div class="ink-cap" style="margin-top:3px">' + eico(O.tehranMarketHint(status), 11) + '</div>') +
       '</div><div style="text-align:left"><div class="ink-num" id="ink-clock">' + O.faNum(O.hhmmTeh(new Date(nowMs))) + '</div><div class="ink-cap">تهران</div>' +
       '<div class="ink-cap" id="ink-jalali" style="margin-top:4px">' + esc(O.jalaliFa(new Date(nowMs))) + '</div></div></div>' +
       '<div class="ink-tiles">' +
       '<div class="ink-tile"><div class="t-num">' + O.faNum(sigCount) + '</div><div class="t-cap">سیگنال چرخهٔ آخر</div></div>' +
       '<div class="ink-tile"><div class="t-num">' + O.faNum(breaking) + '</div><div class="t-cap">خبر فوری</div></div>' +
-      '<div class="ink-tile"><div class="t-num">' + (hi24 === null ? '❔' : O.faNum(hi24)) + '</div><div class="t-cap">رویداد پراثر ۲۴ساعت</div></div>' +
+      '<div class="ink-tile"><div class="t-num">' + (hi24 === null ? O.ico('unknown', 17) : O.faNum(hi24)) + '</div><div class="t-cap">رویداد پراثر ۲۴ساعت</div></div>' +
       '</div></div>';
 
     if (!st) {
       html += '<div class="card"><div class="empty-state">' +
-        '<div class="e-ico">📡</div><div class="e-t">هنوز تحلیلی اجرا نشده</div>' +
+        '<div class="e-ico">' + O.ico('antenna', 40) + '</div><div class="e-t">هنوز تحلیلی اجرا نشده</div>' +
         '<div class="e-s">دکمهٔ «تحلیل تازه» را بزن تا قیمت‌ها، تقویم اقتصادی و اخبار دریافت شود و داور امتیازدهی تصمیم بگیرد.<br>اولین تحلیل کمی طول می‌کشد (دریافت ۷ نماد).</div>' +
         '</div></div>';
       html += skeletonCards(3);
@@ -113,7 +139,7 @@
 
     // کارت نمادها
     (st.analyses || []).forEach(function (a) {
-      var chip = VERDICT_CHIP[a.verdict] || ['wait', a.verdict];
+      var chip = VERDICT_CHIP[a.verdict] || ['wait', 'hourglass', a.verdict];
       var spark = sparkline((st.sparks || {})[a.symbol]);
       html += '<div class="card sym-card">' +
         '<div class="sym-head"><div>' +
@@ -122,15 +148,17 @@
         '</div>' + spark + '</div>' +
         '<div class="card-row" style="align-items:flex-end">' +
         '<div class="sym-price">' + esc(O.fmtPrice(a.price, a.pip)) + '</div>' +
-        '<span class="pill verdict-chip ' + chip[0] + '">' + chip[1] + '</span>' +
+        '<span class="pill verdict-chip ' + chip[0] + '">' + O.ico(chip[1], 9) + ' ' + esc(chip[2]) + '</span>' +
         '</div>' +
         '<div class="sym-meta" style="margin-top:6px">' +
-        '<span class="pill outline">روند ۴ساعته: ' + esc(O.TREND_FA[a.trend]) + '</span>' +
-        (a.h1_agrees ? '<span class="pill">H1 هم‌جهت ✓</span>' : '<span class="pill red">H1 ناهم‌جهت</span>') +
+        '<span class="pill outline">روند ۴ساعته: ' + eico(O.TREND_FA[a.trend], 12) + '</span>' +
+        (a.h1_agrees
+          ? '<span class="pill">H1 هم‌جهت ' + O.ico('check', 11, 'c-green') + '</span>'
+          : '<span class="pill red">H1 ناهم‌جهت ' + O.ico('minus', 11) + '</span>') +
         '</div>' +
         '<div class="sym-stats">' +
         '<span class="sym-stat">ADX <b>' + O.faNum(a.adx.toFixed(0)) + '</b></span>' +
-        '<span class="sym-stat">RSI <b>' + O.faNum(a.rsi.toFixed(0)) + '</b>' + (a.rsi_rising ? ' ↗' : ' ↘') + '</span>' +
+        '<span class="sym-stat">RSI <b>' + O.faNum(a.rsi.toFixed(0)) + '</b> ' + O.ico(a.rsi_rising ? 'arrow-up-right' : 'arrow-down-right', 10, a.rsi_rising ? 'c-green' : 'c-red') + '</span>' +
         '<span class="sym-stat">ATR <b>' + esc(O.faPips(a.atr, a.pip, a.pip >= 0.5)) + '</b></span>' +
         '</div>' +
         ((a.support || a.resistance) ? '<div class="sym-stats">' +
@@ -143,7 +171,7 @@
     // قدرت ارزها
     if (st.ranking && st.ranking.length) {
       var maxAbs = Math.max.apply(null, st.ranking.map(function (x) { return Math.abs(x[1]); })) || 1;
-      html += '<div class="card"><div class="card-title">💱 جریان قدرت ارزها</div>' +
+      html += '<div class="card"><div class="card-title">' + ct('exchange', 'جریان قدرت ارزها') + '</div>' +
         '<div class="card-sub">میانگین تغییر ۲۴ کندل یک‌ساعتهٔ اخیر — قوی‌ترین بالا</div>' +
         '<div style="margin-top:10px">';
       st.ranking.forEach(function (x) {
@@ -163,27 +191,27 @@
       var nxt = O.nextHighImpact(st.calSnap.events, null, null, nowMs);
       if (nxt) {
         html += '<div class="card"><div class="card-row">' +
-          '<div><div class="card-title">📅 رویداد پراثر بعدی</div>' +
+          '<div><div class="card-title">' + ct('calendar', 'رویداد پراثر بعدی') + '</div>' +
           '<div style="font-size:12px;font-weight:500;margin-top:2px">' + esc(nxt.title_fa) + '</div>' +
           '<div class="card-sub">' + esc(O.evCountryFa(nxt)) + ' — ' + O.faNum(O.hhmmTeh(new Date(nxt.when))) + ' تهران</div></div>' +
           '<div style="text-align:left"><div class="countdown" data-cd-ts="' + nxt.when + '">' + esc(O.countdown2(O.evMinutesFrom(nxt, nowMs))) + '</div></div>' +
           '</div></div>';
       } else {
-        html += '<div class="card"><div class="card-title">📅 رویداد پراثری پیش رو نیست</div>' +
+        html += '<div class="card"><div class="card-title">' + ct('calendar', 'رویداد پراثری پیش رو نیست') + '</div>' +
           '<div class="card-sub">تا پایان پوشش فید این هفته، رویداد پراثری باقی نمانده — پنجرهٔ معاملاتی از نظر تقویم باز است</div></div>';
       }
     }
 
     // تیترهای مهم اخبار
     if (st.newsSnap && st.newsSnap.ok && st.newsSnap.items.length) {
-      html += '<div class="card"><div class="card-row"><div class="card-title">📰 تیترهای مهم</div>' +
-        '<button class="btn subtle" data-tab="news">همه ←</button></div><div style="margin-top:6px">';
+      html += '<div class="card"><div class="card-row"><div class="card-title">' + ct('news', 'تیترهای مهم') + '</div>' +
+        '<button class="btn subtle" data-tab="news">همه ' + O.ico('chevron-left', 13) + '</button></div><div style="margin-top:6px">';
       st.newsSnap.items.slice(0, 3).forEach(function (it) {
         html += '<div style="padding:7px 0;border-bottom:1px solid var(--divider)">' +
-          (it.breaking ? '<span class="breaking-flag">🚨 فوری</span> ' : '') +
+          (it.breaking ? '<span class="breaking-flag">' + O.ico('siren', 11) + ' فوری</span> ' : '') +
           '<span style="font-size:12px;font-weight:500;line-height:1.9">' + esc(it.title) + '</span>' +
           '<div class="news-src">' + esc(it.source) + ' · ' + esc(O.faNum(it.score)) + '/۶' +
-          (O.newsDirectionFa(it) ? ' · ' + esc(O.newsDirectionFa(it)) : '') + '</div></div>';
+          (O.newsDirectionFa(it) ? ' · ' + eico(O.newsDirectionFa(it), 10) : '') + '</div></div>';
       });
       html += '</div></div>';
     }
@@ -192,8 +220,8 @@
     var stats = S.stats;
     if (stats && stats.overall.closed > 0) {
       html += '<div class="card ink" data-tab="journal" style="cursor:pointer">' +
-        '<div class="card-row"><div class="ink-title">📔 کارنامهٔ دقت</div>' +
-        '<span class="pill on-ink">لمس کن ←</span></div>' +
+        '<div class="card-row"><div class="ink-title">' + ct('book', 'کارنامهٔ دقت') + '</div>' +
+        '<span class="pill on-ink">لمس کن ' + O.ico('chevron-left', 11) + '</span></div>' +
         '<div class="ink-tiles">' +
         '<div class="ink-tile"><div class="t-num">' + O.faPct(stats.overall.hit_rate) + '</div><div class="t-cap">نرخ برد (قطعی)</div></div>' +
         '<div class="ink-tile"><div class="t-num">' + O.rFmt(stats.overall.avg_r) + '</div><div class="t-cap">میانگین R</div></div>' +
@@ -205,7 +233,7 @@
     html += '<div class="hint" style="text-align:center;padding:4px 10px 10px">' +
       'آخرین تحلیل: ' + esc(agoFa(st.ranAt)) + ' · منبع: Yahoo Finance' +
       (st.errors ? ' · ' + O.faNum(st.errors) + ' خطای دریافت داده' : '') + '<br>' +
-      '⚠️ این اپ غیرخودکار است: هیچ معامله‌ای انجام نمی‌دهد، فقط تحلیل می‌کند.' +
+      O.ico('seal', 11) + ' این اپ غیرخودکار است: هیچ معامله‌ای انجام نمی‌دهد، فقط تحلیل می‌کند.' +
       '</div>';
     return html;
   };
@@ -220,14 +248,14 @@
   O.renderSignals = function (S) {
     var st = S.state;
     var minScore = S.cfg.judge.min_score | 0;
-    var html = '<div class="page-title">⚖️ داور امتیازدهی</div>' +
+    var html = pt('scale', 'داور امتیازدهی') +
       '<div class="page-sub">آستانهٔ صدور سیگنال: ' + O.faNum(minScore) + ' از ۱۱ امتیاز — اول دروازه‌های وتو، بعد جدول مدارک. «چرا سیگنال نشد» هم خروجی معتبر است.</div>';
 
     if (S.cfg.judge.enabled === false) {
-      return html + '<div class="card"><div class="empty-state"><div class="e-ico">⚙️</div><div class="e-t">داور خاموش است</div><div class="e-s">از تنظیمات فعالش کن.</div></div></div>';
+      return html + '<div class="card"><div class="empty-state"><div class="e-ico">' + O.ico('gear', 40) + '</div><div class="e-t">داور خاموش است</div><div class="e-s">از تنظیمات فعالش کن.</div></div></div>';
     }
     if (!st || !st.judgments || !st.judgments.length) {
-      return html + '<div class="card"><div class="empty-state"><div class="e-ico">📡</div><div class="e-t">هنوز داوری انجام نشده</div><div class="e-s">اول «تحلیل تازه» را از صفحهٔ خانه اجرا کن.</div></div></div>';
+      return html + '<div class="card"><div class="empty-state"><div class="e-ico">' + O.ico('antenna', 40) + '</div><div class="e-t">هنوز داوری انجام نشده</div><div class="e-s">اول «تحلیل تازه» را از صفحهٔ خانه اجرا کن.</div></div></div>';
     }
 
     var order = { SIGNAL: 0, VETO: 1, LOW_SCORE: 2, CAPPED: 3, NO_SETUP: 4 };
@@ -242,7 +270,7 @@
       var vet = js.filter(function (j) { return j.reject_reason === 'VETO'; }).length;
       var low = js.filter(function (j) { return j.reject_reason === 'LOW_SCORE'; }).length;
       var nos = js.filter(function (j) { return j.reject_reason === 'NO_SETUP'; }).length;
-      html += '<div class="card ink"><div class="ink-title">⛔ هیچ سیگنالی صادر نشد — و این خودش یک خروجی معتبر است.</div>' +
+      html += '<div class="card ink"><div class="ink-title">' + O.ico('no-entry', 15) + '<span>هیچ سیگنالی صادر نشد — و این خودش یک خروجی معتبر است.</span></div>' +
         '<div class="ink-cap" style="margin-top:6px;line-height:2">وعدهٔ سیستم این است که «سیگنال بدون پشتوانه ندهد»، نه اینکه «همیشه سیگنال بدهد».</div>' +
         '<div class="ink-tiles">' +
         '<div class="ink-tile"><div class="t-num">' + O.faNum(vet) + '</div><div class="t-cap">وتو</div></div>' +
@@ -266,16 +294,23 @@
       '</div><div class="score-cap"><span>امتیاز: ' + O.faNum(j.score) + ' از ' + O.faNum(j.max_score) + '</span><span>آستانه: ' + O.faNum(minScore) + '</span></div></div>';
   }
 
+  // آیکون مدرک از وضعیت خود مدرک (نه ایموجی موتور) — رنگ معنایی
+  function evIconHtml(e) {
+    if (e.points > 0) return O.ico('check-circle', 15, 'c-green');
+    if (e.unavailable) return O.ico('unknown', 15);
+    return O.ico('minus', 15);
+  }
+
   function evidencesHtml(j, id) {
-    var h = '<button class="expand-toggle" data-expand="' + id + '">جدول مدارک (۸ مدرک) <span>▾</span></button>' +
+    var h = '<button class="expand-toggle" data-expand="' + id + '">جدول مدارک (۸ مدرک) <span>' + O.ico('chevron-down', 12) + '</span></button>' +
       '<div class="expand-body closed" id="' + id + '">';
     var sorted = j.evidences.slice().sort(function (a, b) { return (b.points - a.points) || (a.key < b.key ? -1 : 1); });
     sorted.forEach(function (e) {
       h += '<div class="ev-row' + (e.unavailable ? ' unavail' : '') + '">' +
-        '<span class="ev-icon">' + e.icon + '</span><div>' +
+        '<span class="ev-icon">' + evIconHtml(e) + '</span><div>' +
         '<span class="ev-label">' + esc(e.label_fa) + '</span>' +
         '<span class="ev-pts">(' + (e.points > 0 ? '+' + O.faNum(e.points) : O.faNum(0) + ' از ' + O.faNum(e.max_points)) + ')</span>' +
-        '<div class="ev-detail">' + esc(e.detail_fa) + '</div></div></div>';
+        '<div class="ev-detail">' + eico(e.detail_fa, 11) + '</div></div></div>';
     });
     return h + '</div>';
   }
@@ -283,39 +318,41 @@
   function signalCard(j, minScore, idx) {
     var s = j.signal;
     var dirCls = s.direction === 'BUY' ? 'buy' : 'sell';
-    var dirTxt = s.direction === 'BUY' ? '🟢 سیگنال خرید' : '🔴 سیگنال فروش';
+    var dirTxt = O.ico('dot', 9) + ' سیگنال ' + (s.direction === 'BUY' ? 'خرید' : 'فروش');
     var id = 'ev-sig-' + idx;
     var h = '<div class="card sig-card">';
     h += '<div class="sig-head"><div><span class="dir-pill ' + dirCls + '">' + dirTxt + '</span>' +
       '<div style="font-size:14px;font-weight:700;margin-top:6px;direction:ltr;display:inline-block">' +
       esc(s.symbol.length === 6 ? s.symbol.slice(0, 3) + '/' + s.symbol.slice(3) : s.symbol) + '</div> ' +
       '<span class="card-sub">' + esc(s.fa_name) + '</span></div>' +
-      '<div style="text-align:left"><div style="font-size:13px">' + O.stars(s.stars) + '</div>' +
+      '<div style="text-align:left"><div style="font-size:13px"><span class="stars-row">' + O.starIcons(s.stars) + '</span></div>' +
       '<div class="card-sub" style="margin-top:2px">' + O.faNum(s.score) + ' از ' + O.faNum(s.max_score) + '</div></div></div>';
 
     if (s._dup) {
-      h += '<div class="reject-why" style="margin-top:8px">🔁 ' + esc(s._dupWhy) + '</div>';
+      h += '<div class="reject-why" style="margin-top:8px">' + O.ico('repeat', 13) + ' ' + esc(s._dupWhy) + '</div>';
     }
 
     h += scoreBar(j, minScore);
 
     h += '<div class="levels">' +
-      '<div class="level-box"><div class="l-cap">📍 ورود</div><div class="l-val">' + esc(O.fmtPrice(s.entry, s.pip)) + '</div><div class="l-sub">قیمت فعلی</div></div>' +
-      '<div class="level-box sl"><div class="l-cap">🛑 حد ضرر</div><div class="l-val">' + esc(O.fmtPrice(s.sl, s.pip)) + '</div><div class="l-sub">' + esc(O.faPips(Math.abs(s.entry - s.sl), s.pip, s.is_gold)) + '</div></div>' +
-      '<div class="level-box tp"><div class="l-cap">🎯 هدف</div><div class="l-val">' + esc(O.fmtPrice(s.tp, s.pip)) + '</div><div class="l-sub">' + esc(O.faPips(Math.abs(s.tp - s.entry), s.pip, s.is_gold)) + '</div></div>' +
+      '<div class="level-box"><div class="l-cap">' + O.ico('pin', 11) + ' ورود</div><div class="l-val">' + esc(O.fmtPrice(s.entry, s.pip)) + '</div><div class="l-sub">قیمت فعلی</div></div>' +
+      '<div class="level-box sl"><div class="l-cap">' + O.ico('stop-sign', 11, 'c-red') + ' حد ضرر</div><div class="l-val">' + esc(O.fmtPrice(s.sl, s.pip)) + '</div><div class="l-sub">' + esc(O.faPips(Math.abs(s.entry - s.sl), s.pip, s.is_gold)) + '</div></div>' +
+      '<div class="level-box tp"><div class="l-cap">' + O.ico('target', 11, 'c-green') + ' هدف</div><div class="l-val">' + esc(O.fmtPrice(s.tp, s.pip)) + '</div><div class="l-sub">' + esc(O.faPips(Math.abs(s.tp - s.entry), s.pip, s.is_gold)) + '</div></div>' +
       '</div>';
 
-    h += '<div class="sym-meta"><span class="pill outline">⚖️ ریسک به ریسک ۱:' + O.faRatio(s.rr) + '</span>' +
-      '<span class="pill outline">🌊 ATR: ' + esc(O.faPips(s.atr, s.pip, s.is_gold)) + '</span>' +
-      '<span class="pill outline">💰 ریسک پیشنهادی: حداکثر ۱٪</span></div>';
+    h += '<div class="sym-meta">' +
+      '<span class="pill outline">' + O.ico('scale', 11) + ' ریسک به ریسک ۱:' + O.faRatio(s.rr) + '</span>' +
+      '<span class="pill outline">' + O.ico('wave', 11) + ' ATR: ' + esc(O.faPips(s.atr, s.pip, s.is_gold)) + '</span>' +
+      '<span class="pill outline">' + O.ico('coins', 11) + ' ریسک پیشنهادی: حداکثر ۱٪</span></div>';
 
-    (s.warnings || []).forEach(function (w) { h += '<div class="warn-row">⚠️ ' + esc(w) + '</div>'; });
+    (s.warnings || []).forEach(function (w) { h += '<div class="warn-row">' + O.ico('alert', 12, 'c-amber') + ' ' + eico(w, 12) + '</div>'; });
 
     h += evidencesHtml(j, id);
 
-    h += '<div class="card-sub" style="margin-top:10px">🕒 ' + esc(O.faDateTeh(new Date(s.now))) + ' تهران · 💹 ' + esc(s.session_fa) +
-      (s._dup ? '' : ' · 📔 در ژورنال ثبت شد') + '</div>';
-    h += '<div class="hint" style="margin-top:6px">⚠️ این یک پیشنهاد است، نه دستور معامله. هیچ سیستمی سود را تضمین نمی‌کند؛ مسئولیت هر معامله با خودت است.</div>';
+    h += '<div class="card-sub" style="margin-top:10px">' + O.ico('clock', 11) + ' ' + esc(O.faDateTeh(new Date(s.now))) + ' تهران · ' +
+      O.ico('chart-line', 11) + ' ' + eico(s.session_fa, 11) +
+      (s._dup ? '' : ' · ' + O.ico('book', 11) + ' در ژورنال ثبت شد') + '</div>';
+    h += '<div class="hint" style="margin-top:6px">' + O.ico('alert', 11, 'c-amber') + ' این یک پیشنهاد است، نه دستور معامله. هیچ سیستمی سود را تضمین نمی‌کند؛ مسئولیت هر معامله با خودت است.</div>';
     return h + '</div>';
   }
 
@@ -325,7 +362,7 @@
     var h = '<div class="card sig-card">';
     h += '<div class="sig-head"><div><div style="font-size:14px;font-weight:700;direction:ltr;display:inline-block">' +
       esc(j.symbol) + '</div> <span class="card-sub">' + esc(j.fa_name) + '</span>' +
-      '<div style="margin-top:5px"><span class="pill ' + (j.reject_reason === 'VETO' ? 'red' : '') + '">' + esc(statusFa) + '</span>' +
+      '<div style="margin-top:5px"><span class="pill ' + (j.reject_reason === 'VETO' ? 'red' : '') + '">' + eico(statusFa, 11) + '</span>' +
       ((j.reject_reason === 'LOW_SCORE' || j.reject_reason === 'CAPPED')
         ? ' <span class="pill outline">' + O.faNum(j.score) + '/' + O.faNum(j.max_score) + '</span>' : '') +
       '</div></div>' +
@@ -334,19 +371,19 @@
     if (j.vetoes && j.vetoes.length) {
       h += '<div style="margin-top:8px">';
       j.vetoes.forEach(function (v) {
-        h += '<div class="veto-row"><span class="v-icon">🚫</span><div><div class="veto-title">' + esc(v.title_fa) + '</div><div class="veto-detail">' + esc(tehranize(v.detail_fa)) + '</div></div></div>';
+        h += '<div class="veto-row"><span class="v-icon">' + O.ico('ban', 15) + '</span><div><div class="veto-title">' + eico(v.title_fa, 12) + '</div><div class="veto-detail">' + eico(tehranize(v.detail_fa), 11) + '</div></div></div>';
       });
       h += '</div>';
     }
     if (j.reject_detail && j.reject_reason !== 'VETO') {
-      h += '<div class="reject-why">' + (j.reject_reason === 'LOW_SCORE' ? '⏳ ' : '🔎 ') + esc(j.reject_detail) + '</div>';
+      h += '<div class="reject-why">' + O.ico(j.reject_reason === 'LOW_SCORE' ? 'hourglass' : 'search', 13) + ' ' + eico(j.reject_detail, 12) + '</div>';
     }
     if (j.reject_reason === 'LOW_SCORE' && j.evidences && j.evidences.length) {
       var got = j.evidences.filter(function (e) { return e.points > 0; }).map(function (e) { return e.label_fa; });
       var miss = j.evidences.filter(function (e) { return e.points === 0; }).map(function (e) { return e.label_fa; });
       h += '<div style="margin-top:8px;font-size:11px;line-height:2.1">' +
-        (got.length ? '<div>✅ داشت: <span style="color:var(--text-2)">' + esc(got.join('، ')) + '</span></div>' : '') +
-        (miss.length ? '<div>➖ نداشت: <span style="color:var(--text-2)">' + esc(miss.join('، ')) + '</span></div>' : '') +
+        (got.length ? '<div>' + O.ico('check-circle', 12, 'c-green') + ' داشت: <span style="color:var(--text-2)">' + esc(got.join('، ')) + '</span></div>' : '') +
+        (miss.length ? '<div>' + O.ico('minus', 12) + ' نداشت: <span style="color:var(--text-2)">' + esc(miss.join('، ')) + '</span></div>' : '') +
         '</div>';
       h += scoreBar(j, minScore);
       h += evidencesHtml(j, id);
@@ -360,19 +397,19 @@
   O.renderCalendar = function (S) {
     var st = S.state;
     var nowMs = Date.now();
-    var html = '<div class="page-title">🏦 تقویم اقتصادی</div>' +
+    var html = pt('bank', 'تقویم اقتصادی') +
       '<div class="page-sub">منبع: ForexFactory — فقط هفتهٔ جاری (شنبه تا جمعه). همهٔ ساعت‌ها به وقت تهران است. رویداد پراثر در ۳۰ دقیقهٔ آینده = وتوی سیگنال آن نماد.</div>';
 
     var cal = st && st.calSnap;
     if (!cal) {
-      return html + '<div class="card"><div class="empty-state"><div class="e-ico">📡</div><div class="e-t">داده‌ای نیست</div><div class="e-s">اول «تحلیل تازه» را اجرا کن.</div></div></div>';
+      return html + '<div class="card"><div class="empty-state"><div class="e-ico">' + O.ico('antenna', 40) + '</div><div class="e-t">داده‌ای نیست</div><div class="e-s">اول «تحلیل تازه» را اجرا کن.</div></div></div>';
     }
     if (!cal.ok) {
-      return html + '<div class="card"><div class="empty-state"><div class="e-ico">⚠️</div><div class="e-t">تقویم در دسترس نبود</div>' +
+      return html + '<div class="card"><div class="empty-state"><div class="e-ico">' + O.ico('alert', 40, 'c-amber') + '</div><div class="e-t">تقویم در دسترس نبود</div>' +
         '<div class="e-s">' + esc(String(cal.error || '').slice(0, 100)) + '<br>تحلیل تکنیکال بدون وتوی خبری انجام شده — با احتیاط بیشتری معامله کن.</div></div></div>';
     }
     if (cal.stale) {
-      html += '<div class="warn-row">⚠️ این داده از کش قدیمی است (آخرین دریافت موفق: ' +
+      html += '<div class="warn-row">' + O.ico('alert', 12, 'c-amber') + ' این داده از کش قدیمی است (آخرین دریافت موفق: ' +
         esc(cal.fetchedAt ? O.faDateTeh(new Date(cal.fetchedAt)) + ' تهران' : '—') + ')</div>';
     }
 
@@ -383,18 +420,18 @@
 
     if (!events.length) {
       var nHigh = cal.events.filter(function (e) { return e.impact === 'HIGH'; }).length;
-      html += '<div class="card"><div class="empty-state"><div class="e-ico">✅</div>' +
+      html += '<div class="card"><div class="empty-state"><div class="e-ico">' + O.ico('check-circle', 40, 'c-green') + '</div>' +
         '<div class="e-t">رویدادی در ' + O.faNum(horizon) + ' ساعت آینده نیست</div>' +
-        '<div class="e-s">پنجرهٔ معاملاتی از نظر تقویم باز است.<br>ℹ️ فید ForexFactory فقط هفتهٔ جاری را پوشش می‌دهد؛ در روزهای پایانی هفته ممکن است رویداد آینده‌ای در آن نباشد (یعنی «خبری نیست»، نه «داده خراب است»).<br>📊 کل این هفته ' + O.faNum(nHigh) + ' رویداد پراثر داشت.</div></div></div>';
+        '<div class="e-s">پنجرهٔ معاملاتی از نظر تقویم باز است.<br>' + O.ico('info', 12) + ' فید ForexFactory فقط هفتهٔ جاری را پوشش می‌دهد؛ در روزهای پایانی هفته ممکن است رویداد آینده‌ای در آن نباشد (یعنی «خبری نیست»، نه «داده خراب است»).<br>' + O.ico('chart-bar', 12) + ' کل این هفته ' + O.faNum(nHigh) + ' رویداد پراثر داشت.</div></div></div>';
       return html;
     }
 
     // فیلتر اثر
     html += '<div class="sym-meta" style="margin-bottom:12px">' +
       '<button class="pill ink cal-filter" data-impact="ALL">همه</button>' +
-      '<button class="pill outline cal-filter" data-impact="HIGH">🔴 پراثر</button>' +
-      '<button class="pill outline cal-filter" data-impact="MEDIUM">🟠 متوسط</button>' +
-      '<button class="pill outline cal-filter" data-impact="LOW">🟢 کم‌اثر</button></div>';
+      '<button class="pill outline cal-filter" data-impact="HIGH">' + O.ico('dot-high', 9, 'c-red') + ' پراثر</button>' +
+      '<button class="pill outline cal-filter" data-impact="MEDIUM">' + O.ico('dot-med', 9, 'c-amber') + ' متوسط</button>' +
+      '<button class="pill outline cal-filter" data-impact="LOW">' + O.ico('dot-low', 9, 'c-green') + ' کم‌اثر</button></div>';
 
     var lastDay = '';
     var shown = 0;
@@ -411,19 +448,20 @@
         lastDay = dayKey;
       }
       var mins = O.evMinutesFrom(e, nowMs);
+      var imp = IMPACT_ICO[e.impact] || ['dot-none', ''];
       dayHtml += '<div class="card ev-card" data-impact="' + e.impact + '">' +
         '<div class="ev-top"><span class="ev-time">' + O.faNum(O.hhmmTeh(d)) + '</span>' +
         '<span class="countdown" data-cd-ts="' + e.when + '">' + esc(O.countdown2(mins)) + '</span></div>' +
-        '<div class="ev-title">' + (O.IMPACT_EMOJI[e.impact] || '⚪') + ' ' + esc(e.title_fa) + '</div>' +
+        '<div class="ev-title">' + O.ico(imp[0], 10, imp[1]) + ' ' + esc(e.title_fa) + '</div>' +
         '<div class="ev-title-en">' + esc(e.title) + '</div>' +
         '<div class="ev-meta"><span class="pill outline">' + esc(O.evCountryFa(e)) + ' (' + esc(e.country) + ')</span>' +
         '<span class="pill">' + esc(e.category) + '</span>' +
         (e.forecast ? '<span class="pill outline">پیش‌بینی: <b class="mono" style="margin-inline-start:4px">' + esc(O.faNum(e.forecast)) + '</b></span>' : '') +
         (e.previous ? '<span class="pill outline">قبلی: <b class="mono" style="margin-inline-start:4px">' + esc(O.faNum(e.previous)) + '</b></span>' : '') +
         '</div>' +
-        '<button class="expand-toggle" data-expand="evx-' + i + '">تفسیر به زبان ساده <span>▾</span></button>' +
+        '<button class="expand-toggle" data-expand="evx-' + i + '">تفسیر به زبان ساده <span>' + O.ico('chevron-down', 12) + '</span></button>' +
         '<div class="expand-body closed" id="evx-' + i + '"><div class="ev-explain">' +
-        esc(O.evExplain(e, S.cfg.symbols, nowMs)).replace(/\n/g, '<br>') + '</div></div>' +
+        eico(O.evExplain(e, S.cfg.symbols, nowMs), 12).replace(/\n/g, '<br>') + '</div></div>' +
         '</div>';
       html += dayHtml;
     });
@@ -435,25 +473,25 @@
   O.renderNews = function (S) {
     var st = S.state;
     var nowMs = Date.now();
-    var html = '<div class="page-title">📰 اخبار بازار</div>' +
+    var html = pt('news', 'اخبار بازار') +
       '<div class="page-sub">رصد زندهٔ ForexLive، Investing.com و FXStreet با امتیازدهی جهت‌دار (۰ تا ۶).</div>';
 
     var ns = st && st.newsSnap;
     if (!ns) {
-      return html + '<div class="card"><div class="empty-state"><div class="e-ico">📡</div><div class="e-t">داده‌ای نیست</div><div class="e-s">اول «تحلیل تازه» را اجرا کن.</div></div></div>';
+      return html + '<div class="card"><div class="empty-state"><div class="e-ico">' + O.ico('antenna', 40) + '</div><div class="e-t">داده‌ای نیست</div><div class="e-s">اول «تحلیل تازه» را اجرا کن.</div></div></div>';
     }
     html += '<div class="card-sub" style="margin:-6px 2px 10px">' +
       O.faNum(ns.items.length) + ' خبر مرتبط · ' + O.faNum(ns.feedsOk) + ' فید موفق' +
       (ns.feedsFailed ? ' · ' + O.faNum(ns.feedsFailed) + ' ناموفق' : '') + '</div>';
 
     if (!ns.ok) {
-      return html + '<div class="card"><div class="empty-state"><div class="e-ico">⚠️</div><div class="e-t">خبری پیدا نشد</div>' +
+      return html + '<div class="card"><div class="empty-state"><div class="e-ico">' + O.ico('alert', 40, 'c-amber') + '</div><div class="e-t">خبری پیدا نشد</div>' +
         '<div class="e-s">' + esc(ns.error || '') + (ns.failedNames && ns.failedNames.length ? '<br>فیدهای ناموفق: ' + esc(ns.failedNames.join('، ')) : '') + '</div></div></div>';
     }
 
     var brCount = ns.items.filter(function (i) { return i.breaking; }).length;
     if (brCount) {
-      html += '<div class="warn-row" style="background:var(--red-tint);border-color:#EBC9C9;color:var(--red-text)">🚨 ' +
+      html += '<div class="warn-row" style="background:var(--red-tint);border-color:#EBC9C9;color:var(--red-text)">' + O.ico('siren', 12) + ' ' +
         O.faNum(brCount) + ' خبر فوری در این بازه — تا آرام‌شدن بازار، ورود جدید با احتیاط شدید</div>';
     }
 
@@ -462,12 +500,12 @@
       for (var d = 0; d < 6; d++) dots += '<i class="' + (d < it.score ? 'on' : '') + '"></i>';
       var age = it.published ? O.countdown2(-(nowMs - it.published) / 60000) : '';
       html += '<div class="card news-card">' +
-        '<div class="news-title">' + (it.breaking ? '<span class="breaking-flag">🚨 فوری</span> ' : '') +
+        '<div class="news-title">' + (it.breaking ? '<span class="breaking-flag">' + O.ico('siren', 11) + ' فوری</span> ' : '') +
         (it.link ? '<a href="#" data-ext="' + esc(it.link) + '">' + esc(it.title) + '</a>' : esc(it.title)) +
-        (it.roundup ? ' <span class="pill" style="font-size:9px">📚 جمع‌بندی — جهت‌دار نیست</span>' : '') + '</div>' +
+        (it.roundup ? ' <span class="pill" style="font-size:9px">' + O.ico('book-open', 10) + ' جمع‌بندی — جهت‌دار نیست</span>' : '') + '</div>' +
         '<div class="news-meta"><span class="score-dots" title="امتیاز اهمیت">' + dots + '</span>' +
         '<span class="news-src">' + O.faNum(it.score) + '/۶</span>' +
-        (O.newsDirectionFa(it) ? '<span class="dir-chip">' + esc(O.newsDirectionFa(it)) + '</span>' : '') +
+        (O.newsDirectionFa(it) ? '<span class="dir-chip">' + eico(O.newsDirectionFa(it), 10) + '</span>' : '') +
         '<span class="news-src">' + esc(it.source) + (age ? ' · ' + esc(age) : '') + '</span></div>' +
         (it.keywords && it.keywords.length ? '<div class="news-meta" style="margin-top:5px">' +
           it.keywords.map(function (k) { return '<span class="kw-chip">' + esc(k) + '</span>'; }).join('') + '</div>' : '') +
@@ -475,9 +513,9 @@
     });
 
     if (ns.staleFeeds && ns.staleFeeds.length) {
-      html += '<div class="hint">ℹ️ فیدهای بدون خبر تازه: ' + esc(ns.staleFeeds.slice(0, 3).join('، ')) + '</div>';
+      html += '<div class="hint">' + O.ico('info', 11) + ' فیدهای بدون خبر تازه: ' + esc(ns.staleFeeds.slice(0, 3).join('، ')) + '</div>';
     }
-    html += '<div class="hint" style="margin-top:8px">⚠️ جهت‌دهی اخبار بر پایهٔ کلیدواژه است (سرنخ، نه حکم قطعی) — در داور امتیازدهی فقط ۱ امتیاز از ۱۱ وزن دارد.</div>';
+    html += '<div class="hint" style="margin-top:8px">' + O.ico('alert', 11, 'c-amber') + ' جهت‌دهی اخبار بر پایهٔ کلیدواژه است (سرنخ، نه حکم قطعی) — در داور امتیازدهی فقط ۱ امتیاز از ۱۱ وزن دارد.</div>';
     return html;
   };
 
@@ -485,24 +523,24 @@
   O.renderJournal = function (S) {
     var stats = S.stats;
     var entries = S.journal ? S.journal.load() : [];
-    var html = '<div class="page-title">📔 ژورنال و کارنامهٔ دقت</div>' +
+    var html = pt('book', 'ژورنال و کارنامهٔ دقت') +
       '<div class="page-sub">حلقهٔ صداقت: نتیجهٔ هر سیگنال از روی کندل‌های ۱۵ دقیقه تعیین و اینجا ثبت می‌شود — با قاعدهٔ محتاطانهٔ «برخورد هر دو سطح = ضرر».</div>';
 
     if (!entries.length) {
-      html += '<div class="card"><div class="empty-state"><div class="e-ico">📔</div><div class="e-t">ژورنال خالی است</div>' +
-        '<div class="e-s">هر سیگنالی که داور صادر کند اینجا ثبت و نتیجه‌اش پیگیری می‌شود. فعلاً سیگنالی نبوده — این یعنی سیستم وعدهٔ الکی نداده 🙂</div></div></div>';
+      html += '<div class="card"><div class="empty-state"><div class="e-ico">' + O.ico('book', 40) + '</div><div class="e-t">ژورنال خالی است</div>' +
+        '<div class="e-s">هر سیگنالی که داور صادر کند اینجا ثبت و نتیجه‌اش پیگیری می‌شود. فعلاً سیگنالی نبوده — این یعنی سیستم وعدهٔ الکی نداده ' + O.ico('smile', 13) + '</div></div></div>';
       return html;
     }
 
     var o = stats.overall;
     html += '<div class="card ink">' +
-      '<div class="card-row"><div class="ink-title">📊 کارنامهٔ کلی</div>' +
+      '<div class="card-row"><div class="ink-title">' + ct('chart-bar', 'کارنامهٔ کلی') + '</div>' +
       '<span class="pill on-ink">باز: ' + O.faNum(stats.open_count) + '</span></div>' +
       '<div class="ink-tiles">' +
       '<div class="ink-tile"><div class="t-num">' + O.faNum(o.closed) + '</div><div class="t-cap">بسته‌شده</div></div>' +
-      '<div class="ink-tile"><div class="t-num" style="color:#7BE0B0">' + O.faNum(o.wins) + '</div><div class="t-cap">برد 🎯</div></div>' +
-      '<div class="ink-tile"><div class="t-num" style="color:#FF9A9A">' + O.faNum(o.losses) + '</div><div class="t-cap">باخت 🛑</div></div>' +
-      '<div class="ink-tile"><div class="t-num">' + O.faNum(o.expired) + '</div><div class="t-cap">منقضی ⏳</div></div>' +
+      '<div class="ink-tile"><div class="t-num" style="color:#7BE0B0">' + O.faNum(o.wins) + '</div><div class="t-cap">برد ' + O.ico('target', 10, 'c-green-lt') + '</div></div>' +
+      '<div class="ink-tile"><div class="t-num" style="color:#FF9A9A">' + O.faNum(o.losses) + '</div><div class="t-cap">باخت ' + O.ico('stop-sign', 10, 'c-red-lt') + '</div></div>' +
+      '<div class="ink-tile"><div class="t-num">' + O.faNum(o.expired) + '</div><div class="t-cap">منقضی ' + O.ico('hourglass', 10) + '</div></div>' +
       '</div>' +
       '<div class="ink-tiles" style="margin-top:8px">' +
       '<div class="ink-tile"><div class="t-num">' + O.faPct(o.hit_rate) + '</div><div class="t-cap">نرخ برد (قطعی)</div></div>' +
@@ -516,7 +554,7 @@
     if (stats.this_week_key && stats.by_week[stats.this_week_key]) {
       var tw = stats.by_week[stats.this_week_key];
       var lw = stats.last_week_key ? stats.by_week[stats.last_week_key] : null;
-      html += '<div class="card"><div class="card-title">🗓️ امسال — هفتهٔ ' + esc(O.faNum(stats.this_week_key.slice(-2))) + '</div>' +
+      html += '<div class="card"><div class="card-title">' + ct('calendar', 'امسال — هفتهٔ ' + esc(O.faNum(stats.this_week_key.slice(-2)))) + '</div>' +
         '<div style="font-size:11.5px;color:var(--text-2);margin-top:6px">' +
         'بسته ' + O.faNum(tw.closed) + ' · برد ' + O.faNum(tw.wins) + ' · باخت ' + O.faNum(tw.losses) + ' · نرخ برد ' + O.faPct(tw.hit_rate) + ' · میانگین R ' + O.rFmt(tw.avg_r) +
         (lw ? '<br>هفتهٔ قبل: بسته ' + O.faNum(lw.closed) + ' · نرخ برد ' + O.faPct(lw.hit_rate) + ' · میانگین R ' + O.rFmt(lw.avg_r) : '') +
@@ -526,10 +564,12 @@
     // سیگنال‌های باز
     var open = entries.filter(function (e) { return e.outcome == null; });
     if (open.length) {
-      html += '<div class="card"><div class="card-title">⏳ سیگنال‌های باز (' + O.faNum(open.length) + ')</div><div style="margin-top:6px">';
+      html += '<div class="card"><div class="card-title">' + ct('hourglass', 'سیگنال‌های باز (' + O.faNum(open.length) + ')') + '</div><div style="margin-top:6px">';
       open.forEach(function (e) {
         html += '<div class="j-entry"><div class="j-sym"><div class="s1">' + esc(e.symbol) + ' · ' +
-          (e.direction === 'BUY' ? '🟢 خرید' : '🔴 فروش') + '</div>' +
+          (e.direction === 'BUY'
+            ? O.ico('dot-low', 9, 'c-green') + ' خرید'
+            : O.ico('dot-high', 9, 'c-red') + ' فروش') + '</div>' +
           '<div class="s2">ورود ' + esc(O.fmtPrice(e.entry, e.pip)) + ' · SL ' + esc(O.fmtPrice(e.sl, e.pip)) + ' · TP ' + esc(O.fmtPrice(e.tp, e.pip)) + ' · ' + esc(agoFa(e.ts)) + '</div></div>' +
           '<span class="pill outline">' + O.faNum(e.score) + '/' + O.faNum(e.max_score) + '</span></div>';
       });
@@ -539,13 +579,12 @@
     // بسته‌شده‌ها
     var closed = entries.filter(function (e) { return e.outcome != null; }).slice(-30).reverse();
     if (closed.length) {
-      html += '<div class="card"><div class="card-title">🏁 آخرین نتایج</div><div style="margin-top:6px">';
+      html += '<div class="card"><div class="card-title">' + ct('flag', 'آخرین نتایج') + '</div><div style="margin-top:6px">';
       closed.forEach(function (e) {
         var cls = e.outcome === 'TP' ? 'win' : (e.outcome === 'SL' ? 'loss' : 'exp');
-        var ico = e.outcome === 'TP' ? '🎯' : (e.outcome === 'SL' ? '🛑' : '⏳');
         html += '<div class="j-entry"><div class="j-sym"><div class="s1">' + esc(e.symbol) + ' · ' +
-          (e.direction === 'BUY' ? '🟢' : '🔴') + '</div>' +
-          '<div class="s2">' + ico + ' ' + esc(O.OUTCOME_FA[e.outcome] || e.outcome) + ' · ' + esc(agoFa(e.ts)) +
+          (e.direction === 'BUY' ? O.ico('dot-low', 9, 'c-green') : O.ico('dot-high', 9, 'c-red')) + '</div>' +
+          '<div class="s2">' + eico(O.OUTCOME_FA[e.outcome] || e.outcome, 11) + ' · ' + esc(agoFa(e.ts)) +
           (e.note ? ' — ' + esc(e.note) : '') + '</div></div>' +
           '<span class="r-chip ' + cls + '">' + O.rFmt(e.r) + '</span></div>';
       });
@@ -555,7 +594,7 @@
     // به تفکیک نماد
     var symKeys = Object.keys(stats.by_symbol);
     if (symKeys.length) {
-      html += '<div class="card"><button class="expand-toggle" data-expand="j-syms" style="padding-top:0">📈 تفکیک نمادها <span>▾</span></button>' +
+      html += '<div class="card"><button class="expand-toggle" data-expand="j-syms" style="padding-top:0">' + O.ico('chart-line', 13) + ' تفکیک نمادها <span>' + O.ico('chevron-down', 12) + '</span></button>' +
         '<div class="expand-body closed" id="j-syms" style="width:100%">';
       symKeys.sort().forEach(function (k) {
         var b = stats.by_symbol[k];
@@ -567,9 +606,9 @@
     }
 
     html += '<div class="action-row" style="margin-top:4px">' +
-      '<button class="btn ghost sm" data-action="journal-save" style="flex:1">💾 ذخیره در دانلودها</button>' +
-      '<button class="btn ghost sm" data-action="journal-export" style="flex:1">📤 کپی JSONL</button>' +
-      '<button class="btn red sm" data-action="journal-clear" style="flex:1">🗑️ پاک‌کردن</button></div>';
+      '<button class="btn ghost sm" data-action="journal-save" style="flex:1">' + O.ico('save', 13) + ' ذخیره در دانلودها</button>' +
+      '<button class="btn ghost sm" data-action="journal-export" style="flex:1">' + O.ico('share', 13) + ' کپی JSONL</button>' +
+      '<button class="btn red sm" data-action="journal-clear" style="flex:1">' + O.ico('trash', 13) + ' پاک‌کردن</button></div>';
     return html;
   };
 
@@ -582,43 +621,65 @@
   O.renderSettings = function (S) {
     var set = S.settings;
     var v = S.cfg.judge.veto;
-    var html = '<div class="page-title">⚙️ تنظیمات</div>' +
+    var nat = O.native || {};
+    var bgRunning = !!(nat.bgRunning && nat.bgRunning());
+    var notifOn = nat.notificationsEnabled ? nat.notificationsEnabled() : true;
+    var battOk = nat.isIgnoringBattery ? nat.isIgnoringBattery() : true;
+    var html = pt('gear', 'تنظیمات') +
       '<div class="page-sub">تغییرها فوری ذخیره می‌شوند و در تحلیل بعدی اثر می‌کنند.</div>';
 
-    html += '<div class="card"><div class="section-title" style="margin-top:0">👤 شخصی</div>' +
+    html += '<div class="card"><div class="section-title" style="margin-top:0">' + ct('user', 'شخصی', 13) + '</div>' +
       '<div class="set-row"><div><div class="set-label">نام نمایشی</div><div class="set-sub">در خوش‌آمدگویی و هدر استفاده می‌شود</div></div></div>' +
       '<input class="text-input" data-set="user_name" value="' + esc(set.user_name) + '" maxlength="24">' +
       '</div>';
 
-    html += '<div class="card"><div class="section-title" style="margin-top:0">⚖️ داور امتیازدهی</div>' +
+    // رصد پس‌زمینه — سیگنال بدون باز کردن اپ (v0.13.0)
+    html += '<div class="card"><div class="section-title" style="margin-top:0">' + ct('activity', 'رصد پس‌زمینه', 13) + '</div>' +
+      '<div class="set-row"><div><div class="set-label">رصد بازار بدون باز کردن اپ</div>' +
+      '<div class="set-sub">تحلیل در پس‌زمینه تکرار می‌شود و سیگنال تازه/خبر فوری با اعلان می‌رسد — حتی وقتی اپ بسته است. یک اعلان ماندگار «در حال رصد» نشان داده می‌شود.</div></div>' +
+      switchHtml('background_enabled', set.background_enabled !== false) + '</div>' +
+      (bgRunning
+        ? '<div class="set-row"><div><div class="set-label">' + O.ico('activity', 12, 'c-green') + ' رصد فعال است</div><div class="set-sub">چرخه‌ها توسط سرویس پس‌زمینه اجرا می‌شوند</div></div></div>'
+        : '') +
+      (!notifOn
+        ? '<div class="set-row"><div><div class="set-label">اجازهٔ اعلان داده نشده</div><div class="set-sub">بدون آن، سیگنال پس‌زمینه بی‌صدا می‌ماند</div></div>' +
+          '<button class="btn ghost sm" data-action="open-notif-settings">اجازهٔ اعلان</button></div>'
+        : '') +
+      (!battOk
+        ? '<div class="set-row"><div><div class="set-label">بهینه‌سازی باتری فعال است</div><div class="set-sub">اندروید ممکن است رصد پس‌زمینه را متوقف کند — اجازهٔ «نادیده‌گرفتن» بده</div></div>' +
+          '<button class="btn ghost sm" data-action="ignore-battery">اجازهٔ باتری</button></div>'
+        : '<div class="set-row"><div><div class="set-label">' + O.ico('battery', 12, 'c-green') + ' بهینه‌سازی باتری: نادیده گرفته شده</div><div class="set-sub">رصد پس‌زمینه پایدار می‌ماند</div></div></div>') +
+      '</div>';
+
+    html += '<div class="card"><div class="section-title" style="margin-top:0">' + ct('scale', 'داور امتیازدهی', 13) + '</div>' +
       '<div class="set-row"><div><div class="set-label">داور فعال است</div><div class="set-sub">خاموش = هیچ سیگنالی داوری/صادر نمی‌شود</div></div>' + switchHtml('judge_enabled', set.judge_enabled) + '</div>' +
       '<div class="set-row"><div><div class="set-label">آستانهٔ صدور سیگنال</div><div class="set-sub">حداکثر ممکن ۱۱ امتیاز است — پیش‌فرض ۷</div></div>' +
       '<span class="stepper"><button data-step="min_score:-1">−</button><span class="val">' + O.faNum(set.min_score) + '</span><button data-step="min_score:1">+</button></span></div>' +
       '</div>';
 
-    html += '<div class="card"><div class="section-title" style="margin-top:0">🚫 دروازه‌های وتو</div><div class="hint" style="margin-bottom:6px">وتوها بدون استثنا هستند: حتی با امتیاز کامل، سیگنال صادر نمی‌شود.</div>' +
-      row('weekend', '🔒 بازار بسته', 'شنبه/یکشنبه و جمعه از ۰۰:۳۰ بامداد شنبه (تهران)', v.weekend) +
-      row('high_impact_event', '📅 رویداد پراثر تقویم', 'رویداد پراثر تا ۳۰ دقیقهٔ آینده', v.high_impact_event) +
-      row('timeframe_conflict', '🔀 تضاد تایم‌فریم', 'H4 و H1 هم‌جهت نباشند', v.timeframe_conflict) +
-      row('range_market', '😴 بازار بی‌روند', 'ADX زیر آستانهٔ ۲۰', v.range_market) +
-      row('volatility_spike', '📈 جهش غیرعادی نوسان', 'ATR فعلی بیش از ۲ برابر میانگین', v.volatility_spike) +
-      row('breaking_news', '🚨 خبر فوری', 'خبر فوری مرتبط با نماد', v.breaking_news) +
+    html += '<div class="card"><div class="section-title" style="margin-top:0">' + ct('ban', 'دروازه‌های وتو', 13) + '</div><div class="hint" style="margin-bottom:6px">وتوها بدون استثنا هستند: حتی با امتیاز کامل، سیگنال صادر نمی‌شود.</div>' +
+      row('weekend', 'lock', 'بازار بسته', 'شنبه/یکشنبه و جمعه از ۰۰:۳۰ بامداد شنبه (تهران)', v.weekend) +
+      row('high_impact_event', 'calendar', 'رویداد پراثر تقویم', 'رویداد پراثر تا ۳۰ دقیقهٔ آینده', v.high_impact_event) +
+      row('timeframe_conflict', 'shuffle', 'تضاد تایم‌فریم', 'H4 و H1 هم‌جهت نباشند', v.timeframe_conflict) +
+      row('range_market', 'moon', 'بازار بی‌روند', 'ADX زیر آستانهٔ ۲۰', v.range_market) +
+      row('volatility_spike', 'trend-up', 'جهش غیرعادی نوسان', 'ATR فعلی بیش از ۲ برابر میانگین', v.volatility_spike) +
+      row('breaking_news', 'siren', 'خبر فوری', 'خبر فوری مرتبط با نماد', v.breaking_news) +
       '</div>';
 
-    html += '<div class="card"><div class="section-title" style="margin-top:0">🔌 موتورها</div>' +
-      row('fund_enabled', '🏦 تقویم اقتصادی', 'ForexFactory — کش ۳۰ دقیقه‌ای', set.fund_enabled) +
-      row('news_enabled', '📰 موتور اخبار', 'RSS فارکس — دریافت زنده در هر تحلیل', set.news_enabled) +
-      row('tv_enabled', '🔍 تاییدیهٔ تریدینگ‌ویو', 'API غیررسمی — اگر قطع شد، مدرک ❔ می‌گیرد', set.tv_enabled) +
+    html += '<div class="card"><div class="section-title" style="margin-top:0">' + ct('plug', 'موتورها', 13) + '</div>' +
+      row2('fund_enabled', 'bank', 'تقویم اقتصادی', 'ForexFactory — کش ۳۰ دقیقه‌ای', set.fund_enabled) +
+      row2('news_enabled', 'news', 'موتور اخبار', 'RSS فارکس — دریافت زنده در هر تحلیل', set.news_enabled) +
+      row2('tv_enabled', 'search', 'تاییدیهٔ تریدینگ‌ویو', 'API غیررسمی — اگر قطع شد، مدرک ' + O.ico('unknown', 10) + ' می‌گیرد', set.tv_enabled) +
       '</div>';
 
-    html += '<div class="card"><div class="section-title" style="margin-top:0">🔄 تازه‌سازی و اعلان‌ها</div>' +
-      '<div class="set-row"><div><div class="set-label">تازه‌سازی خودکار تحلیل</div><div class="set-sub">فقط وقتی اپ باز و بازار فعال است — معامله خودکار نمی‌کند</div></div>' + switchHtml('auto_refresh_enabled', set.auto_refresh_enabled !== false) + '</div>' +
-      '<div class="set-row"><div><div class="set-label">فاصلهٔ تازه‌سازی</div><div class="set-sub">هر چند دقیقه یک‌بار تحلیل تکرار شود</div></div>' +
+    html += '<div class="card"><div class="section-title" style="margin-top:0">' + ct('refresh', 'تازه‌سازی و اعلان‌ها', 13) + '</div>' +
+      '<div class="set-row"><div><div class="set-label">تازه‌سازی خودکار تحلیل</div><div class="set-sub">وقتی اپ باز و بازار فعال است — اگر رصد پس‌زمینه روشن باشد، چرخه‌ها در پس‌زمینه هم اجرا می‌شوند. معامله خودکار نمی‌کند.</div></div>' + switchHtml('auto_refresh_enabled', set.auto_refresh_enabled !== false) + '</div>' +
+      '<div class="set-row"><div><div class="set-label">فاصلهٔ تازه‌سازی</div><div class="set-sub">هر چند دقیقه یک‌بار تحلیل تکرار شود (پس‌زمینه هم همین فاصله را دارد)</div></div>' +
       '<span class="stepper"><button data-step="auto_refresh_min:-1">−</button><span class="val">' + O.faNum(set.auto_refresh_min || 15) + ' دقیقه</span><button data-step="auto_refresh_min:1">+</button></span></div>' +
-      '<div class="set-row"><div><div class="set-label">اعلان سیگنال جدید و خبر فوری 🔔</div><div class="set-sub">نوتیفیکیشن اندروید + لرزش هنگام صدور سیگنال تازه یا خبر فوری</div></div>' + switchHtml('notify_enabled', set.notify_enabled !== false) + '</div>' +
+      '<div class="set-row"><div><div class="set-label">اعلان سیگنال جدید و خبر فوری ' + O.ico('bell', 12) + '</div><div class="set-sub">نوتیفیکیشن اندروید + لرزش هنگام صدور سیگنال تازه یا خبر فوری</div></div>' + switchHtml('notify_enabled', set.notify_enabled !== false) + '</div>' +
       '</div>';
 
-    html += '<div class="card"><div class="section-title" style="margin-top:0">🗄️ داده‌ها</div>' +
+    html += '<div class="card"><div class="section-title" style="margin-top:0">' + ct('archive', 'داده‌ها', 13) + '</div>' +
       '<div class="set-row"><div><div class="set-label">پاک‌کردن کش تقویم و تحلیل</div><div class="set-sub">دادهٔ بازار دفعهٔ بعد تازه دریافت می‌شود</div></div>' +
       '<button class="btn ghost sm" data-action="clear-cache">پاک‌کردن</button></div>' +
       '<div class="set-row"><div><div class="set-label">بازنشانی تنظیمات</div><div class="set-sub">همه به حالت پیش‌فرض برمی‌گردند (ژورنال پاک نمی‌شود)</div></div>' +
@@ -626,23 +687,27 @@
       '</div>';
 
     html += '<div class="card ink"><div class="ink-title">دربارهٔ دستیار اودین</div>' +
-      '<div class="ink-cap" style="margin-top:6px;line-height:2.2">نسخهٔ اندروید ' + O.faNum(S.version || '0.12.0') + ' — همراه نسخهٔ ویندوز (0.8.1)<br>' +
-      '🕐 همهٔ ساعت‌های اپ به وقت تهران است (منطق داخلی موتور UTC — هماهنگ با نسخهٔ دسکتاپ).<br>' +
-      '⚠️ <b style="color:#fff">غیرخودکار:</b> این اپ هیچ معامله‌ای انجام نمی‌دهد و به هیچ بروکری وصل نیست.</div>' +
-      '<button class="btn ghost sm" data-tab="about" style="margin-top:10px;width:100%">ℹ️ دربارهٔ ما، حق نشر و اصالت برنامه ←</button></div>';
+      '<div class="ink-cap" style="margin-top:6px;line-height:2.2">نسخهٔ اندروید ' + O.faNum(S.version || '0.13.0') + ' — همراه نسخهٔ ویندوز (0.8.1)<br>' +
+      O.ico('clock', 11) + ' همهٔ ساعت‌های اپ به وقت تهران است (منطق داخلی موتور UTC — هماهنگ با نسخهٔ دسکتاپ).<br>' +
+      O.ico('seal', 11) + ' <b style="color:#fff">غیرخودکار:</b> این اپ هیچ معامله‌ای انجام نمی‌دهد و به هیچ بروکری وصل نیست.</div>' +
+      '<button class="btn ghost sm" data-tab="about" style="margin-top:10px;width:100%">' + O.ico('info', 13) + ' دربارهٔ ما، حق نشر و اصالت برنامه ' + O.ico('chevron-left', 12) + '</button></div>';
     return html;
 
-    function row(key, label, sub, on) {
-      return '<div class="set-row"><div><div class="set-label">' + label + '</div><div class="set-sub">' + sub + '</div></div>' +
+    function row(key, icon, label, sub, on) {
+      return '<div class="set-row"><div><div class="set-label">' + O.ico(icon, 13) + ' ' + label + '</div><div class="set-sub">' + sub + '</div></div>' +
         switchHtml('veto.' + key, on !== false) + '</div>';
+    }
+    function row2(key, icon, label, sub, on) {
+      return '<div class="set-row"><div><div class="set-label">' + O.ico(icon, 13) + ' ' + label + '</div><div class="set-sub">' + sub + '</div></div>' +
+        switchHtml(key, on !== false) + '</div>';
     }
   };
 
   // ── دربارهٔ ما (حق نشر، سازنده، اصالت امضا) ─────────────────
   O.renderAbout = function (S) {
-    var ver = S.version || '0.12.0';
-    var html = '<div class="action-row"><button class="btn ghost" data-tab="settings">→ بازگشت</button></div>' +
-      '<div class="page-title">ℹ️ دربارهٔ ما</div>' +
+    var ver = S.version || '0.13.0';
+    var html = '<div class="action-row"><button class="btn ghost" data-tab="settings">' + O.ico('chevron-right', 14) + ' بازگشت</button></div>' +
+      pt('info', 'دربارهٔ ما') +
       '<div class="page-sub">سازنده، حق نشر و راهِ تشخیص نسخهٔ اصلی</div>';
 
     // کارت اصلی: لوگو + نام برنامه + سازنده
@@ -657,7 +722,7 @@
       '</div>';
 
     // حق نشر و مالکیت
-    html += '<div class="card"><div class="section-title" style="margin-top:0">© حق نشر و مالکیت</div>' +
+    html += '<div class="card"><div class="section-title" style="margin-top:0">' + ct('seal', 'حق نشر و مالکیت', 13) + '</div>' +
       '<div class="hint" style="line-height:2.3">' +
       '<b dir="ltr" style="display:inline-block">© 2026 Sushian Khoshkhani — All rights reserved.</b><br>' +
       'کلیهٔ حقوق این نرم‌افزار محفوظ است. این برنامه و کد منبع آن — شامل موتور تحلیل، داور سیگنال، ژورنال و رابط کاربری — مالکیت انحصاری <b>Sushian Khoshkhani</b> (سازندهٔ برنامه) است.<br>' +
@@ -665,26 +730,28 @@
       '</div></div>';
 
     // امضای دیجیتال و اصالت نسخه
-    html += '<div class="card"><div class="section-title" style="margin-top:0">🔏 امضای دیجیتال و اصالت نسخه</div>' +
+    html += '<div class="card"><div class="section-title" style="margin-top:0">' + ct('seal', 'امضای دیجیتال و اصالت نسخه', 13) + '</div>' +
       '<div class="hint" style="line-height:2.3">' +
       'فایل نصبی (APK) رسمی این برنامه با گواهی دیجیتال به نام <b>Sushian Khoshkhani</b> امضا شده است:' +
       '<div dir="ltr" style="text-align:left;margin:8px 0;padding:8px 10px;background:var(--bg,#f4f4f7);border-radius:10px;font-family:monospace;font-size:11px">Subject: CN=Sushian Khoshkhani, OU=ODIN Assistant, O=Sushian Khoshkhani, C=IR</div>' +
+      'اثر انگشت SHA-256 گواهی نسخهٔ رسمی (از v0.13.0):' +
+      '<div dir="ltr" style="text-align:left;margin:8px 0;padding:8px 10px;background:var(--bg,#f4f4f7);border-radius:10px;font-family:monospace;font-size:10px;word-break:break-all">SHA256: bd11159e003b55b9ae53cd26c192dc6b2bea2840c787fddbd0f523a947cb5189</div>' +
       'در مارکت‌ها و ابزارهای بررسی امضا، نام پابلیشر/امضاکنندهٔ نسخهٔ اصلی <b>Sushian Khoshkhani</b> است. اگر نام دیگری دیدید، آن فایل <b>جعلی یا دست‌کاری‌شده</b> است — نصبش نکنید و گزارش دهید.<br>' +
-      'کلید امضای برنامه از نسخهٔ ۰.۱۲.۰ به نام Sushian Khoshkhani صادر شده است.' +
+      'کلید امضای برنامه از نسخهٔ ۰.۱۳.۰ با هویت کامل Sushian Khoshkhani صادر شده است.' +
       '</div></div>';
 
     // منبع رسمی — بدون لینک بیرونی؛ نسخهٔ رسمی فقط مستقیم از سازنده
-    html += '<div class="card"><div class="section-title" style="margin-top:0">🔗 منبع رسمی</div>' +
+    html += '<div class="card"><div class="section-title" style="margin-top:0">' + ct('link', 'منبع رسمی', 13) + '</div>' +
       '<div class="hint" style="line-height:2.2">' +
       'نسخهٔ رسمی برنامه فقط <b>مستقیماً از خودِ سازنده (Sushian Khoshkhani)</b> عرضه می‌شود.' +
       'فایل نصبی را از واسطه‌ها، کانال‌ها یا صفحات متفرقه نگیرید؛ هر نسخه‌ای که امضای بالا را نداشته باشد رسمی نیست.' +
       '</div></div>';
 
     // سلب مسئولیت (غیرخودکار)
-    html += '<div class="card ink"><div class="ink-title">⚠️ غیرخودکار — سلب مسئولیت</div>' +
+    html += '<div class="card ink"><div class="ink-title">' + O.ico('alert', 14) + '<span>غیرخودکار — سلب مسئولیت</span></div>' +
       '<div class="ink-cap" style="margin-top:6px;line-height:2.2">' +
       'این اپ هیچ معامله‌ای انجام نمی‌دهد و به هیچ بروکری وصل نیست؛ فقط تحلیل، سیگنال پیشنهادی و پیگیری صداقتِ نتایج.<br>' +
-      '🕐 همهٔ ساعت‌های اپ به وقت تهران است (منطق داخلی موتور UTC — هماهنگ با نسخهٔ دسکتاپ).<br>' +
+      O.ico('clock', 11) + ' همهٔ ساعت‌های اپ به وقت تهران است (منطق داخلی موتور UTC — هماهنگ با نسخهٔ دسکتاپ).<br>' +
       'هیچ سیستمی سود را تضمین نمی‌کند؛ مسئولیت هر معامله با خودت است.' +
       '</div></div>';
 
@@ -693,19 +760,19 @@
 
   // ── بریفینگ ─────────────────────────────────────────────────
   O.renderBriefingPage = function (S) {
-    var html = '<div class="action-row"><button class="btn ghost" data-tab="home">→ بازگشت</button>' +
-      '<button class="btn ghost" data-action="share-briefing">📤 اشتراک</button>' +
-      '<button class="btn primary" data-action="analyze">⟳ تحلیل تازه</button></div>';
+    var html = '<div class="action-row"><button class="btn ghost" data-tab="home">' + O.ico('chevron-right', 14) + ' بازگشت</button>' +
+      '<button class="btn ghost" data-action="share-briefing">' + O.ico('share', 15) + ' اشتراک</button>' +
+      '<button class="btn primary" data-action="analyze">' + O.ico('refresh', 15) + ' تحلیل تازه</button></div>';
     if (!S.state || !S.state.analyses || !S.state.analyses.length) {
-      return html + '<div class="card"><div class="empty-state"><div class="e-ico">🌅</div><div class="e-t">اول تحلیل را اجرا کن</div><div class="e-s">بریفینگ از نتیجهٔ آخرین تحلیل ساخته می‌شود.</div></div></div>';
+      return html + '<div class="card"><div class="empty-state"><div class="e-ico">' + O.ico('sunrise', 40) + '</div><div class="e-t">اول تحلیل را اجرا کن</div><div class="e-s">بریفینگ از نتیجهٔ آخرین تحلیل ساخته می‌شود.</div></div></div>';
     }
     var lines = O.renderBriefing(S.state, S.cfg, S.state.ranAt);
     html += '<div class="card">';
     lines.forEach(function (ln) {
       var cls = 'brief-line';
-      if (ln.startsWith('▎')) cls += ' head';
-      else if (ln.startsWith('🌅')) cls += ' title';
-      html += '<div class="' + cls + '">' + esc(ln).replace(/^▎/, '') + '</div>';
+      if (ln.indexOf('▎') === 0) cls += ' head';
+      else if (ln.indexOf('🌅') === 0) cls += ' title';
+      html += '<div class="' + cls + '">' + O.icoStr(esc(ln).replace(/^▎/, ''), 12) + '</div>';
     });
     html += '</div>';
     return html;

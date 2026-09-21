@@ -6,6 +6,12 @@
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.VIBRATE" />
+    <!-- رصد پس‌زمینه (v0.13.0): سیگنال بدون باز کردن اپ -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    <!-- پایداری رصد در Doze — دیالوگ رسمی خود اندروید، فقط با درخواست کاربر -->
+    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
     <!-- فقط برای ذخیرهٔ خروجی ژورنال در اندروید ۸ و قدیمی‌تر؛ از ۱۰ به بعد MediaStore بدون مجوز است -->
     <uses-permission
         android:name="android.permission.WRITE_EXTERNAL_STORAGE"
@@ -33,6 +39,27 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <!-- رصد پس‌زمینه: WebView بی‌سر + زمان‌بندی نیتیو چرخه‌های تحلیل.
+             نوع specialUse: رصد پیوستهٔ بازار به درخواست کاربر (بدون محدودیت
+             زمانی dataSync در اندروید ۱۴+) — اپ خارج از مارکت توزیع می‌شود. -->
+        <service
+            android:name=".OdinService"
+            android:exported="false"
+            android:foregroundServiceType="specialUse">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="user_requested_continuous_market_signal_monitoring" />
+        </service>
+
+        <!-- بازگشت رصد بعد از ریستارت گوشی (اگر کاربر فعال کرده باشد) -->
+        <receiver
+            android:name=".BootReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+            </intent-filter>
+        </receiver>
     </application>
 
 </manifest>

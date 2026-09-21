@@ -62,7 +62,7 @@ public class MainActivity extends Activity {
         web.setVerticalScrollBarEnabled(false);
         web.setHapticFeedbackEnabled(false);
 
-        web.addJavascriptInterface(new Bridge(this, web), "ODINNative");
+        web.addJavascriptInterface(new Bridge(this, this, web), "ODINNative");
 
         web.setWebViewClient(new WebViewClient() {
             @Override
@@ -94,8 +94,9 @@ public class MainActivity extends Activity {
     protected void onPause() {
         super.onPause();
         if (web != null) {
-            // تایمرهای JS در پس‌زمینه متوقف شوند — تازه‌سازی خودکار و ساعت
-            // فقط وقتی اپ باز است کار می‌کنند (بدون مصرف باتری/اینترنت پنهان)
+            // تایمرهای JSِ «رابط» در پس‌زمینه متوقف شوند (ساعت و شمارش معکوس
+            // فقط وقتی اپ باز است). چرخه‌های پس‌زمینه به تایمر JS وابسته نیستند:
+            // زمان‌بندی‌شان در OdinService نیتیو (Handler) است — v0.13.0.
             web.onPause();
             web.pauseTimers();
         }
