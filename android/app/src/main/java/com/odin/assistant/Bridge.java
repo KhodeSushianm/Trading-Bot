@@ -51,7 +51,7 @@ public class Bridge {
 
     private static final String UA =
             "Mozilla/5.0 (Linux; Android 13) AppleWebKit/537.36 (KHTML, like Gecko) "
-                    + "Chrome/126.0.0.0 Mobile Safari/537.36 ODINAssistant/0.13.0";
+                    + "Chrome/126.0.0.0 Mobile Safari/537.36 ODINAssistant/0.14.0";
 
     private final Context ctx;          // همیشه غیرnull (application context ترجیحاً)
     private final Activity act;         // در حالت سرویس null است
@@ -156,7 +156,7 @@ public class Bridge {
         try {
             return ctx.getPackageManager().getPackageInfo(ctx.getPackageName(), 0).versionName;
         } catch (Exception e) {
-            return "0.13.0";
+            return "0.14.0";
         }
     }
 
@@ -238,6 +238,35 @@ public class Bridge {
             i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
             ctx.startActivity(i);
         } catch (Exception ignored) {
+        }
+    }
+
+    // ── شناسهٔ دستگاه برای لایسنس (v0.14.0) ──────────────────────
+    /**
+     * شناسهٔ یکتای دستگاه = SHA-256("android:" + ANDROID_ID) — همان طرح
+     * src/license.py دسکتاپ (هم‌نوع، ولی دامنهٔ مقدارها جداست). ANDROID_ID در
+     * اندروید ۸+ به کلید امضای اپ گره خورده و بین نصب‌ها (با همان امضا)
+     * پایدار است. اگر در دسترس نبود، UUID تصادفی در prefs ماندگار می‌شود.
+     */
+    @JavascriptInterface
+    public String getDeviceId() {
+        try {
+            String aid = Settings.Secure.getString(
+                    ctx.getContentResolver(), Settings.Secure.ANDROID_ID);
+            if (aid == null || aid.trim().isEmpty()) {
+                aid = prefs.getString("device.fallback", "");
+                if (aid.isEmpty()) {
+                    aid = "fallback-" + java.util.UUID.randomUUID();
+                    prefs.edit().putString("device.fallback", aid).apply();
+                }
+            }
+            java.security.MessageDigest md = java.security.MessageDigest.getInstance("SHA-256");
+            byte[] d = md.digest(("android:" + aid).getBytes("UTF-8"));
+            StringBuilder sb = new StringBuilder(64);
+            for (byte b : d) sb.append(String.format("%02x", b));
+            return sb.toString();
+        } catch (Exception e) {
+            return "";
         }
     }
 

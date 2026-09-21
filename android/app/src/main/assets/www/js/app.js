@@ -29,8 +29,9 @@
   var S = {
     cfg: null, settings: null, storage: null, journal: null,
     state: null, stats: null, tab: 'home', busy: false,
-    version: '0.13.0', lastBack: 0,
-    onbStage: null,               // 'name' | 'bg' | null — مرحلهٔ خوش‌آمدگویی
+    version: '0.14.0', lastBack: 0,
+    deviceId: '', deviceCode: '', licensed: false,   // لایسنس (v0.14.0)
+    onbStage: null,               // 'license' | 'name' | 'bg' | null — مرحلهٔ خوش‌آمدگویی
     svcBusy: false, svcReady: false
   };
   O.S = S;
@@ -256,6 +257,8 @@
   //   اعلان سیگنال و خبر فوری همین‌جا انجام می‌شود.
   O.cycleCore = function (opts) {
     opts = opts || {};
+    // گیت لایسنس (v0.14.0) — بدون فعال‌سازی هیچ چرخه‌ای اجرا نمی‌شود
+    if (!S.licensed) return Promise.reject(new Error('not-activated'));
     var log = opts.log || function () { };
     var nowMs = Date.now();
     var prevNewsSnap = S.state ? S.state.newsSnap : null;
@@ -365,6 +368,13 @@
   O.runAnalysis = function (opts) {
     opts = opts || {};
     var silent = !!opts.silent;
+    if (!S.licensed) {
+      if (!silent) {
+        O.toast('برنامه فعال نشده است — اول لایسنس را وارد کن');
+        O.showActivation(function () { O.navigate(S.tab); });
+      }
+      return;
+    }
     if (S.busy) { if (!silent) O.toast('تحلیل قبلی هنوز در جریان است'); return; }
     S.busy = true;
     var btn = document.getElementById('btn-analyze');
@@ -414,6 +424,20 @@
     loadSettings();
     S.journal = new O.Journal(S.storage);
     try { S.version = (typeof ODINNative !== 'undefined' && ODINNative.getVersion()) || S.version; } catch (e) { }
+    // لایسنس (v0.14.0): سرویس بدون فعال‌سازی چرخه نمی‌زند — صادقانه اطلاع می‌دهد و می‌ایستد
+    try {
+      S.deviceId = (typeof ODINNative !== 'undefined' && ODINNative.getDeviceId)
+        ? (ODINNative.getDeviceId() || '') : '';
+    } catch (e) { S.deviceId = ''; }
+    S.deviceCode = S.deviceId ? O.deviceCodeFromId(S.deviceId) : '';
+    S.licensed = !!(S.deviceId && O.licIsActive(S.storage, S.deviceId));
+    if (!S.licensed) {
+      svcLog('سرویس متوقف شد — برنامه فعال‌سازی نشده است');
+      O.native.notifyOngoing('دستیار اودین — فعال‌سازی لازم است',
+        'برای شروع رصد بازار، اپ را باز کن و با کلید لایسنس فعالش کن');
+      O.native.stopBackground();
+      return;
+    }
     try {
       var raw = S.storage.get('state.last');
       if (raw) S.state = JSON.parse(raw);
@@ -431,6 +455,13 @@
     if (!O.SERVICE_MODE || !S.svcReady || S.svcBusy) return;
     try {
       loadSettings();                            // تنظیمات تازه (کاربر شاید در UI تغییر داده)
+      if (!S.licensed || !O.licIsActive(S.storage, S.deviceId)) {   // غیرفعال شد؟
+        S.licensed = false;
+        O.native.notifyOngoing('دستیار اودین — فعال‌سازی لازم است',
+          'رصد متوقف شد؛ اپ را باز کن و با کلید لایسنس فعالش کن');
+        O.native.stopBackground();
+        return;
+      }
       var nextMin = Math.max(5, Math.min(240, S.settings.auto_refresh_min || 15));
 
       if (S.settings.background_enabled === false) {   // از UI خاموش شده
@@ -537,6 +568,24 @@
       if (act === 'journal-save') { saveJournalFile(); return; }
       if (act === 'ignore-battery') { O.native.requestIgnoreBattery(); setTimeout(function () { O.navigate('settings'); }, 1200); return; }
       if (act === 'open-notif-settings') { O.native.openNotificationSettings(); return; }
+      if (act === 'activate-license') { O.showActivation(function () { O.navigate('settings'); }); return; }
+      if (act === 'copy-device-code') { copyDeviceCode(); return; }
+      if (act === 'deactivate-license') {
+        O.modal(O.ico('seal', 17, 'c-red') + ' غیرفعال‌سازی؟',
+          'لایسنس از این دستگاه حذف می‌شود و تحلیل/رصد متوقف می‌شود. برای فعال‌سازی دوباره به کلید لایسنس همین دستگاه نیاز داری.', [
+          {
+            label: 'غیرفعال کن', cls: 'red', fn: function () {
+              O.licDeactivate(S.storage);
+              S.licensed = false;
+              O.native.stopBackground();
+              O.navigate('settings');
+              O.toast('برنامه غیرفعال شد');
+            }
+          },
+          { label: 'بی‌خیال', cls: 'ghost' }
+        ]);
+        return;
+      }
       if (act === 'clear-cache') {
         S.storage.del('cache.calendar');
         S.storage.del('state.last');
@@ -722,9 +771,61 @@
       [{
         label: 'متوجه شدم — بزن بریم', cls: 'primary', fn: function () {
           S.storage.set('disclaimer.ok', '1');
-          askName();
+          askLicense();
         }
       }]);
+  }
+
+  // v0.14.0 — فعال‌سازی لایسنس: کد دستگاه → سازنده → کلید اختصاصی
+  function askLicense() {
+    if (S.licensed) { askName(); return; }
+    O.showActivation(function () { askName(); });
+  }
+
+  O.showActivation = function (onDone) {
+    S.onbStage = 'license';
+    O.modal(O.ico('seal', 18) + ' فعال‌سازی برنامه',
+      '<div class="set-sub" style="margin-bottom:10px">«کد دستگاه» زیر را برای سازنده (Sushian Khoshkhani) بفرست و کلید اختصاصی‌ات را دریافت کن. هر کلید فقط روی همان دستگاه کار می‌کند.</div>' +
+      '<input id="onb-code" class="text-input" readonly value="' + O.esc(S.deviceCode || '') + '" style="letter-spacing:2px;text-align:center;font-weight:700;direction:ltr">' +
+      '<input id="onb-key" class="text-input" placeholder="XXXX-XXXX-XXXX-XXXX" maxlength="24" autocomplete="off" autocorrect="off" spellcheck="false" style="margin-top:8px;text-align:center;letter-spacing:1px;direction:ltr">' +
+      '<div id="onb-err" class="hint" style="color:var(--red-text);min-height:20px;margin-top:6px"></div>',
+      [
+        { label: 'کپی کد', cls: 'ghost', keepOpen: true, fn: function () { copyDeviceCode(); } },
+        {
+          label: 'ارسال', cls: 'ghost', keepOpen: true, fn: function () {
+            if (!O.native.share('کد دستگاه — دستیار اودین',
+              'کد دستگاه برای فعال‌سازی دستیار اودین:\n' + S.deviceCode)) copyDeviceCode();
+          }
+        },
+        {
+          label: 'فعال‌سازی', cls: 'primary', keepOpen: true, fn: function () {
+            var keyEl = document.getElementById('onb-key');
+            var errEl = document.getElementById('onb-err');
+            var key = keyEl ? String(keyEl.value || '') : '';
+            if (S.deviceId && O.validateKey(key, S.deviceCode) &&
+                O.licActivate(S.storage, key, S.deviceId, S.settings.user_name)) {
+              S.licensed = true;
+              S.onbStage = null;
+              closeModal();
+              O.toast('برنامه فعال شد');
+              if (onDone) onDone();
+            } else if (errEl) {
+              errEl.textContent = !S.deviceId
+                ? 'شناسهٔ دستگاه در دسترس نیست — اپ را دوباره باز کن'
+                : 'این کلید نامعتبر است یا برای دستگاه دیگری ساخته شده';
+            }
+          }
+        }
+      ]);
+  };
+
+  function copyDeviceCode() {
+    var fallback = function () { O.toast('کد دستگاه (نگه‌دار): ' + S.deviceCode); };
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(S.deviceCode).then(function () { O.toast('کد دستگاه کپی شد'); }, fallback);
+      } else fallback();
+    } catch (e) { fallback(); }
   }
 
   // v0.13.0 — پرسیدن نام در اولین اجرا (هدر «سلام {نام}!» می‌شود)
@@ -803,9 +904,18 @@
     S.storage = O.makeStorage();
     loadSettings();
     S.journal = new O.Journal(S.storage);
-    try { S.version = (typeof ODINNative !== 'undefined' && ODINNative.getVersion()) || '0.13.0'; } catch (e) { }
+    try { S.version = (typeof ODINNative !== 'undefined' && ODINNative.getVersion()) || '0.14.0'; } catch (e) { }
     document.getElementById('splash-ver').textContent = 'v' + S.version + ' · android';
     applyUserName();
+
+    // لایسنس و قفل دستگاه (v0.14.0)
+    try {
+      S.deviceId = (typeof ODINNative !== 'undefined' && ODINNative.getDeviceId)
+        ? (ODINNative.getDeviceId() || '') : '';
+    } catch (e) { S.deviceId = ''; }
+    if (!S.deviceId) S.deviceId = 'deadbeefcafebabedeadbeefcafebabe';  // حالت مرورگر/توسعه
+    S.deviceCode = O.deviceCodeFromId(S.deviceId);
+    S.licensed = O.licIsActive(S.storage, S.deviceId);
 
     // بارگذاری آخرین وضعیت (رندر فوری بدون مصرف اینترنت)
     try {
@@ -827,7 +937,7 @@
       document.getElementById('app').classList.remove('hidden');
       setTimeout(function () { splash.style.display = 'none'; }, 500);
       if (S.storage.get('disclaimer.ok') !== '1') showDisclaimer();
-      else askName();
+      else askLicense();
     }, 1500);
   }
 

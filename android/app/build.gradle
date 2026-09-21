@@ -16,8 +16,8 @@ android {
         applicationId "com.odin.assistant"
         minSdk 24
         targetSdk 34
-        versionCode 1300
-        versionName "0.13.0"
+        versionCode 1400
+        versionName "0.14.0"
         resourceConfigurations += ["fa"]
     }
 

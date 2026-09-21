@@ -20,7 +20,8 @@ const path = require('path');
 const WWW = path.join(__dirname, '..', '..', 'android', 'app', 'src', 'main', 'assets', 'www', 'js');
 
 const prefs = new Map();
-const calls = { notify: [], ongoing: [], cycleDone: [] };
+const calls = { notify: [], ongoing: [], cycleDone: [], stopBg: 0 };
+const DEVICE_ID = 'ab'.repeat(32);   // مثل خروجی Bridge.getDeviceId
 
 const ctx = {
   console, setTimeout, clearTimeout, setInterval, clearInterval,
@@ -35,11 +36,13 @@ ctx.ODINNative = {
   getVersion: () => '0.13.0',
   notify: (t, b) => calls.notify.push([t, b]),
   notifyOngoing: (t, b) => calls.ongoing.push([t, b]),
-  bgCycleDone: m => calls.cycleDone.push(m)
+  bgCycleDone: m => calls.cycleDone.push(m),
+  stopBackground: () => { calls.stopBg++; },
+  getDeviceId: () => DEVICE_ID
   // عمداً بدون http → لایهٔ داده به fetch نیتیوِ Node می‌افتد (مثل گوشی بدون Bridge نبودن)
 };
 vm.createContext(ctx);
-for (const f of ['md5.js', 'fa.js', 'icons.js', 'config.js', 'indicators.js', 'session.js',
+for (const f of ['md5.js', 'fa.js', 'icons.js', 'license.js', 'config.js', 'indicators.js', 'session.js',
   'technical.js', 'calendar.js', 'news.js', 'judge.js', 'journal.js', 'data.js',
   'briefing.js', 'ui.js', 'app.js']) {
   vm.runInContext(fs.readFileSync(path.join(WWW, f), 'utf8'), ctx, { filename: f });
@@ -62,7 +65,24 @@ function waitFor(cond, timeoutMs, what) {
 const realMarketStatus = O.marketStatus;
 
 (async function main() {
-  O.svcStart();   // فاز ۰: آماده‌سازی + اولین tick با وضعیت واقعی بازار
+  // ── فاز ۰ (v0.14.0): بدون لایسنس، سرویس نباید چرخه بزند ──
+  O.svcStart();
+  await new Promise(r => setTimeout(r, 200));
+  assert.strictEqual(calls.cycleDone.length, 0, 'unlicensed service must not run cycles');
+  assert(calls.stopBg === 1, 'unlicensed service must stop itself');
+  assert(calls.ongoing.some(([t, b]) => (t + ' ' + b).includes('فعال‌سازی')), 'unlicensed ongoing must ask for activation');
+  console.log('  ✅ فاز ۰ — بدون لایسنس: سرویس صادقانه می‌ایستد (stopBackground + اعلان فعال‌سازی)');
+
+  // فعال‌سازی با کلید درست (همان طرح HMAC پایتون)
+  const code = O.deviceCodeFromId(DEVICE_ID);
+  const key = O.licenseKeyFor(code);
+  prefs.set('license.dat', JSON.stringify({
+    license_key: O.normalizeCode(key), device_id: DEVICE_ID,
+    user_name: 'تستر', activated_at: new Date().toISOString(), version: '2.0'
+  }));
+  calls.stopBg = 0;
+
+  O.svcStart();   // فاز ۱: آماده‌سازی + اولین tick با وضعیت واقعی بازار
 
   const st = realMarketStatus(new Date());
   if (!st.open) {

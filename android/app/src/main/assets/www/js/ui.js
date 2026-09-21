@@ -633,6 +633,18 @@
       '<input class="text-input" data-set="user_name" value="' + esc(set.user_name) + '" maxlength="24">' +
       '</div>';
 
+    // لایسنس و قفل دستگاه (v0.14.0)
+    html += '<div class="card"><div class="section-title" style="margin-top:0">' + ct('seal', 'لایسنس و قفل دستگاه', 13) + '</div>' +
+      (S.licensed
+        ? '<div class="set-row"><div><div class="set-label">' + O.ico('check-circle', 13, 'c-green') + ' فعال‌سازی شده</div><div class="set-sub">این لایسنس به همین دستگاه قفل است</div></div>' +
+          '<button class="btn ghost sm" data-action="deactivate-license">غیرفعال‌سازی</button></div>'
+        : '<div class="set-row"><div><div class="set-label">' + O.ico('alert', 13, 'c-amber') + ' فعال‌سازی نشده</div><div class="set-sub">تا فعال‌سازی، تحلیل و رصد اجرا نمی‌شود</div></div>' +
+          '<button class="btn primary sm" data-action="activate-license">فعال‌سازی</button></div>') +
+      '<div class="set-row"><div><div class="set-label">کد دستگاه</div>' +
+      '<div class="set-sub mono" dir="ltr" style="letter-spacing:1.5px;font-weight:700;text-align:right">' + esc(S.deviceCode || '—') + '</div></div>' +
+      '<button class="btn ghost sm" data-action="copy-device-code">' + O.ico('copy', 12) + ' کپی</button></div>' +
+      '</div>';
+
     // رصد پس‌زمینه — سیگنال بدون باز کردن اپ (v0.13.0)
     html += '<div class="card"><div class="section-title" style="margin-top:0">' + ct('activity', 'رصد پس‌زمینه', 13) + '</div>' +
       '<div class="set-row"><div><div class="set-label">رصد بازار بدون باز کردن اپ</div>' +
@@ -687,7 +699,7 @@
       '</div>';
 
     html += '<div class="card ink"><div class="ink-title">دربارهٔ دستیار اودین</div>' +
-      '<div class="ink-cap" style="margin-top:6px;line-height:2.2">نسخهٔ اندروید ' + O.faNum(S.version || '0.13.0') + ' — همراه نسخهٔ ویندوز (0.8.1)<br>' +
+      '<div class="ink-cap" style="margin-top:6px;line-height:2.2">نسخهٔ اندروید ' + O.faNum(S.version || '0.14.0') + ' — همراه نسخهٔ ویندوز (0.8.1)<br>' +
       O.ico('clock', 11) + ' همهٔ ساعت‌های اپ به وقت تهران است (منطق داخلی موتور UTC — هماهنگ با نسخهٔ دسکتاپ).<br>' +
       O.ico('seal', 11) + ' <b style="color:#fff">غیرخودکار:</b> این اپ هیچ معامله‌ای انجام نمی‌دهد و به هیچ بروکری وصل نیست.</div>' +
       '<button class="btn ghost sm" data-tab="about" style="margin-top:10px;width:100%">' + O.ico('info', 13) + ' دربارهٔ ما، حق نشر و اصالت برنامه ' + O.ico('chevron-left', 12) + '</button></div>';
@@ -705,7 +717,7 @@
 
   // ── دربارهٔ ما (حق نشر، سازنده، اصالت امضا) ─────────────────
   O.renderAbout = function (S) {
-    var ver = S.version || '0.13.0';
+    var ver = S.version || '0.14.0';
     var html = '<div class="action-row"><button class="btn ghost" data-tab="settings">' + O.ico('chevron-right', 14) + ' بازگشت</button></div>' +
       pt('info', 'دربارهٔ ما') +
       '<div class="page-sub">سازنده، حق نشر و راهِ تشخیص نسخهٔ اصلی</div>';
