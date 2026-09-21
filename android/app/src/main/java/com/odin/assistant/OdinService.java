@@ -62,7 +62,7 @@ public class OdinService extends Service {
         RUNNING = true;
         Notif.ensureChannels(this);
         startForeground(Notif.MONITOR_ID,
-                Notif.monitor(this, "رصد بازار — دستیار اودین", "در حال آماده‌سازی موتور تحلیل..."));
+                Notif.monitor(this, "رصد بازار — ODIN ASSISTANT", "در حال آماده‌سازی موتور تحلیل..."));
 
         web = new WebView(getApplicationContext());
         WebSettings s = web.getSettings();

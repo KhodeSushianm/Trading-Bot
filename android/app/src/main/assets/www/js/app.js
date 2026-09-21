@@ -29,7 +29,7 @@
   var S = {
     cfg: null, settings: null, storage: null, journal: null,
     state: null, stats: null, tab: 'home', busy: false,
-    version: '0.14.0', lastBack: 0,
+    version: '0.14.1', lastBack: 0,
     deviceId: '', deviceCode: '', licensed: false,   // لایسنس (v0.14.0)
     onbStage: null,               // 'license' | 'name' | 'bg' | null — مرحلهٔ خوش‌آمدگویی
     svcBusy: false, svcReady: false
@@ -433,7 +433,7 @@
     S.licensed = !!(S.deviceId && O.licIsActive(S.storage, S.deviceId));
     if (!S.licensed) {
       svcLog('سرویس متوقف شد — برنامه فعال‌سازی نشده است');
-      O.native.notifyOngoing('دستیار اودین — فعال‌سازی لازم است',
+      O.native.notifyOngoing('ODIN ASSISTANT — فعال‌سازی لازم است',
         'برای شروع رصد بازار، اپ را باز کن و با کلید لایسنس فعالش کن');
       O.native.stopBackground();
       return;
@@ -457,7 +457,7 @@
       loadSettings();                            // تنظیمات تازه (کاربر شاید در UI تغییر داده)
       if (!S.licensed || !O.licIsActive(S.storage, S.deviceId)) {   // غیرفعال شد؟
         S.licensed = false;
-        O.native.notifyOngoing('دستیار اودین — فعال‌سازی لازم است',
+        O.native.notifyOngoing('ODIN ASSISTANT — فعال‌سازی لازم است',
           'رصد متوقف شد؛ اپ را باز کن و با کلید لایسنس فعالش کن');
         O.native.stopBackground();
         return;
@@ -471,13 +471,13 @@
       }
       var stt = O.marketStatus(new Date());
       if (!stt.open) {
-        O.native.notifyOngoing('رصد بازار — دستیار اودین',
+        O.native.notifyOngoing('رصد بازار — ODIN ASSISTANT',
           'بازار بسته است (' + O.noEmoji(stt.reason_fa) + ') — بررسی هر ۳۰ دقیقه');
         O.native.bgCycleDone(30);
         return;
       }
       if (S.settings.judge_enabled === false) {
-        O.native.notifyOngoing('رصد بازار — دستیار اودین', 'داور در تنظیمات خاموش است — سیگنالی صادر نمی‌شود');
+        O.native.notifyOngoing('رصد بازار — ODIN ASSISTANT', 'داور در تنظیمات خاموش است — سیگنالی صادر نمی‌شود');
         O.native.bgCycleDone(nextMin);
         return;
       }
@@ -491,7 +491,7 @@
             : 'سیگنال تازه‌ای صادر نشد') +
           (res.resolved.length ? ' · ' + O.faNum(res.resolved.length) + ' نتیجهٔ ژورنال بسته شد' : '') +
           ' · چرخهٔ بعدی تا ' + O.faNum(nextMin) + ' دقیقه';
-        O.native.notifyOngoing('رصد بازار — دستیار اودین', summary);
+        O.native.notifyOngoing('رصد بازار — ODIN ASSISTANT', summary);
         O.native.bgCycleDone(nextMin);
       }).catch(function (e) {
         S.svcBusy = false;
@@ -698,8 +698,8 @@
   function shareBriefing() {
     if (!S.state) { O.toast('اول یک تحلیل اجرا کن'); return; }
     var lines = O.renderBriefing(S.state, S.cfg, S.state.ranAt);
-    var txt = lines.join('\n') + '\n\n— دستیار اودین v' + S.version + ' (اندروید) · ساعت‌ها به وقت تهران';
-    if (!O.native.share('بریفینگ دستیار اودین', txt)) {
+    var txt = lines.join('\n') + '\n\n— ODIN ASSISTANT v' + S.version + ' (اندروید) · ساعت‌ها به وقت تهران';
+    if (!O.native.share('بریفینگ ODIN ASSISTANT', txt)) {
       if (navigator.clipboard && navigator.clipboard.writeText) {
         navigator.clipboard.writeText(txt).then(function () { O.toast('در کلیپ‌بورد کپی شد'); }).catch(function () { O.toast('اشتراک‌گذاری ممکن نیست'); });
       } else O.toast('اشتراک‌گذاری ممکن نیست');
@@ -793,8 +793,8 @@
         { label: 'کپی کد', cls: 'ghost', keepOpen: true, fn: function () { copyDeviceCode(); } },
         {
           label: 'ارسال', cls: 'ghost', keepOpen: true, fn: function () {
-            if (!O.native.share('کد دستگاه — دستیار اودین',
-              'کد دستگاه برای فعال‌سازی دستیار اودین:\n' + S.deviceCode)) copyDeviceCode();
+            if (!O.native.share('کد دستگاه — ODIN ASSISTANT',
+              'کد دستگاه برای فعال‌سازی ODIN ASSISTANT:\n' + S.deviceCode)) copyDeviceCode();
           }
         },
         {
@@ -904,7 +904,7 @@
     S.storage = O.makeStorage();
     loadSettings();
     S.journal = new O.Journal(S.storage);
-    try { S.version = (typeof ODINNative !== 'undefined' && ODINNative.getVersion()) || '0.14.0'; } catch (e) { }
+    try { S.version = (typeof ODINNative !== 'undefined' && ODINNative.getVersion()) || '0.14.1'; } catch (e) { }
     document.getElementById('splash-ver').textContent = 'v' + S.version + ' · android';
     applyUserName();
 

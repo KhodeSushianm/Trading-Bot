@@ -1,5 +1,5 @@
 /* ══════════════════════════════════════════════════════════════
-   دستیار اودین — تم روشنِ شیشه‌ای برای موبایل
+   ODIN ASSISTANT — تم روشنِ شیشه‌ای برای موبایل
    دقیقاً همان توکن‌های src/ui/theme.py نسخهٔ دسکتاپ:
    مونوکروم (سیاه/سفید/خاکستری) + فقط سبز (خرید) و قرمز (فروش/وتو)
    ══════════════════════════════════════════════════════════════ */
@@ -463,6 +463,12 @@ body {
 }
 @keyframes splashCard { from { opacity: 0; transform: scale(.9) translateY(14px); } }
 .splash-logo { margin-bottom: 14px; opacity: .95; }
+.splash-brand {
+  color: rgba(255,255,255,.65); font-size: 10.5px; font-weight: 700;
+  letter-spacing: 3.5px; margin-bottom: 8px;
+  animation: brandIn .7s cubic-bezier(.2,.9,.3,1.1) .25s backwards;
+}
+@keyframes brandIn { from { opacity: 0; letter-spacing: 10px; } }
 .splash-name { color: var(--on-ink); font-size: 23px; font-weight: 700; }
 .splash-sub { color: rgba(255,255,255,.6); font-size: 11.5px; margin-top: 6px; }
 .splash-ver { color: rgba(255,255,255,.45); font-size: 10px; margin-top: 18px; direction: ltr; }

@@ -36,7 +36,7 @@ public final class Notif {
         try {
             NotificationChannel sig = new NotificationChannel(
                     CH_SIGNALS, "سیگنال‌ها و اخبار", NotificationManager.IMPORTANCE_HIGH);
-            sig.setDescription("اعلان سیگنال جدید و خبر فوری — دستیار اودین");
+            sig.setDescription("اعلان سیگنال جدید و خبر فوری — ODIN ASSISTANT");
             sig.enableVibration(true);
             sig.setVibrationPattern(VIB);
             nm.createNotificationChannel(sig);

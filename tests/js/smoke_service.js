@@ -119,14 +119,15 @@ const realMarketStatus = O.marketStatus;
   const sigs = (st2.judgments || []).filter(j => j.signal).length;
   console.log(`  ✅ فاز ۲ — چرخهٔ کامل زنده: ${st2.analyses.length} نماد تحلیل، ${sigs} سیگنال، cycleDone(${nextMin})`);
 
-  // busy-guard: وسط یک چرخهٔ در جریان، فراخوانی دوباره باید بی‌اثر باشد
+  // busy-guard (قطعی): حین یک چرخهٔ در جریان، تیک دوباره باید بی‌اثر باشد
+  O.svcTick();                                  // چرخهٔ تازه شروع می‌شود
+  assert(ctx.ODIN.S.svcBusy === true, 'a cycle must be running now');
   const before = calls.cycleDone.length;
-  O.svcTick();                    // چرخهٔ تازه شروع می‌شود (svcBusy=true)
-  O.svcTick(); O.svcTick();       // باید رد شوند
-  await new Promise(r => setTimeout(r, 400));
-  assert.strictEqual(calls.cycleDone.length, before,
-    'double tick must be ignored while a cycle is running');
-  console.log('  ✅ busy-guard — تیک دوباره وسط چرخه بی‌اثر است');
+  O.svcTick(); O.svcTick();                     // باید رد شوند (svcBusy)
+  await waitFor(() => calls.cycleDone.length > before, 240000, 'guarded cycle done');
+  assert.strictEqual(calls.cycleDone.length, before + 1,
+    'exactly one cycle must complete despite triple tick');
+  console.log('  ✅ busy-guard — تیک دوباره وسط چرخه بی‌اثر است (دقیقاً یک چرخه)');
 
   console.log('SMOKE SERVICE OK — رصد پس‌زمینه end-to-end سالم است');
   process.exit(0);                // چرخهٔ معلقِ busy-guard منتظر نمی‌مانیم

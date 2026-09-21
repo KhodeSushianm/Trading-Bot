@@ -36,11 +36,11 @@ VSVersionInfo(
     kids=[
         StringFileInfo([
             StringTable(u'040904B0', [
-                StringStruct(u'CompanyName', u'KhodeSushianm'),
+                StringStruct(u'CompanyName', u'Sushian Khoshkhani'),
                 StringStruct(u'FileDescription', u'ODIN Assistant - forex analysis and signal assistant'),
                 StringStruct(u'FileVersion', u'{ver}'),
                 StringStruct(u'InternalName', u'ODINAssistant'),
-                StringStruct(u'LegalCopyright', u'KhodeSushianm'),
+                StringStruct(u'LegalCopyright', u'\u00a9 2026 Sushian Khoshkhani \u2014 All rights reserved'),
                 StringStruct(u'OriginalFilename', u'ODINAssistant.exe'),
                 StringStruct(u'ProductName', u'ODIN Assistant'),
                 StringStruct(u'ProductVersion', u'{ver}'),

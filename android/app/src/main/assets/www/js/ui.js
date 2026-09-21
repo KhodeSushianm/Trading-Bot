@@ -698,8 +698,8 @@
       '<button class="btn ghost sm" data-action="reset-settings">بازنشانی</button></div>' +
       '</div>';
 
-    html += '<div class="card ink"><div class="ink-title">دربارهٔ دستیار اودین</div>' +
-      '<div class="ink-cap" style="margin-top:6px;line-height:2.2">نسخهٔ اندروید ' + O.faNum(S.version || '0.14.0') + ' — همراه نسخهٔ ویندوز (0.8.1)<br>' +
+    html += '<div class="card ink"><div class="ink-title">دربارهٔ ODIN ASSISTANT</div>' +
+      '<div class="ink-cap" style="margin-top:6px;line-height:2.2">نسخهٔ اندروید ' + O.faNum(S.version || '0.14.1') + ' — همراه نسخهٔ ویندوز (0.8.1)<br>' +
       O.ico('clock', 11) + ' همهٔ ساعت‌های اپ به وقت تهران است (منطق داخلی موتور UTC — هماهنگ با نسخهٔ دسکتاپ).<br>' +
       O.ico('seal', 11) + ' <b style="color:#fff">غیرخودکار:</b> این اپ هیچ معامله‌ای انجام نمی‌دهد و به هیچ بروکری وصل نیست.</div>' +
       '<button class="btn ghost sm" data-tab="about" style="margin-top:10px;width:100%">' + O.ico('info', 13) + ' دربارهٔ ما، حق نشر و اصالت برنامه ' + O.ico('chevron-left', 12) + '</button></div>';
@@ -717,7 +717,7 @@
 
   // ── دربارهٔ ما (حق نشر، سازنده، اصالت امضا) ─────────────────
   O.renderAbout = function (S) {
-    var ver = S.version || '0.14.0';
+    var ver = S.version || '0.14.1';
     var html = '<div class="action-row"><button class="btn ghost" data-tab="settings">' + O.ico('chevron-right', 14) + ' بازگشت</button></div>' +
       pt('info', 'دربارهٔ ما') +
       '<div class="page-sub">سازنده، حق نشر و راهِ تشخیص نسخهٔ اصلی</div>';
@@ -727,8 +727,8 @@
       '<svg viewBox="0 0 48 48" width="56" height="56" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" aria-hidden="true">' +
       '<path d="M24 4v8M24 36v8M8 24H4M44 24h-4"/><circle cx="24" cy="24" r="10"/>' +
       '<path d="M24 14a10 10 0 0 1 0 20" fill="#fff" stroke="none"/></svg>' +
-      '<div style="font-size:17px;font-weight:800;color:#fff;margin-top:10px">دستیار اودین</div>' +
-      '<div class="ink-cap" style="margin-top:4px">ODIN Assistant — نسخهٔ اندروید ' + O.faNum(ver) + '</div>' +
+      '<div style="font-size:17px;font-weight:800;color:#fff;margin-top:10px" dir="ltr">ODIN ASSISTANT</div>' +
+      '<div class="ink-cap" style="margin-top:4px"><span dir="ltr">ODIN ASSISTANT</span> — نسخهٔ اندروید ' + O.faNum(ver) + '</div>' +
       '<div style="margin-top:12px;padding-top:12px;border-top:1px solid rgba(255,255,255,.14);font-size:12.5px;color:rgba(255,255,255,.85)">' +
       'سازنده و توسعه‌دهنده: <b style="color:#fff">Sushian Khoshkhani</b></div>' +
       '</div>';

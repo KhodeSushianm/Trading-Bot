@@ -21,7 +21,7 @@
 
 #define MyAppName      "ODIN Assistant"
 #define MyAppExeName   "ODINAssistant.exe"
-#define MyAppPublisher "KhodeSushianm"
+#define MyAppPublisher "Sushian Khoshkhani"
 #define MyAppURL       "https://github.com/KhodeSushianm/Trading-Bot"
 #define MyAppID        "{74e8ad44-fe2e-467e-8c97-7d6aac62d2d5}"
 
