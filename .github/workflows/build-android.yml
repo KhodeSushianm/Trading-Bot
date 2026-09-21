@@ -1,0 +1,82 @@
+name: Build Android APK
+
+on:
+  push:
+    branches: [ "android" ]
+    tags:
+      - 'v*'
+  pull_request:
+    branches: [ "android" ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.10'
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+        # نصب ابزارهای مورد نیاز برای بیلد اندروید (Buildozer)
+        sudo apt-get update
+        sudo apt-get install -y git zip unzip openjdk-17-jdk autoconf automake build-essential libssl-dev libffi-dev cmake pkg-config libtinfo5 libncursesw5-dev xclip xsel
+        pip install buildozer cython==0.29.37
+
+    - name: Build APK with Buildozer
+      run: |
+        cd android
+        # اطمینان از وجود فایل buildozer.spec
+        if [ ! -f buildozer.spec ]; then
+          echo "خطا: فایل buildozer.spec پیدا نشد!"
+          exit 1
+        fi
+        # اجرای بیلد
+        buildozer -v android debug
+        
+    - name: Locate APK
+      id: locate_apk
+      run: |
+        cd android
+        APK_PATH=$(find bin -name "*.apk" -type f | head -n 1)
+        if [ -z "$APK_PATH" ]; then
+          echo "خطا: فایل APK ساخته نشد!"
+          exit 1
+        fi
+        echo "apk_path=$APK_PATH" >> $GITHUB_OUTPUT
+        echo "APK found at: $APK_PATH"
+        cp "$APK_PATH" ./app-debug.apk
+
+    - name: Create Release
+      if: startsWith(github.ref, 'refs/tags/')
+      uses: softprops/action-gh-release@v1
+      with:
+        files: ./android/app-debug.apk
+        body: |
+          🚀 **نسخه جدید اندروید منتشر شد!**
+          
+          ### تغییرات:
+          - قفل سخت‌افزاری (Device Locking) فعال شد.
+          - سیستم لایسنس جدید برای جلوگیری از کپی غیرمجاز.
+          - بهبود پایداری و رفع باگ‌ها.
+          
+          ⚠️ **توجه:** این نسخه فقط روی دستگاهی که لایسنس برای آن صادر شده کار می‌کند.
+        draft: false
+        prerelease: false
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Upload Artifact (for PRs or non-tag pushes)
+      if: "!startsWith(github.ref, 'refs/tags/')"
+      uses: actions/upload-artifact@v4
+      with:
+        name: Odin-Android-Debug
+        path: ./android/app-debug.apk
+        retention-days: 5
