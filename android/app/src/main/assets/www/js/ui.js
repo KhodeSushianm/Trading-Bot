@@ -342,18 +342,24 @@
     return h + '</div>';
   }
 
+  /* کارت سیگنال — v0.21.0 به زبان بصری Aurora Glass 2.0 ارتقا یافت.
+   *
+   * ⚠️ تصمیم طراحی (مستند چون وسوسه‌انگیز است که اشتباه شود):
+   *   SignalCard دسکتاپ را «کامل» جایگزین نکردیم. کارت اندروید از قبل
+   *   اطلاعاتی داشت که دسکتاپ ندارد (scoreBar با نشانگر آستانه، جدول ۸ مدرک،
+   *   ATR، ریسک پیشنهادی، هشدار سیگنال تکراری). جایگزینیِ کامل = رگرسیون
+   *   اطلاعاتی. پس: ساختار ردیف‌های ۱..۵ از دسکتاپ گرفته شد (O.signalCard)
+   *   و بخش‌های غنی‌ترِ اندروید سر جایشان ماندند.
+   * آنچه حذف شد فقط «تکراری‌ها» بودند: dir-pill (→ چیپ جهت)، .levels
+   * (→ کاشی‌های sc-tiles با همان فاصلهٔ پیپ)، pill ریسک‌به‌ریوارد (→ ردیف ۳). */
   function signalCard(j, minScore, idx) {
     var s = j.signal;
-    var dirCls = s.direction === 'BUY' ? 'buy' : 'sell';
-    var dirTxt = O.ico('dot', 9) + ' سیگنال ' + (s.direction === 'BUY' ? 'خرید' : 'فروش');
     var id = 'ev-sig-' + idx;
     var h = '<div class="card sig-card">';
-    h += '<div class="sig-head"><div><span class="dir-pill ' + dirCls + '">' + dirTxt + '</span>' +
-      '<div style="font-size:14px;font-weight:700;margin-top:6px;direction:ltr;display:inline-block">' +
-      esc(s.symbol.length === 6 ? s.symbol.slice(0, 3) + '/' + s.symbol.slice(3) : s.symbol) + '</div> ' +
-      '<span class="card-sub">' + esc(s.fa_name) + '</span></div>' +
-      '<div style="text-align:left"><div style="font-size:13px"><span class="stars-row">' + O.starIcons(s.stars) + '</span></div>' +
-      '<div class="card-sub" style="margin-top:2px">' + O.faNum(s.score) + ' از ' + O.faNum(s.max_score) + '</div></div></div>';
+
+    // ردیف‌های ۱..۵ (چیپ جهت/ارسال/امتیاز، ستاره‌ها، جفت‌ارز، سشن، R:R،
+    // کاشی‌های ورود/SL/TP با فاصلهٔ پیپ، دلایل پارس‌شده) — همه از components.js
+    h += O.signalCard(s, { sub: true, showWarns: false });
 
     if (s._dup) {
       h += '<div class="reject-why" style="margin-top:8px">' + O.ico('repeat', 13) + ' ' + esc(s._dupWhy) + '</div>';
@@ -361,25 +367,30 @@
 
     h += scoreBar(j, minScore);
 
-    h += '<div class="levels">' +
-      '<div class="level-box"><div class="l-cap">' + O.ico('pin', 11) + ' ورود</div><div class="l-val">' + esc(O.fmtPrice(s.entry, s.pip)) + '</div><div class="l-sub">قیمت فعلی</div></div>' +
-      '<div class="level-box sl"><div class="l-cap">' + O.ico('stop-sign', 11, 'c-red') + ' حد ضرر</div><div class="l-val">' + esc(O.fmtPrice(s.sl, s.pip)) + '</div><div class="l-sub">' + esc(O.faPips(Math.abs(s.entry - s.sl), s.pip, s.is_gold)) + '</div></div>' +
-      '<div class="level-box tp"><div class="l-cap">' + O.ico('target', 11, 'c-green') + ' هدف</div><div class="l-val">' + esc(O.fmtPrice(s.tp, s.pip)) + '</div><div class="l-sub">' + esc(O.faPips(Math.abs(s.tp - s.entry), s.pip, s.is_gold)) + '</div></div>' +
-      '</div>';
-
     h += '<div style="margin-top:8px;display:flex;gap:6px;flex-wrap:wrap">' +
       '<button class="btn subtle" data-chart-sig="' + esc(s.symbol) + '"' +
       ' style="padding:5px 12px;font-size:10.5px">' + O.ico('chart-line', 12) + ' نمایش روی نمودار</button>' +
       '<button class="btn subtle" data-share-img="' + idx + '"' +
       ' style="padding:5px 12px;font-size:10.5px">' + O.ico('share', 12) + ' اشتراک تصویر</button></div>';
+
     h += '<div class="sym-meta" style="margin-top:8px">' +
-      '<span class="pill outline">' + O.ico('scale', 11) + ' ریسک به ریسک ۱:' + O.faRatio(s.rr) + '</span>' +
-      '<span class="pill outline">' + O.ico('wave', 11) + ' ATR: ' + esc(O.faPips(s.atr, s.pip, s.is_gold)) + '</span>' +
-      '<span class="pill outline">' + O.ico('coins', 11) + ' ریسک پیشنهادی: حداکثر ۱٪</span></div>';
+      O.chip('ATR: ' + O.faPips(s.atr, s.pip, s.is_gold), 'outline', { icon: 'wave', iconSize: 11 }) +
+      O.chip('ریسک پیشنهادی: حداکثر ۱٪', 'outline', { icon: 'coins', iconSize: 11 }) + '</div>';
 
     (s.warnings || []).forEach(function (w) { h += '<div class="warn-row">' + O.ico('alert', 12, 'c-amber') + ' ' + eico(w, 12) + '</div>'; });
 
     h += evidencesHtml(j, id);
+
+    // متن کامل سیگنال → کنسول‌کارت تیره با قرص زمان و دکمهٔ کپی
+    // (همتای «متن کامل» در SignalCard دسکتاپ)
+    var stamp = s.now ? O.faDateTeh(new Date(s.now)) : '';
+    h += '<button class="expand-toggle" data-expand="sigfull-' + idx + '">متن کامل سیگنال <span>' +
+      O.ico('chevron-down', 12) + '</span></button>' +
+      '<div class="expand-body closed" id="sigfull-' + idx + '" style="width:100%">' +
+      O.consoleCard({
+        id: 'sig-cc-' + idx, title: 'متن کامل سیگنال', sub: esc(s.symbol),
+        icon: 'news', text: s.text || '', stamp: stamp, placeholder: 'متنی نیست'
+      }) + '</div>';
 
     h += '<div class="card-sub" style="margin-top:10px">' + O.ico('clock', 11) + ' ' + esc(O.faDateTeh(new Date(s.now))) + ' تهران · ' +
       O.ico('chart-line', 11) + ' ' + eico(s.session_fa, 11) +
@@ -565,22 +576,31 @@
     }
 
     var o = stats.overall;
-    html += '<div class="card ink">' +
-      '<div class="card-row"><div class="ink-title">' + ct('chart-bar', 'کارنامهٔ کلی') + '</div>' +
-      '<span class="pill on-ink">باز: ' + O.faNum(stats.open_count) + '</span></div>' +
-      '<div class="ink-tiles">' +
-      '<div class="ink-tile"><div class="t-num">' + O.faNum(o.closed) + '</div><div class="t-cap">بسته‌شده</div></div>' +
-      '<div class="ink-tile"><div class="t-num" style="color:#7BE0B0">' + O.faNum(o.wins) + '</div><div class="t-cap">برد ' + O.ico('target', 10, 'c-green-lt') + '</div></div>' +
-      '<div class="ink-tile"><div class="t-num" style="color:#FF9A9A">' + O.faNum(o.losses) + '</div><div class="t-cap">باخت ' + O.ico('stop-sign', 10, 'c-red-lt') + '</div></div>' +
-      '<div class="ink-tile"><div class="t-num">' + O.faNum(o.expired) + '</div><div class="t-cap">منقضی ' + O.ico('hourglass', 10) + '</div></div>' +
-      '</div>' +
-      '<div class="ink-tiles" style="margin-top:8px">' +
-      '<div class="ink-tile"><div class="t-num">' + O.faPct(o.hit_rate) + '</div><div class="t-cap">نرخ برد (قطعی)</div></div>' +
-      '<div class="ink-tile"><div class="t-num">' + O.faPct(o.closed_win_rate) + '</div><div class="t-cap">نرخ برد محتاطانه</div></div>' +
-      '<div class="ink-tile"><div class="t-num">' + O.rFmt(o.avg_r) + '</div><div class="t-cap">میانگین R (انتظار)</div></div>' +
-      '</div>' +
-      '<div class="stat-defs">نرخ برد (قطعی) = برد ÷ (برد+باخت) · محتاطانه = برد ÷ کل بسته‌شده‌ها (منقضی «نبرد» شمرده می‌شود) · میانگین R = انتظار ریاضی هر سیگنال بسته. هر سه گزارش می‌شود تا عدد واحدی گمراه‌کننده نباشد.</div>' +
-      '</div>';
+    // v0.21.0 — ردیف کارت KPI (همتای «کارنامه: ردیف کارت KPI پارشده» در v0.20.0
+    // دسکتاپ). پیش‌تر همین اعداد داخل کاشی‌های یک کارت مشکی بودند و رنگ‌های
+    // سبز/قرمزِ روی‌سیاه «هاردکد» شده بودند (#7BE0B0/#FF9A9A) — یعنی دو مقدار
+    // رنگ موازی خارج از توکن‌های تم. حالا تُن از O.kpiCard می‌آید و رنگ از
+    // توکن‌های CSS، پس تست پاریتی تم آن‌ها را می‌پوشد.
+    html += O.sectionHeader('chart-bar', 'کارنامهٔ کلی',
+      'آمار دقت از ژورنال — نتیجهٔ هر سیگنال از کندل‌ها پیگیری شده است.',
+      O.chip('باز: ' + O.faNum(stats.open_count), 'ink'));
+
+    html += O.kpiRow([
+      { icon: 'check-circle', value: O.faNum(o.closed), label: 'بسته‌شده', tone: '' },
+      { icon: 'target', value: O.faNum(o.wins), label: 'برد', tone: 'green' },
+      { icon: 'stop-sign', value: O.faNum(o.losses), label: 'باخت', tone: 'red' },
+      { icon: 'hourglass', value: O.faNum(o.expired), label: 'منقضی', tone: 'amber' }
+    ]);
+    html += O.kpiRow([
+      { icon: 'chart-bar', value: O.faPct(o.hit_rate), label: 'نرخ برد (قطعی)', tone: 'brand' },
+      { icon: 'seal', value: O.faPct(o.closed_win_rate), label: 'نرخ برد محتاطانه', tone: '' },
+      { icon: 'scale', value: O.rFmt(o.avg_r), label: 'میانگین R (انتظار)', tone: (o.avg_r > 0 ? 'green' : (o.avg_r < 0 ? 'red' : '')) },
+      { icon: 'book', value: O.faNum(entries.length), label: 'کل ثبت‌های ژورنال', tone: '' }
+    ]);
+
+    html += '<div class="card"><div class="stat-defs">نرخ برد (قطعی) = برد ÷ (برد+باخت) · ' +
+      'محتاطانه = برد ÷ کل بسته‌شده‌ها (منقضی «نبرد» شمرده می‌شود) · ' +
+      'میانگین R = انتظار ریاضی هر سیگنال بسته. هر سه گزارش می‌شود تا عدد واحدی گمراه‌کننده نباشد.</div></div>';
 
     // هفتهٔ جاری در برابر قبل
     if (stats.this_week_key && stats.by_week[stats.this_week_key]) {
@@ -741,6 +761,7 @@
       '<div class="set-row"><div><div class="set-label">فاصلهٔ تازه‌سازی</div><div class="set-sub">هر چند دقیقه یک‌بار تحلیل تکرار شود (پس‌زمینه هم همین فاصله را دارد)</div></div>' +
       '<span class="stepper"><button data-step="auto_refresh_min:-1">−</button><span class="val">' + O.faNum(set.auto_refresh_min || 15) + ' دقیقه</span><button data-step="auto_refresh_min:1">+</button></span></div>' +
       '<div class="set-row"><div><div class="set-label">اعلان سیگنال جدید و خبر فوری ' + O.ico('bell', 12) + '</div><div class="set-sub">نوتیفیکیشن اندروید + لرزش هنگام صدور سیگنال تازه یا خبر فوری</div></div>' + switchHtml('notify_enabled', set.notify_enabled !== false) + '</div>' +
+      '<div class="set-row"><div><div class="set-label">انیمیشن‌ها ' + O.ico('wave', 12) + '</div><div class="set-sub">پس‌زمینهٔ شفق متحرک و حرکت ظریف کارت‌ها — خاموشش کنی همه‌چیز آنی می‌شود (باتری/تمرکز). همتای ui.animations در نسخهٔ ویندوز.</div></div>' + switchHtml('animations_enabled', set.animations_enabled !== false) + '</div>' +
       '</div>';
 
     html += '<div class="card"><div class="section-title" style="margin-top:0">' + ct('archive', 'داده‌ها', 13) + '</div>' +
@@ -751,7 +772,10 @@
       '</div>';
 
     html += '<div class="card ink"><div class="ink-title">دربارهٔ ODIN ASSISTANT</div>' +
-      '<div class="ink-cap" style="margin-top:6px;line-height:2.2">نسخهٔ اندروید ' + O.faNum(S.version || '0.19.0') + ' — همراه نسخهٔ ویندوز (0.8.1)<br>' +
+      // شمارهٔ نسخهٔ ویندوز عمداً نوشته نمی‌شود: هاردکدکردنش اینجا باعث شد
+      // «دربارهٔ ما» تا v0.20.1 هم «ویندوز (0.8.1)» نشان دهد. نسخهٔ اندروید
+      // از PackageManager می‌آید (که از src/app_paths.py مشتق است) و بس.
+      '<div class="ink-cap" style="margin-top:6px;line-height:2.2">نسخهٔ اندروید ' + O.faNum(S.version || 'dev') + ' — همراه نسخهٔ ویندوز<br>' +
       O.ico('clock', 11) + ' همهٔ ساعت‌های اپ به وقت تهران است (منطق داخلی موتور UTC — هماهنگ با نسخهٔ دسکتاپ).<br>' +
       O.ico('seal', 11) + ' <b style="color:#fff">غیرخودکار:</b> این اپ هیچ معامله‌ای انجام نمی‌دهد و به هیچ بروکری وصل نیست.</div>' +
       '<button class="btn ghost sm" data-tab="about" style="margin-top:10px;width:100%">' + O.ico('info', 13) + ' دربارهٔ ما، حق نشر و اصالت برنامه ' + O.ico('chevron-left', 12) + '</button></div>';
@@ -769,7 +793,7 @@
 
   // ── دربارهٔ ما (حق نشر، سازنده، اصالت امضا) ─────────────────
   O.renderAbout = function (S) {
-    var ver = S.version || '0.19.0';
+    var ver = S.version || 'dev';
     var html = '<div class="action-row"><button class="btn ghost" data-tab="settings">' + O.ico('chevron-right', 14) + ' بازگشت</button></div>' +
       pt('info', 'دربارهٔ ما') +
       '<div class="page-sub">سازنده، حق نشر و راهِ تشخیص نسخهٔ اصلی</div>';
@@ -923,14 +947,20 @@
       return html + '<div class="card"><div class="empty-state"><div class="e-ico">' + O.ico('sunrise', 40) + '</div><div class="e-t">اول تحلیل را اجرا کن</div><div class="e-s">بریفینگ از نتیجهٔ آخرین تحلیل ساخته می‌شود.</div></div></div>';
     }
     var lines = O.renderBriefing(S.state, S.cfg, S.state.ranAt);
-    html += '<div class="card">';
-    lines.forEach(function (ln) {
-      var cls = 'brief-line';
-      if (ln.indexOf('▎') === 0) cls += ' head';
-      else if (ln.indexOf('🌅') === 0) cls += ' title';
-      html += '<div class="' + cls + '">' + O.icoStr(esc(ln).replace(/^▎/, ''), 12) + '</div>';
+    // v0.21.0 — کنسول‌کارت تیره با قرص مهر زمان و دکمهٔ کپی، دقیقاً همتای
+    // «همهٔ صفحه‌های متنی → کنسول‌کارت» در v0.20.0 دسکتاپ.
+    // رنگ‌آمیزی ساختاری خطوط با O.consoleColorize (port از widgets.py).
+    // نشانگر «▎» سرِ خط‌ها حذف می‌شود چون consoleColorize خودش سرتیترها را
+    // با رنگ برند برجسته می‌کند (نقش همان نشانگر را دارد).
+    var text = lines.map(function (ln) { return String(ln).replace(/^▎/, ''); }).join('\n');
+    html += O.consoleCard({
+      id: 'briefing-cc',
+      title: 'بریفینگ',
+      sub: 'خلاصهٔ بامدادی بازار — به وقت تهران',
+      icon: 'sunrise',
+      text: text,
+      stamp: S.state && S.state.ranAt ? O.faDateTeh(new Date(S.state.ranAt)) : ''
     });
-    html += '</div>';
     return html;
   };
 })(typeof ODIN !== 'undefined' ? ODIN : (globalThis.ODIN = {}));

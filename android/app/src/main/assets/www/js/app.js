@@ -29,7 +29,7 @@
   var S = {
     cfg: null, settings: null, storage: null, journal: null,
     state: null, stats: null, tab: 'home', busy: false,
-    version: '0.19.0', lastBack: 0,
+    version: 'dev', lastBack: 0,   // در boot() از PackageManager پر می‌شود
     deviceId: '', deviceCode: '', licensed: false,   // لایسنس (v0.14.0)
     chartSym: null, chartTf: 'H1', chartBars: 120, chartSig: null,   // نمودار (v0.17.0)
     onbStage: null,               // 'license' | 'name' | 'bg' | null — مرحلهٔ خوش‌آمدگویی
@@ -47,7 +47,8 @@
     },
     fund_enabled: true, news_enabled: true, tv_enabled: true,
     auto_refresh_enabled: true, auto_refresh_min: 15, notify_enabled: true,
-    background_enabled: true      // v0.13: رصد پس‌زمینه (در خوش‌آمدگویی پرسیده می‌شود)
+    background_enabled: true,     // v0.13: رصد پس‌زمینه (در خوش‌آمدگویی پرسیده می‌شود)
+    animations_enabled: true      // v0.21: همتای ui.animations در config.yaml دسکتاپ
   };
 
   function buildCfg() {
@@ -746,6 +747,7 @@
         S.settings[key] = t.checked;
       }
       saveSettings();
+      if (key === 'animations_enabled') applyAnimations();
       O.toast('ذخیره شد');
     });
 
@@ -759,22 +761,24 @@
     document.getElementById('splash-name').textContent = n ? 'خوش اومدی ' + n : 'خوش اومدی';
   }
 
+  // v0.21.0 — کلید «انیمیشن‌ها» واقعاً اثر کند.
+  // پیش‌تر config.yaml دسکتاپ ui.animations داشت ولی اندروید هیچ معادلی
+  // نداشت؛ CSS هم body.no-anim را می‌شناخت ولی هیچ‌کس ستش نمی‌کرد.
+  function applyAnimations() {
+    var on = S.settings.animations_enabled !== false;
+    if (typeof document !== 'undefined' && document.body) {
+      document.body.classList.toggle('no-anim', !on);
+    }
+  }
+  O.applyAnimations = applyAnimations;
+
   function exportJournal() {
     var raw = S.journal.raw();
     if (!raw.trim()) { O.toast('ژورنال خالی است'); return; }
-    function fallbackCopy() {
-      var ta = document.createElement('textarea');
-      ta.value = raw;
-      ta.style.position = 'fixed'; ta.style.opacity = '0';
-      document.body.appendChild(ta);
-      ta.select();
-      try { document.execCommand('copy'); O.toast('در کلیپ‌بورد کپی شد'); }
-      catch (e) { O.modal('خروجی ژورنال', '<div class="text-input" style="max-height:200px;overflow:auto;font-size:10px;direction:ltr;user-select:text;-webkit-user-select:text">' + O.esc(raw) + '</div>', [{ label: 'بستن', cls: 'ghost' }]); }
-      document.body.removeChild(ta);
-    }
-    if (navigator.clipboard && navigator.clipboard.writeText) {
-      navigator.clipboard.writeText(raw).then(function () { O.toast('در کلیپ‌بورد کپی شد'); }).catch(fallbackCopy);
-    } else fallbackCopy();
+    // v0.21.0 — منطق کپی (clipboard API → execCommand → مودالِ متنِ قابل‌انتخاب)
+    // پیش‌تر سه‌جا در همین فایل تکراری نوشته شده بود و هر سه کمی متفاوت؛ حالا
+    // یک پیاده‌سازی مشترک در components.js است.
+    O.copyText(raw, 'در کلیپ‌بورد کپی شد');
   }
 
   // ذخیرهٔ ژورنال در پوشهٔ دانلودها (پشتیبان‌گیری)
@@ -795,9 +799,7 @@
     var lines = O.renderBriefing(S.state, S.cfg, S.state.ranAt);
     var txt = lines.join('\n') + '\n\n— ODIN ASSISTANT v' + S.version + ' (اندروید) · ساعت‌ها به وقت تهران';
     if (!O.native.share('بریفینگ ODIN ASSISTANT', txt)) {
-      if (navigator.clipboard && navigator.clipboard.writeText) {
-        navigator.clipboard.writeText(txt).then(function () { O.toast('در کلیپ‌بورد کپی شد'); }).catch(function () { O.toast('اشتراک‌گذاری ممکن نیست'); });
-      } else O.toast('اشتراک‌گذاری ممکن نیست');
+      O.copyText(txt, 'در کلیپ‌بورد کپی شد', { onFail: function () { O.toast('اشتراک‌گذاری ممکن نیست'); } });
     }
   }
 
@@ -1080,12 +1082,11 @@
   };
 
   function copyDeviceCode() {
-    var fallback = function () { O.toast('کد دستگاه (نگه‌دار): ' + S.deviceCode); };
-    try {
-      if (navigator.clipboard && navigator.clipboard.writeText) {
-        navigator.clipboard.writeText(S.deviceCode).then(function () { O.toast('کد دستگاه کپی شد'); }, fallback);
-      } else fallback();
-    } catch (e) { fallback(); }
+    // کد دستگاه حیاتی است (فعال‌سازی لایسنس به آن وابسته است)؛ پس در آخرین
+    // چاره هم باید «دیده» شود، نه اینکه فقط پیام «کپی نشد» بگیریم.
+    O.copyText(S.deviceCode, 'کد دستگاه کپی شد', {
+      onFail: function () { O.toast('کد دستگاه (نگه‌دار): ' + S.deviceCode); }
+    });
   }
 
   // v0.13.0 — پرسیدن نام در اولین اجرا (هدر «سلام {نام}!» می‌شود)
@@ -1164,9 +1165,14 @@
     S.storage = O.makeStorage();
     loadSettings();
     S.journal = new O.Journal(S.storage);
-    try { S.version = (typeof ODINNative !== 'undefined' && ODINNative.getVersion()) || '0.19.0'; } catch (e) { }
+    // نسخه از PackageManager می‌آید که خودش از APP_VERSION در src/app_paths.py
+    // مشتق می‌شود (v0.20.1). fallback عمداً «dev» است نه یک شمارهٔ نسخهٔ
+    // واقعی — چون هاردکدکردن عدد اینجا همان چیزی است که باعث شد اپ روی
+    // «0.19.0» بماند در حالی که دسکتاپ 0.20.0 بود.
+    try { S.version = (typeof ODINNative !== 'undefined' && ODINNative.getVersion()) || 'dev'; } catch (e) { S.version = 'dev'; }
     document.getElementById('splash-ver').textContent = 'v' + S.version + ' · android';
     applyUserName();
+    applyAnimations();
 
     // لایسنس و قفل دستگاه (v0.14.0)
     try {

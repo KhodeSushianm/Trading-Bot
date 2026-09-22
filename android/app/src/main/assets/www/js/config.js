@@ -79,7 +79,7 @@
 
     journal: { enabled: true, expiry_hours: 48, conservative_both_touch: true },
 
-    ui: { user_name: 'سوشیان' }
+    ui: { user_name: 'سوشیان', animations: true }
   };
 
   // ادغام عمیق تنظیمات کاربر (از حافظهٔ گوشی) با پیش‌فرض‌ها

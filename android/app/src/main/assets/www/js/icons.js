@@ -72,6 +72,8 @@
     'stop-sign': '<path d="M8.3 3.6h7.4l4.7 4.7v7.4l-4.7 4.7H8.3l-4.7-4.7V8.3z"/><path d="M9 12h6"/>',
     hourglass: '<path d="M7 3.6h10v3.1L12 12l5 5.3v3.1H7v-3.1L12 12 7 6.7z"/>',
     star: '<path d="M12 3.6l2.6 5.5 6 .8-4.4 4.2 1.1 6-5.3-2.9-5.3 2.9 1.1-6L3.4 9.9l6-.8z" fill="currentColor" stroke="none"/>',
+    // ستارهٔ توخالی — خانهٔ «پر نشده» در رتبهٔ ستاره‌ای (همتای star دسکتاپ در widgets.py Stars)
+    'star-outline': '<path d="M12 3.6l2.6 5.5 6 .8-4.4 4.2 1.1 6-5.3-2.9-5.3 2.9 1.1-6L3.4 9.9l6-.8z" fill="none" stroke="currentColor" stroke-width="1.6"/>',
 
     // ── محتوا ──────────────────────────────────────────────────
     antenna: '<circle cx="12" cy="12" r="2.1"/><path d="M7.9 7.9a5.8 5.8 0 0 0 0 8.2M16.1 16.1a5.8 5.8 0 0 0 0-8.2"/><path d="M5.1 5.1a9.8 9.8 0 0 0 0 13.8M18.9 18.9a9.8 9.8 0 0 0 0-13.8"/>',
@@ -107,6 +109,10 @@
       '" height="' + s + '" fill="none" stroke="currentColor" stroke-width="1.8" ' +
       'stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + d + '</svg>';
   };
+
+  /** آیا این نام آیکون در کتابخانه هست؟ (برای نگاشت آیکون‌های دسکتاپ در components.js)
+   *  بدون این، O.ico بی‌صدا به «dot» fallback می‌کند و همهٔ آیکون‌ها یک‌شکل می‌شوند. */
+  O.HAS_ICON = function (name) { return Object.prototype.hasOwnProperty.call(P, String(name || '')); };
 
   // ستاره‌های امتیاز (n از ۵) — جای O.stars در رندر
   O.starIcons = function (n) {

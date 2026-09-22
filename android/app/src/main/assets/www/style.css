@@ -1,34 +1,91 @@
 /* ══════════════════════════════════════════════════════════════
-   ODIN ASSISTANT — تم روشنِ شیشه‌ای برای موبایل
-   دقیقاً همان توکن‌های src/ui/theme.py نسخهٔ دسکتاپ:
-   مونوکروم (سیاه/سفید/خاکستری) + فقط سبز (خرید) و قرمز (فروش/وتو)
+   ODIN ASSISTANT — تم روشنِ شیشه‌ای برای موبایل · Aurora Glass 2.0
+
+   ⚠️ این فایل با src/ui/theme.py «قرارداد پاریتی» دارد و توسط
+      tests/js/smoke_theme_parity.js قفل شده است:
+      هر توکنِ dataclass Theme باید اینجا با همان نامِ kebab-case و
+      «همان مقدار» حاضر باشد. توکن تازه‌ای به theme.py اضافه کردی؟
+      اینجا هم اضافه کن، وگرنه CI قرمز می‌شود.
+
+   پیش‌تر همین هدر ادعا می‌کرد «دقیقاً همان توکن‌های دسکتاپ» ولی هیچ
+   تستی آن را نمی‌سنجید؛ در v0.20.0 دسکتاپ ۱۲ توکن تازه گرفت و
+   اندروید ۲۱ توکن عقب افتاد (و amber سه مقدار متفاوت داشت).
+   حالا ادعا تست دارد.
+
+   رنگ‌های معنایی مجاز: سبز (خرید) · قرمز (فروش/وتو) · کهربایی (رتبه/هشدار)
+   رنگ برند و شفق فقط در جاهای ظریف و با آلفای پایین.
    ══════════════════════════════════════════════════════════════ */
 
 :root {
+  /* ── پس‌زمینه و شیشه ─────────────────────────────────────── */
   --bg: #E7E7EC;
   --bg-alt: #F2F2F5;
+  --glass: #FFFFFF;
+  --glass-alpha: 0.55;
+
+  /* ── سطح‌ها ──────────────────────────────────────────────── */
   --card: #FFFFFF;
   --card-hover: #F7F7F9;
   --raised: #EDEDF0;
   --input-bg: #FAFAFC;
-  --ink: #101013;
+  --ink-card: #101013;
   --ink-tile: #26262B;
+
+  /* ── مرزها ───────────────────────────────────────────────── */
   --border: #E3E3E8;
   --border-strong: #D2D2D9;
   --divider: #ECECF0;
+
+  /* ── جوهر (متن) ──────────────────────────────────────────── */
   --text: #0B0B0C;
   --text-2: #55555E;
   --text-3: #94949C;
+  --accent-ink: #0B0B0C;
   --on-ink: #FFFFFF;
+
+  /* ── رنگ‌های معنایی ──────────────────────────────────────── */
   --green: #1F9D66;
   --green-text: #177B50;
   --green-tint: #E4F5EC;
   --red: #D64545;
   --red-text: #B23A3A;
   --red-tint: #FBEAEA;
-  --r-card: 22px;
-  --r-ctrl: 12px;
-  --r-pill: 999px;
+  --amber: #E0A83C;
+  --amber-tint: #FBF1DC;
+
+  /* ── v0.20.0 — برند و شفق (Aurora) ───────────────────────── */
+  --brand: #5B4BE8;
+  --brand-tint: #EBE9FD;
+  --aurora-indigo: #7A6CF0;
+  --aurora-cyan: #46C8E8;
+  --aurora-pink: #EE7BC8;
+
+  /* ── کنسول تیره داخل کارت‌ها (لاگ/گزارش/سیگنال) ───────────── */
+  --console-bg: #0E0E13;
+  --console-text: #D9D9E2;
+  --console-dim: #7C7C8A;
+  --console-green: #5FD39A;
+  --console-red: #FF8F8F;
+
+  /* ── صفحهٔ ورود (Onboarding) ─────────────────────────────── */
+  --onb-bg: #0B0B10;
+  --onb-glass: #FFFFFF;
+
+  /* ── شعاع‌ها ─────────────────────────────────────────────── */
+  --radius-card: 22px;
+  --radius-ctrl: 12px;
+  --radius-pill: 999px;
+
+  /* ── نام‌های کوتاهِ قدیمی — فقط alias، مقدار تازه نساز ──────
+     چرا نگه داشته شدند: ده‌ها سلکتور در همین فایل و خروجی ui.js
+     به اینها ارجاع می‌دهند. حذفشان یک رگرسیون بصری گسترده می‌داد؛
+     پس به توکن canonical وصل می‌شوند تا هرگز واگرا نشوند.        */
+  --ink: var(--ink-card);
+  --r-card: var(--radius-card);
+  --r-ctrl: var(--radius-ctrl);
+  --r-pill: var(--radius-pill);
+
+  /* ── مخصوص موبایل (در theme.py معادل ندارند) ─────────────── */
   --shadow: 0 8px 24px rgba(16, 16, 19, .07), 0 2px 6px rgba(16, 16, 19, .05);
   --shadow-lg: 0 16px 40px rgba(16, 16, 19, .12);
   --tab-h: 74px;
@@ -571,7 +628,7 @@ body {
 .ico { display: inline-block; vertical-align: -0.215em; flex: 0 0 auto; }
 .ico.c-green { color: var(--green); }
 .ico.c-red { color: var(--red); }
-.ico.c-amber { color: #D98E04; }
+.ico.c-amber { color: var(--amber); }
 .ico.c-green-lt { color: #7BE0B0; }
 .ico.c-red-lt { color: #FF9A9A; }
 
@@ -589,7 +646,7 @@ body {
 .veto-row .v-icon { display: flex; align-items: flex-start; padding-top: 3px; }
 
 /* ستاره‌های امتیاز سیگنال */
-.stars-row { display: inline-flex; align-items: center; gap: 2px; color: #D98E04; }
+.stars-row { display: inline-flex; align-items: center; gap: 2px; color: var(--amber); }
 
 /* دکمهٔ «توقف رصد» داخل اعلان ماندگار با بقیهٔ اکشن‌ها یکی است */
 .brief-line .ico, .hint .ico, .card-sub .ico, .set-sub .ico, .news-src .ico { vertical-align: -0.2em; }
@@ -634,3 +691,285 @@ body {
 .team-role { font-size: 10.5px; color: var(--text-3); font-weight: 500; }
 .team-name { font-size: 13px; font-weight: 700; }
 .team-tg { flex: 0 0 auto; display: inline-flex; }
+
+/* ══════════════════════════════════════════════════════════════════════
+   AURORA GLASS 2.0 — پورت v0.21.0
+   همتای اندرویدیِ src/ui/backdrop.py + src/ui/widgets.py (v0.20.0)
+   ══════════════════════════════════════════════════════════════════════ */
+
+/* ── ۱. شفق متحرک ──────────────────────────────────────────────────────
+   سه تودهٔ رنگی با آلفای خیلی پایین که آرام جابه‌جا می‌شوند.
+   فقط transform/opacity انیمیت می‌شود (نه blur، نه layout) تا روی GPU
+   بماند و باتری نخورد — همان قید src/ui/backdrop.py («رندر کم‌قطع +
+   بزرگ‌سازی نرم، بدون blur»).                                        */
+#bg::before,
+#bg::after {
+  content: '';
+  position: absolute;
+  inset: -20% -10%;
+  pointer-events: none;
+  background-repeat: no-repeat;
+}
+#bg::before {
+  background-image:
+    radial-gradient(38% 26% at 22% 12%, var(--aurora-indigo) 0%, rgba(122,108,240,0) 68%),
+    radial-gradient(34% 22% at 82% 26%, var(--aurora-cyan)   0%, rgba(70,200,232,0)  68%);
+  opacity: .16;
+  animation: aurora 34s ease-in-out infinite alternate;
+  will-change: transform;
+}
+#bg::after {
+  background-image:
+    radial-gradient(42% 28% at 62% 82%, var(--aurora-pink)   0%, rgba(238,123,200,0) 70%),
+    radial-gradient(36% 24% at 14% 68%, var(--aurora-cyan)   0%, rgba(70,200,232,0)  70%);
+  opacity: .13;
+  animation: aurora2 46s ease-in-out infinite alternate;
+  will-change: transform;
+}
+@keyframes aurora {
+  0%   { transform: translate3d(0, 0, 0) scale(1); }
+  50%  { transform: translate3d(-4%, 3%, 0) scale(1.08); }
+  100% { transform: translate3d(3%, -2%, 0) scale(1.03); }
+}
+@keyframes aurora2 {
+  0%   { transform: translate3d(0, 0, 0) scale(1.04); }
+  50%  { transform: translate3d(4%, -3%, 0) scale(1); }
+  100% { transform: translate3d(-3%, 2%, 0) scale(1.09); }
+}
+
+/* احترام به کاربر: هم تنظیم سیستم، هم کلید «انیمیشن‌ها» داخل اپ */
+@media (prefers-reduced-motion: reduce) {
+  #bg::before, #bg::after { animation: none !important; }
+}
+body.no-anim #bg::before,
+body.no-anim #bg::after { animation: none !important; }
+body.no-anim .card,
+body.no-anim .page,
+body.no-anim .sig-card,
+body.no-anim .console-card,
+body.no-anim .kpi-card { animation: none !important; }
+
+/* ── ۲. چیپ آیکون (IconChip) — پایهٔ زبان بصری نو ───────────────────────
+   مربع گردِ رنگی با آیکون در مرکز؛ هیچ آیکون برهنه‌ای نمی‌ماند.          */
+.icon-chip {
+  flex: 0 0 auto;
+  display: inline-flex; align-items: center; justify-content: center;
+  border-radius: 32%;
+  background: var(--ink-card);
+  color: var(--on-ink);
+  line-height: 0;
+}
+.icon-chip.tone-raised { background: var(--raised); color: var(--text-2); }
+.icon-chip.tone-green  { background: var(--green-tint); color: var(--green-text); }
+.icon-chip.tone-red    { background: var(--red-tint);   color: var(--red-text); }
+.icon-chip.tone-amber  { background: var(--amber-tint); color: #9A7220; }
+.icon-chip.tone-brand  { background: var(--brand-tint); color: var(--brand); }
+
+/* ── ۳. چیپ قرصی (Chip) — تُن‌های معنایی ─────────────────────────────── */
+.chip {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 3px 10px;
+  border-radius: var(--radius-pill);
+  font-size: 11px; font-weight: 600; line-height: 1.55;
+  background: var(--raised); color: var(--text-2);
+  border: 1px solid transparent;
+  white-space: nowrap;
+}
+.chip.tone-ink   { background: var(--ink-card); color: var(--on-ink); }
+.chip.tone-green { background: var(--green-tint); color: var(--green-text); }
+.chip.tone-red   { background: var(--red-tint);   color: var(--red-text); }
+.chip.tone-amber { background: var(--amber-tint); color: #9A7220; }
+.chip.tone-brand { background: var(--brand-tint); color: var(--brand); }
+.chip.tone-outline {
+  background: transparent; color: var(--text-2);
+  border-color: var(--border-strong);
+}
+
+/* ── ۴. ستاره‌ها (Stars) — رتبهٔ پشتوانه ────────────────────────────── */
+.stars { display: inline-flex; align-items: center; gap: 2px; direction: ltr; line-height: 0; }
+.stars .ico-wrap { display: inline-flex; line-height: 0; }
+.stars .ico-wrap.on  { color: var(--amber); }
+.stars .ico-wrap.off { color: var(--border-strong); }
+/* سلکتور قدیمی هم نگه داشته می‌شود — .stars-row هنوز در ui.js استفاده می‌شود */
+.stars-row .ico { color: var(--amber); }
+
+/* ── ۵. سربرگ بخش (SectionHeader) ────────────────────────────────────── */
+.section-header {
+  display: flex; align-items: flex-start; gap: 12px;
+  margin: 2px 0 14px;
+}
+.section-header .sh-main { flex: 1; min-width: 0; }
+.section-header .sh-title {
+  font-size: 17px; font-weight: 800; color: var(--text); letter-spacing: -.2px;
+}
+.section-header .sh-sub {
+  font-size: 11.5px; color: var(--text-2); line-height: 1.75; margin-top: 3px;
+}
+.section-header .sh-trail { flex: 0 0 auto; align-self: center; }
+
+/* ── ۶. کلید چندحالته (SegmentedControl) ─────────────────────────────── */
+.segmented {
+  display: inline-flex; gap: 2px; padding: 4px;
+  background: var(--raised);
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--border);
+}
+.segmented button {
+  border: 0; background: transparent; cursor: pointer;
+  padding: 6px 15px; border-radius: var(--radius-pill);
+  font-family: inherit; font-size: 11.5px; font-weight: 700;
+  color: var(--text-2);
+  transition: background .18s ease, color .18s ease;
+}
+.segmented button.on {
+  background: var(--ink-card); color: var(--on-ink);
+  box-shadow: 0 2px 8px rgba(16,16,19,.18);
+}
+
+/* ── ۷. کنسول‌کارت (ConsoleCard) — «ترمینال پریمیوم» ───────────────────
+   سربرگ روشن (چیپ + عنوان + قرص زمان + کپی) روی بدنهٔ تیره.            */
+.console-card {
+  background: rgba(255,255,255,.92);
+  border: 1px solid rgba(255,255,255,.9);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow);
+  margin-bottom: 14px;
+  overflow: hidden;
+  animation: cardIn .3s ease-out backwards;
+}
+.console-card .cc-head {
+  display: flex; align-items: center; gap: 10px;
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--divider);
+}
+.console-card .cc-titles { flex: 1; min-width: 0; }
+.console-card .cc-title {
+  font-size: 13px; font-weight: 800; color: var(--text);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.console-card .cc-sub {
+  font-size: 10.5px; color: var(--text-3); margin-top: 1px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.console-card .cc-stamp {
+  flex: 0 0 auto;
+  font-size: 10px; font-weight: 600; color: var(--text-3);
+  background: var(--raised); border-radius: var(--radius-pill);
+  padding: 3px 9px; direction: ltr; font-variant-numeric: tabular-nums;
+}
+.console-card .cc-copy {
+  flex: 0 0 auto; width: 32px; height: 32px; border-radius: 50%;
+  border: 1px solid var(--border); background: var(--input-bg);
+  color: var(--text-2); cursor: pointer;
+  display: inline-flex; align-items: center; justify-content: center;
+  transition: background .15s ease, color .15s ease;
+}
+.console-card .cc-copy.done { color: var(--green-text); background: var(--green-tint); border-color: transparent; }
+.console-card .cc-body {
+  background: var(--console-bg);
+  color: var(--console-text);
+  padding: 14px;
+  font-family: Vazirmatn, Consolas, "Courier New", monospace;
+  font-size: 12px; line-height: 1.75;
+  direction: rtl; text-align: right;
+  max-height: 46vh; overflow: auto;
+  white-space: pre-wrap; word-break: break-word;
+  -webkit-overflow-scrolling: touch;
+}
+.console-card .cc-body .cd { color: var(--console-dim); }
+.console-card .cc-body .cg { color: var(--console-green); font-weight: 700; }
+.console-card .cc-body .cr { color: var(--console-red); font-weight: 600; }
+.console-card .cc-body .cb { color: var(--brand); font-weight: 700; }
+.console-card .cc-body .cw { color: var(--console-text); font-weight: 600; }
+.console-card .cc-empty {
+  padding: 26px 14px; text-align: center;
+  color: var(--console-dim); font-size: 11.5px;
+  background: var(--console-bg);
+}
+
+/* ── ۸. کارت شاخص (KpiCard) ──────────────────────────────────────────── */
+.kpi-row {
+  display: grid; grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px; margin-bottom: 14px;
+}
+.kpi-card {
+  display: flex; align-items: center; gap: 10px;
+  background: rgba(255,255,255,.92);
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  box-shadow: var(--shadow);
+  padding: 11px 12px;
+  animation: cardIn .3s ease-out backwards;
+}
+.kpi-card .kv-main { flex: 1; min-width: 0; }
+.kpi-card .kv-val {
+  font-size: 19px; font-weight: 800; color: var(--text);
+  line-height: 1.2; letter-spacing: -.4px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.kpi-card .kv-val.tone-green { color: var(--green-text); }
+.kpi-card .kv-val.tone-red   { color: var(--red-text); }
+.kpi-card .kv-val.tone-amber { color: #9A7220; }
+.kpi-card .kv-val.tone-brand { color: var(--brand); }
+.kpi-card .kv-lab {
+  font-size: 10.5px; color: var(--text-3); font-weight: 600; margin-top: 2px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+
+/* ── ۹. کارت سیگنال ساختاریافته (SignalCard) ──────────────────────────
+   همان زبان بصری SignalCard دسکتاپ و کارت اشتراک.                     */
+.sig-card {
+  background: rgba(255,255,255,.94);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  box-shadow: var(--shadow);
+  padding: 15px;
+  margin-bottom: 14px;
+  overflow: visible;
+  animation: cardIn .3s ease-out backwards;
+}
+.sig-card .sc-row { display: flex; align-items: center; gap: 7px; flex-wrap: wrap; }
+.sig-card .sc-row + .sc-row { margin-top: 9px; }
+.sig-card .sc-grow { flex: 1; }
+.sig-card .sc-pair {
+  font-size: 20px; font-weight: 800; color: var(--text);
+  letter-spacing: -.3px; direction: ltr; display: inline-block;
+}
+.sig-card .sc-faname { font-size: 11px; color: var(--text-3); font-weight: 600; }
+.sig-card .sc-tiles {
+  display: grid; grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px; margin-top: 12px;
+}
+.sig-card .sc-tile {
+  background: var(--raised); border-radius: 14px; padding: 9px 11px;
+}
+.sig-card .sc-tile-cap { font-size: 10px; color: var(--text-3); font-weight: 700; }
+.sig-card .sc-tile-val {
+  font-size: 14.5px; font-weight: 800; color: var(--text); margin-top: 2px;
+  direction: ltr; text-align: right; font-variant-numeric: tabular-nums;
+}
+.sig-card .sc-tile-sub {
+  font-size: 9.5px; color: var(--text-3); margin-top: 2px; text-align: right;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.sig-card .sc-tile-val.tone-red   { color: var(--red-text); }
+.sig-card .sc-tile-val.tone-green { color: var(--green-text); }
+.sig-card .sc-reasons-cap {
+  font-size: 12.5px; font-weight: 800; color: var(--text);
+  margin: 14px 0 7px;
+}
+.sig-card .sc-reason {
+  display: flex; align-items: flex-start; gap: 9px;
+  background: var(--input-bg);
+  border: 1px solid var(--divider);
+  border-radius: 13px; padding: 8px 10px; margin-bottom: 6px;
+}
+.sig-card .sc-reason-txt {
+  flex: 1; min-width: 0;
+  font-size: 11.5px; line-height: 1.7; color: var(--text);
+}
+.sig-card .sc-reason-txt b { font-weight: 700; }
+.sig-card .sc-reason-pts { flex: 0 0 auto; }
+.sig-card .sc-acts { display: flex; align-items: center; gap: 7px; margin-top: 12px; }
+.sig-card .sc-full { margin-top: 12px; margin-bottom: 0; }

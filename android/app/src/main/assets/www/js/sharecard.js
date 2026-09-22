@@ -44,7 +44,9 @@
       disclaimer: 'این یک پیشنهاد است، نه دستور معامله — مسئولیت هر معامله با خودت است.',
       footerName: 'سازنده: Sushian Khoshkhani',
       footerTg: '@Khode_Sushian',
-      version: 'v' + (opt.version || '0.19.0')
+      // fallback عمداً 'dev' است نه یک شمارهٔ نسخهٔ واقعی — مُهرِ نسخه روی
+      // کارت اشتراکِ بازاریابی می‌نشیند، پس عددِ کهنه یعنی تبلیغِ غلط.
+      version: 'v' + (opt.version || 'dev')
     };
   };
 

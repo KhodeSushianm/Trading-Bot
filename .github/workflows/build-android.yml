@@ -104,6 +104,7 @@ jobs:
           node tests/js/smoke_alerts.js
           node tests/js/smoke_chart.js
           node tests/js/smoke_share.js
+          node tests/js/smoke_theme_parity.js
 
       # نگهبان ارزان و هدفمند: versionName/versionCode از src/app_paths.py مشتق
       # می‌شوند، پس اگر آن فایل یا الگوی regex عوض شود APK بی‌صدا با نسخهٔ

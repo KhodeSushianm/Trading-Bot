@@ -19,7 +19,7 @@ ctx.globalThis = ctx;
 vm.createContext(ctx);
 for (const f of ['md5.js', 'fa.js', 'icons.js', 'config.js', 'indicators.js', 'session.js',
   'technical.js', 'calendar.js', 'news.js', 'judge.js', 'journal.js', 'data.js', 'alerts.js', 'chart.js', 'sharecard.js',
-  'briefing.js', 'ui.js']) {
+  'briefing.js', 'components.js', 'ui.js']) {
   vm.runInContext(fs.readFileSync(path.join(WWW, f), 'utf8'), ctx, { filename: f });
 }
 const O = ctx.ODIN;
@@ -92,7 +92,35 @@ const judgments = [
       symbol: 'EURUSD', fa_name: 'یورو به دلار آمریکا', direction: 'BUY', stars: 5,
       score: 10, max_score: 11, entry: 1.17, sl: 1.165, tp: 1.18, pip: 0.0001,
       is_gold: false, rr: 2.0, atr: 0.0009, now: nowMs, session_fa: 'لندن/نیویورک',
-      warnings: ['SL به سقف فاصله رسیده — ریسک را چک کن ⚠️'], _dup: false
+      warnings: ['SL به سقف فاصله رسیده — ریسک را چک کن ⚠️'], _dup: false,
+      // سیگنال واقعی همیشه «text» کامل دارد (گزارش فارسیِ موتور). پیش‌تر این
+      // فیلد در فیکسچر نبود، پس کنسول‌کارت و parseReasons اصلاً پوشش داده
+      // نمی‌شدند. عمداً پُر از ایموجی است — همان‌طور که موتور تولید می‌کند —
+      // تا تبدیل ایموجی→آیکون در کنسول‌کارت واقعاً سنجیده شود.
+      text: [
+        '══════════════════════════════════════',
+        '🟢 سیگنال خرید — EUR/USD',
+        'یورو به دلار آمریکا',
+        '⭐⭐⭐⭐⭐ پشتوانه: ۱۰ از ۱۱',
+        '🕒 سشن: لندن/نیویورک',
+        '',
+        'چرا این سیگنال صادر شد؟',
+        '✅ هم‌راستایی روند ۴ ساعته و ۱ ساعته (+۲) — روند صعودی؛ ADX=28 → روند قوی',
+        '✅ واکنش به سطح کلیدی (حمایت) (+۲) — سایهٔ کندل H4 حمایت 1.1650 را لمس کرد',
+        '✅ پنجرهٔ فاندامنتال پاک (+۲) — هیچ رویداد مهم EUR/USD در ۶ ساعت آینده',
+        '✅ تایید مومنتوم (RSI) (+۱) — RSI(H1)=42 در منطقهٔ پولبک و رو به بالا',
+        '✅ جریان قدرت ارزها (+۱) — USD قوی، JPY ضعیف',
+        '✅ هم‌جهتی تریدینگ‌ویو (+۱) — Recommend.All=BUY',
+        '✅ سشن مناسب (+۱) — لندن/نیویورک',
+        'مدارکی که امتیاز نگرفتند (صادقانه):',
+        '➖ تایید خبری (۰ از ۱) — خبر هم‌جهت پیدا نشد (وتو هم نکرد)',
+        '',
+        '📍 ورود: 1.17000   🛑 حد ضرر: 1.16500 (۵۰ پیپ)   🎯 هدف: 1.18000 (۱۰۰ پیپ)',
+        '⚖️ نسبت سود به ریسک: ۱:۲٫۰',
+        '',
+        '• نوسان بازار بالاتر از حد معمول است',
+        '⚠️ این یک پیشنهاد است، نه دستور معامله.',
+      ].join('\n')
     }
   },
   {
@@ -221,6 +249,44 @@ assert(pages.settings.includes('رصد پس‌زمینه'), 'background card tit
 
 // about باید اثر انگشت کلید v0.13.0 را نشان دهد
 assert(pages.about.includes('SHA256: bd11159e003b55b9ae53cd26c192dc6b2bea2840c787fddbd0f523a947cb5189'), 'cert fingerprint missing in about');
+
+// ── Aurora Glass 2.0 (v0.21.0) — اجزای نو باید «واقعاً» در صفحه‌ها سوار باشند ──
+// چرا اینجا: این تست تنها جایی است که فیکسچرِ کاملِ صفحه‌ها را دارد.
+// smoke_theme_parity.js پاریتی «توکن» و رفتار «اجزا» را می‌سنجد (سطح واحد)؛
+// اینجا سطح یکپارچگی است — markupِ واقعیِ صفحه‌های رندرشده.
+// هر دو لازم‌اند: بدون اینها ممکن بود components.js ساخته شود و هرگز
+// به صفحه‌ها وصل نشود (کد مرده) و همهٔ تست‌ها هم سبز بمانند.
+
+// صفحهٔ سیگنال‌ها
+assert(/class="chip tone-(green|red)"/.test(pages.signals), 'جهت سیگنال باید با چیپ معنایی رندر شود');
+assert(/class="stars"/.test(pages.signals), 'رتبه باید با O.stars رندر شود');
+assert(pages.signals.includes('ico-wrap on'), 'ستاره‌های پر باید رندر شوند');
+// تعداد خانه‌های «خاموش» به دادهٔ فیکسچر وابسته است (اینجا stars=5 یعنی
+// پُر)، پس درستیِ on/off در smoke_theme_parity.js با مقدار کنترل‌شده سنجیده می‌شود.
+assert(pages.signals.includes('sc-tiles'), 'کاشی‌های ورود/SL/TP باید باشند');
+assert(pages.signals.includes('sc-tile-sub'), 'کاشی‌ها باید فاصلهٔ پیپ را حفظ کنند (رگرسیون اطلاعاتی)');
+assert(pages.signals.includes('cc-body'), 'متن کامل سیگنال باید داخل کنسول‌کارت باشد');
+assert(pages.signals.includes('data-copy-id='), 'کنسول‌کارت باید دکمهٔ کپی داشته باشد');
+assert(pages.signals.includes('sc-reasons-cap'), 'دلایلِ پارس‌شده باید نمایش داده شوند');
+assert(pages.signals.includes('ev-row'), 'جدول مدارک باید حفظ شده باشد (رگرسیون)');
+// markup قدیمی که جایگزین شد نباید بماند (وگرنه اطلاعات دوبار نشان داده می‌شود)
+assert(!pages.signals.includes('dir-pill'), 'dir-pill قدیمی باید با چیپ جهت جایگزین شده باشد');
+assert(!pages.signals.includes('class="levels"'), '.levels قدیمی باید با sc-tiles جایگزین شده باشد');
+
+// صفحهٔ کارنامه
+assert(pages.journal.includes('kpi-card'), 'کارنامه باید ردیف کارت KPI داشته باشد');
+assert(pages.journal.includes('section-header'), 'کارنامه باید سربرگ بخش داشته باشد');
+assert(!pages.journal.includes('#7BE0B0') && !pages.journal.includes('#FF9A9A'),
+  'رنگ‌های هاردکدِ روی‌سیاه باید از کارنامه رفته باشند (باید از توکن بیایند)');
+assert(pages.journal.includes('میانگین R'), 'میانگین R باید هنوز گزارش شود (رگرسیون)');
+
+// صفحهٔ بریفینگ → کنسول‌کارت با مهر زمان
+assert(pages.briefing.includes('console-card'), 'بریفینگ باید کنسول‌کارت باشد');
+assert(pages.briefing.includes('cc-stamp'), 'بریفینگ باید قرص مهر زمان داشته باشد');
+assert(pages.briefing.includes('data-copy-id='), 'بریفینگ باید دکمهٔ کپی داشته باشد');
+assert(!pages.briefing.includes('brief-line'), 'markup قدیمی brief-line باید رفته باشد');
+// جداکنندهٔ «▎» باید حذف شده باشد (consoleColorize خودش سرتیتر را برجسته می‌کند)
+assert(!pages.briefing.includes('▎'), 'نشانگر «▎» نباید در خروجی کنسول‌کارت بماند');
 
 // noEmoji ابزار پاک‌سازی متن ساده (اعلان/لاگ سرویس)
 assert(O.noEmoji('🎯 سیگنال جدید — EURUSD (خرید) 🕒') === 'سیگنال جدید — EURUSD (خرید)', 'noEmoji failed: ' + O.noEmoji('🎯 سیگنال جدید — EURUSD (خرید) 🕒'));

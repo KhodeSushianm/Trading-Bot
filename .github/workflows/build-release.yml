@@ -42,6 +42,19 @@ jobs:
       - name: Config validation
         run: python tests/check_config.py
 
+      # تست‌های JS اپ اندروید — چرا اینجا هم؟ چون job «test» روی ubuntu اجرا
+      # می‌شود و سریع است؛ این‌طور یک کامیتِ «فقط ویندوزی» هم نمی‌تواند
+      # پاریتی تم یا رانش نسخهٔ اندروید را بی‌صدا بشکند.
+      - name: JS smoke tests (اپ اندروید)
+        run: |
+          node tests/js/smoke_about.js
+          node tests/js/smoke_icons.js
+          node tests/js/smoke_license.js
+          node tests/js/smoke_alerts.js
+          node tests/js/smoke_chart.js
+          node tests/js/smoke_share.js
+          node tests/js/smoke_theme_parity.js
+
       - name: Data-dir logic test (پرتابل vs نصب‌شده)
         run: python tests/manual/test_paths_install.py
 
