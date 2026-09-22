@@ -11,7 +11,8 @@
 با **دلایل کامل فارسی** روی تلگرامت می‌فرستد.
 
 [![نسخه](https://img.shields.io/github/v/release/KhodeSushianm/Trading-Bot?display_name=tag&style=for-the-badge&color=111111&labelColor=eeeeee&label=release)](https://github.com/KhodeSushianm/Trading-Bot/releases/latest)
-[![CI](https://img.shields.io/github/actions/workflow/status/KhodeSushianm/Trading-Bot/build-release.yml?style=for-the-badge&logo=githubactions&logoColor=white&label=CI&color=111111&labelColor=eeeeee)](https://github.com/KhodeSushianm/Trading-Bot/actions)
+[![CI — بیلد APK](https://img.shields.io/github/actions/workflow/status/KhodeSushianm/Trading-Bot/build-android.yml?branch=ANDROID&style=for-the-badge&logo=githubactions&logoColor=white&label=APK%20CI&color=111111&labelColor=eeeeee)](https://github.com/KhodeSushianm/Trading-Bot/actions/workflows/build-android.yml)
+[![CI — تست‌ها](https://img.shields.io/github/actions/workflow/status/KhodeSushianm/Trading-Bot/build-release.yml?branch=ANDROID&style=for-the-badge&logo=githubactions&logoColor=white&label=Tests&color=111111&labelColor=eeeeee)](https://github.com/KhodeSushianm/Trading-Bot/actions/workflows/build-release.yml)
 [![اندروید](https://img.shields.io/badge/Android-7.0%2B-111111?style=for-the-badge&logo=android&logoColor=white&labelColor=eeeeee)](https://github.com/KhodeSushianm/Trading-Bot/releases/latest)
 [![ویندوز](https://img.shields.io/badge/Windows-FROZEN%20v0.21.0-111111?style=for-the-badge&logo=windows&logoColor=white&labelColor=eeeeee)](https://github.com/KhodeSushianm/Trading-Bot/releases/tag/v0.21.0)
 [![پایتون](https://img.shields.io/badge/Python-3.11-111111?style=for-the-badge&logo=python&logoColor=white&labelColor=eeeeee)](requirements.txt)
@@ -25,6 +26,17 @@
 > ریلیز یا قابلیت تازه نمی‌گیرد. آخرین نسخهٔ ویندوز:
 > [v0.21.0](https://github.com/KhodeSushianm/Trading-Bot/releases/tag/v0.21.0).
 >
+> ### 🌿 برنچ‌ها
+> **برنچ پیش‌فرض: `ANDROID`** — توسعهٔ اندروید اینجا انجام می‌شود.
+> `main` و `android` (کوچک) هم نگه داشته شده‌اند و هر سه روی یک کامیت‌اند.
+>
+> ⚠️ **هشدارِ شناخته‌شده:** هم‌زمانی `ANDROID` و `android` روی فایل‌سیستمِ
+> case-insensitive (ویندوز/مک) می‌تواند هنگام `git fetch` خطای
+> `cannot lock ref` بدهد، چون ریف‌های loose به فایل تبدیل می‌شوند و آن دو
+> «یک فایل»‌اند. راه‌حل اگر به آن خوردید:
+> `git pack-refs --all` یا `git config core.ignorecase true`، و هرگز هر دو
+> برنچ را هم‌زمان checkout نکنید.
+
 > ⚠️ موتور پایتون **حذف نشد**، چون سه نقش حیاتی برای خودِ اپ اندروید دارد:
 > اوراکلِ ۲۴ تست برابری موتور JS · منبع حقیقتِ ۴۱ توکن رنگ · منبع
 > `versionName`/`versionCode`. جزئیات در [`CHANGELOG.md`](CHANGELOG.md).
