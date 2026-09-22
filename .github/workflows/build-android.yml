@@ -15,17 +15,25 @@ name: Build Android APK
 #      چسبانده می‌شدند؛ یعنی انتشار به یک انسان وابسته بود و دو بار جا افتاد. حالا
 #      خودش با `gh` روی Release می‌چسباند.
 
+# ── فیلتر برنچ (v0.23.0) ────────────────────────────────────────────────
+# فقط برنچ اصلی ANDROID بیلد می‌گیرد. main و android آینه‌اند و روی همان
+# کامیت؛ بیلد سه‌بارهٔ یک کد، هدرِ خالص بود (اندازه‌گیری: ۲۷ ران تکراری).
+# واگرایی توسط branch-sync.yml گرفته می‌شود، پس پوشش از دست نرفته.
+#
+# تگ‌ها همیشه بیلد می‌گیرند (آن‌ها ریلیز تولید می‌کنند) و android_guard
+# دسترس‌پذیری‌شان از ANDROID/android/main را چک می‌کند.
 on:
   push:
-    # «ANDROID» برنچ توسعهٔ اندروید از v0.23.0 است. «android» (کوچک) و «main»
-    # هم نگه داشته شده‌اند تا اگر تگی از آن‌ها رسید یا برنچ قدیمی هنوز push
-    # شد، CI بی‌صدا خاموش نماند. ⚠️ هم‌زمان داشتن android و ANDROID روی
-    # فایل‌سیستم case-insensitive (ویندوز/مک) خطر تداخل ref دارد.
-    branches: [ "ANDROID", "android", "main" ]
+    branches: [ "ANDROID" ]
     tags: [ 'v*' ]
   pull_request:
     branches: [ "ANDROID", "android", "main" ]
   workflow_dispatch:
+
+# گروه بر پایهٔ ref → دو تگ متفاوت همدیگر را لغو نمی‌کنند (ریلیز از دست نمی‌رود)
+concurrency:
+  group: android-${{ github.ref }}
+  cancel-in-progress: true
 
 permissions:
   contents: write   # برای چسباندن APK به Release (مرحلهٔ «Publish APK»)

@@ -1,0 +1,161 @@
+name: Branch sync guard
+
+# ── چرا این ورک‌فلو وجود دارد ────────────────────────────────────────────
+# از v0.23.0 تست و بیلد فقط روی برنچ «ANDROID» اجرا می‌شوند، چون سه برنچ
+# (ANDROID / main / android) به تصمیم مالک نگه داشته شده‌اند و همیشه روی «یک
+# کامیت» هستند — پس اجرای سه‌بارهٔ تست روی کد یکسان، هدرِ خالص بود
+# (اندازه‌گیری واقعی: ۲۷ ران تکراری و ~۵٫۶ دقیقه هدر در هر push).
+#
+# ⚠️ اما آن بهینه‌سازی یک نقطهٔ کور می‌سازد: اگر کامیتی فقط به main یا
+#   android برسد، تست‌ها «بی‌صدا» اجرا نمی‌شوند و کدِ تست‌نشده آنجا می‌ماند.
+#   این ورک‌فلو دقیقاً همان نقطهٔ کور را می‌پوشاند — ارزان (~۱۵ ثانیه) و
+#   پرسروصدا (با شکست و پیامِ قابل‌اقدام).
+#
+# یعنی پوشش از دست نرفته، جابه‌جا شده:
+#   کد یکسان  → یک‌بار تست کامل روی ANDROID  +  این نگهبان (سبز)
+#   واگرایی   → این نگهبان قرمز می‌شود و می‌گوید کدام برنچ عقب/جلو است
+#
+# این همان درسی است که در v0.19.1/v0.20.0 گرفته شد: آنجا هم نگهبانی که
+# «نه» می‌گفت باعث شد APK بی‌صدا منتشر نشود. نگهبان باید یا سبزِ معنادار
+# باشد یا قرمزِ پرسروصدا — هرگز بی‌صدا.
+
+on:
+  push:
+    # عمدی: فقط روی برنچ‌های «آینه». پوش به ANDROID خودش تست کامل می‌گیرد.
+    branches: [ main, android ]
+  schedule:
+    # هر ۶ ساعت، تا واگرایی‌ای که از راه دیگری (مثلاً ویرایش در وب) ایجاد
+    # شده هم گرفته شود. دقیقهٔ ۱۷ عمداً غیررُند است تا به صفِ رأس ساعت نخورد.
+    - cron: '17 */6 * * *'
+  workflow_dispatch:
+
+# هر سه برنچ معمولاً پشت‌سرهم push می‌شوند؛ با گروه مشترک، اجرای قبلی لغو
+# می‌شود تا به‌جای ۲–۳ ران، فقط ۱ رانِ نگهبان داشته باشیم.
+concurrency:
+  group: branch-sync
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0        # برای مقایسهٔ نسبیتِ کامیت‌ها لازم است
+
+      - name: Compare ANDROID / main / android
+        env:
+          PRIMARY: ANDROID
+        run: |
+          set -euo pipefail
+          # مقدار پیش‌فرض عمدی: اسکریپت زیر `set -u` است و اگر PRIMARY از
+          # طریق env نرسد، با «unbound variable» می‌میرد — و مرگِ نگهبان یعنی
+          # هیچ‌کس نمی‌فهمد برنچ‌ها واگرا شده‌اند. پس پیش‌فرض می‌گذاریم.
+          PRIMARY="${PRIMARY:-ANDROID}"
+          git fetch --quiet origin '+refs/heads/*:refs/remotes/origin/*' --no-tags
+
+          # --verify --quiet عمدی است: بدون آن، git rev-parse روی refِ ناموجود
+          # «خودِ نام ref» را در stdout چاپ می‌کند و exit غیرصفر می‌دهد؛ پس
+          # $(... || echo "") رشتهٔ "origin/android\n" برمی‌گرداند و نگهبان
+          # به‌جای «برنچ وجود ندارد» گزارشِ چرند می‌داد (در سناریوی تست لو رفت).
+          sha_of() { git rev-parse --verify --quiet "refs/remotes/origin/$1" || true; }
+          short()  { printf '%s' "${1:0:7}"; }
+
+          P=$(sha_of "$PRIMARY")
+          M=$(sha_of main)
+          A=$(sha_of android)
+
+          if [[ -z "$P" ]]; then
+            echo "::error::برنچ اصلی «$PRIMARY» روی remote پیدا نشد."
+            exit 1
+          fi
+
+          echo "── وضعیت برنچ‌ها ──────────────────────────────"
+          printf '  %-10s %s\n' "$PRIMARY" "$(short "$P")"
+          printf '  %-10s %s\n' "main"     "$(short "$M")"
+          printf '  %-10s %s\n' "android"  "$(short "$A")"
+          echo
+
+          FAIL=0
+          WARN=0
+          # هر برنچ آینه باید «دقیقاً» روی همان کامیتِ برنچ اصلی باشد.
+          # تساویِ ساده کافی نیست: باید جهتِ اختلاف را هم بگوییم، چون
+          # «آینه جلوتر است» (کد تست‌نشده) خطرناک‌تر از «آینه عقب‌تر است»
+          # (فقط نیاز به fast-forward دارد) است.
+          for BR in main android; do
+            S=$(sha_of "$BR")
+            if [[ -z "$S" ]]; then
+              echo "  ⊘ برنچ $BR روی remote وجود ندارد — مقایسه رد شد"
+              echo "::notice::برنچ «$BR» وجود ندارد. اگر عمدی حذف شده، آن را از فهرست برنچ‌های این نگهبان هم بردارید."
+              WARN=$((WARN + 1))
+              continue
+            fi
+            if [[ "$S" == "$P" ]]; then
+              echo "  ✓ $BR همگام است ($(short "$S"))"
+              continue
+            fi
+            AHEAD=$(git rev-list --count "$P..$S" 2>/dev/null || echo "?")
+            BEHIND=$(git rev-list --count "$S..$P" 2>/dev/null || echo "?")
+            echo "  ✗ $BR واگراست: $(short "$S") — $AHEAD کامیت جلوتر، $BEHIND کامیت عقب‌تر"
+            # شدت‌سنجی عمدی (نه یکسان):
+            #   آینه «جلوتر» = کدِ تست‌نشده وجود دارد → خطرناک → شکست سخت
+            #   آینه «عقب‌تر» = فقط نیاز به fast-forward دارد → بی‌خطر → هشدار
+            # چرا یکسان نکردم: push ترتیبی (اول main بعد ANDROID) لحظه‌ای
+            # واگراییِ «عقب‌تر» می‌سازد. شکستِ سخت روی آن = نویز و عادت به
+            # نادیده‌گرفتنِ قرمز، که از خودِ واگرایی بدتر است.
+            if [[ "$AHEAD" != "0" && "$AHEAD" != "?" ]]; then
+              echo "::error::برنچ «$BR» کامیت‌هایی دارد که روی $PRIMARY نیستند و **هرگز تست نشده‌اند** (تست فقط روی $PRIMARY می‌دود). آن‌ها را به $PRIMARY ببرید."
+              git log --oneline "$P..$S" | sed 's/^/      /' | head -10
+              FAIL=1
+            else
+              echo "::warning::برنچ «$BR» $BEHIND کامیت عقب‌تر است — با fast-forward همگامش کنید: git push origin $PRIMARY:$BR"
+              WARN=$((WARN + 1))
+            fi
+          done
+
+          echo
+          echo "── دسترس‌پذیری تگ‌ها از برنچ اصلی ──────────────"
+          # چرا: اگر تگی از $PRIMARY قابل‌دسترس نباشد، android_guard آن را
+          # «نه» می‌گوید و APK بی‌صدا ساخته نمی‌شود — دقیقاً باگ v0.19.1/v0.20.0.
+          MISSING=0
+          for T in $(git tag --sort=-v:refname | head -5); do
+            TS=$(git rev-list -n 1 "$T" 2>/dev/null || echo "")
+            if [[ -z "$TS" ]]; then continue; fi
+            if git merge-base --is-ancestor "$TS" "$P" 2>/dev/null; then
+              echo "  ✓ $T از $PRIMARY قابل‌دسترس است"
+            else
+              echo "  ✗ $T از $PRIMARY قابل‌دسترس نیست"
+              echo "::warning::تگ $T از برنچ اصلی قابل‌دسترس نیست — اگر از آن ریلیز بخواهید، android_guard بیلد را skip می‌کند."
+              MISSING=1
+              WARN=$((WARN + 1))
+            fi
+          done
+
+          echo
+          # خلاصه باید با واقعیت بخواند. نسخهٔ اول فقط FAIL را می‌دید و وقتی
+          # هشدارِ «عقب‌تر» یا «تگ غیرقابل‌دسترس» بود، «همه همگام‌اند» چاپ
+          # می‌کرد — یعنی خروجیِ سبزِ دروغین که اعتماد به نگهبان را می‌کُشد.
+          if [[ "$FAIL" -eq 1 ]]; then
+            echo "::error::برنچ‌ها واگرا‌اند و کدِ تست‌نشده روی برنچ آینه هست. تا به $PRIMARY منتقل نشود، CI رویش اجرا نمی‌شود."
+            echo "── نتیجه: ✗ واگرایی خطرناک ──"
+            exit 1
+          elif [[ "$WARN" -gt 0 ]]; then
+            echo "── نتیجه: ⚠ $WARN هشدار (واگرایی بی‌خطر یا تگِ دور از دسترس) — CI سبز است ولی همگام کنید ──"
+          else
+            echo "── نتیجه: ✓ هر سه برنچ روی یک کامیت و همهٔ تگ‌های اخیر قابل‌دسترس ──"
+          fi
+
+      - name: Case-collision reminder (ANDROID vs android)
+        run: |
+          # یادآوریِ خطرِ شناخته‌شده: هم‌زمانی دو برنچ که فقط در بزرگیِ حرف
+          # فرق دارند، روی فایل‌سیستم case-insensitive (ویندوز/مک) می‌تواند
+          # هنگام fetch خطای «cannot lock ref» بدهد. مالک تصمیم گرفته هر دو
+          # بمانند، پس این فقط هشدار است نه شکست.
+          if git ls-remote --heads origin 2>/dev/null | grep -q 'refs/heads/ANDROID$' \
+          && git ls-remote --heads origin 2>/dev/null | grep -q 'refs/heads/android$'; then
+            echo "::warning::هر دو برنچ ANDROID و android وجود دارند. روی ویندوز/مک ممکن است هنگام git fetch خطای «cannot lock ref» بگیرید. راه‌حل: git pack-refs --all یا git config core.ignorecase true — و هرگز هر دو را هم‌زمان checkout نکنید."
+          fi
