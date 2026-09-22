@@ -52,3 +52,6 @@ shots-v20/
 
 # یادداشت ریلیز تولیدشده توسط installer/release_notes.py (در CI ساخته می‌شود)
 RELEASE_NOTES.md
+
+# خروجی تولیدشده توسط tools/make_project_report.py — فایل ساختنی در گیت ثبت نمی‌شود
+reports/
