@@ -250,13 +250,28 @@ group('۴) اجزای Aurora Glass 2.0 در اندروید حاضر باشند')
 // ── بررسی ۴ب: رنگ معناییِ هاردکد در سلکتورهای ستاره/امتیاز ────────────
 group('۴ب) کهرباییِ ستاره‌ها باید از توکن بیاید، نه هاردکد');
 {
-  const re = /\.stars-row[^{]*\{[^}]*color:\s*([^;}]+)/g;
-  let m;
-  while ((m = re.exec(css)) !== null) {
+  // ⚠️ این گروه یک بار «بی‌صدا» از کار افتاد: سلکتورِ هدفش (.stars-row) در
+  //   v0.22.0 به‌عنوان CSS مرده حذف شد، پس حلقه هیچ‌چیز پیدا نمی‌کرد و بدون
+  //   هیچ بررسی‌ای پاس می‌شد (۲۰۸ → ۲۰۷ بررسی). نگهبانی که هدفش ناپدید
+  //   شود باید «شکست» بخورد نه اینکه ساکت رد شود — پس یک assertion صریح
+  //   اضافه شد که هدف واقعاً وجود داشته باشد.
+  const TARGETS = ['.stars .ico-wrap.on', '.stars .ico-wrap.off'];
+  for (const sel of TARGETS) {
+    const re = new RegExp(sel.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\s*\\{[^}]*color:\\s*([^;}]+)');
+    const m = re.exec(css);
+    ok(!!m, 'سلکتور «' + sel + '» در style.css پیدا نشد — نگهبانِ رنگ ستاره بی‌هدف شده');
+    if (!m) continue;
     const v = m[1].trim();
-    ok(/^var\(--amber\)/.test(v) || normHex(v) === normHex(tokens.amber.raw),
-      '.stars-row → color:' + v + ' ولی --amber = ' + tokens.amber.raw);
+    const want = sel.endsWith('.on') ? tokens.amber.raw : tokens.border_strong.raw;
+    ok(/^var\(--/.test(v) || normHex(v) === normHex(want),
+      sel + ' → color:' + v + ' (انتظار: var(…) یا ' + want + ')');
   }
+  // هیچ کلاس معناییِ دیگری هم نباید amber هاردکد داشته باشد
+  const hardcoded = [...css.matchAll(/\.([a-z][\w-]*(?:\s+[\w.-]+)*)\s*\{[^}]*color:\s*(#[0-9a-fA-F]{6})/g)]
+    .filter(([, , hex]) => /^#(D98E04|E0A83C|E8B84B)$/i.test(hex));
+  ok(hardcoded.length === 0,
+    'کهرباییِ هاردکد در CSS پیدا شد: ' + hardcoded.map((m) => '.' + m[1] + '→' + m[2]).join(', ') +
+    ' — باید var(--amber) باشد');
 }
 
 // ── بررسی ۵: اجزای نو «کد مرده» نباشند ────────────────────────────────

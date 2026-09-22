@@ -105,6 +105,7 @@ jobs:
           node tests/js/smoke_chart.js
           node tests/js/smoke_share.js
           node tests/js/smoke_theme_parity.js
+          node tests/js/smoke_layout.js
 
       # نگهبان ارزان و هدفمند: versionName/versionCode از src/app_paths.py مشتق
       # می‌شوند، پس اگر آن فایل یا الگوی regex عوض شود APK بی‌صدا با نسخهٔ
@@ -211,24 +212,23 @@ jobs:
           echo "✓ $OUT ($SIZE) آمادهٔ انتشار"
 
           python installer/release_notes.py "$TAG" --out /tmp/notes.md
+          TITLE="ODIN Assistant ${TAG} — اندروید"
 
+          # از v0.22.0 این ورک‌فلو «تنها» ناشر است (ویندوز منجمد شد)، پس
+          # منطقِ «صبر کن ببین ویندوز ریلیز را می‌سازد یا نه» و retry برای
+          # رقابت، دیگر لازم نیست. ساده و قطعی: بساز (یا هم‌تراز کن) سپس آپلود.
           if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
-            echo "ریلیز $TAG وجود دارد — فقط APK را می‌چسبانم (نام/متن دست‌نخورده)"
-            gh release upload "$TAG" "$OUT" --repo "$GITHUB_REPOSITORY" --clobber
+            echo "ریلیز $TAG از قبل هست — نام و یادداشت را هم‌تراز می‌کنم"
+            gh release edit "$TAG" --repo "$GITHUB_REPOSITORY" \
+              --title "$TITLE" --notes-file /tmp/notes.md
           else
-            echo "ریلیز $TAG هنوز نیست — می‌سازمش (ورک‌فلو ویندوز بعداً نام/متن را یکسان بازنویسی می‌کند)"
-            if ! gh release create "$TAG" "$OUT" \
-                   --repo "$GITHUB_REPOSITORY" \
-                   --title "ODIN Assistant ${TAG} — ویندوز + اندروید" \
-                   --notes-file /tmp/notes.md \
-                   --verify-tag; then
-              # رقابت با ورک‌فلو ویندوز: در این فاصله ریلیز ساخته شده
-              echo "ساخت ریلیز ناموفق (احتمالاً هم‌زمان ساخته شد) — به آپلود برمی‌گردم"
-              gh release upload "$TAG" "$OUT" --repo "$GITHUB_REPOSITORY" --clobber
-            fi
+            echo "ساخت ریلیز $TAG"
+            gh release create "$TAG" --repo "$GITHUB_REPOSITORY" \
+              --title "$TITLE" --notes-file /tmp/notes.md --verify-tag
           fi
 
-          echo "::notice::APK اندروید ${TAG} روی Release منتشر شد."
+          gh release upload "$TAG" "$OUT" --repo "$GITHUB_REPOSITORY" --clobber
+          echo "::notice::APK اندروید ${TAG} روی Release منتشر شد (تنها خروجی قابل‌توزیع)."
 
       - name: Warn if unsigned (تگ بود ولی امضا نشد)
         if: startsWith(github.ref, 'refs/tags/') && env.SIGNED != '1'

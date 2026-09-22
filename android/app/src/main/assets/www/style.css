@@ -141,9 +141,28 @@ body {
   padding: calc(10px + env(safe-area-inset-top)) 18px 8px;
   flex: 0 0 auto;
 }
+/* ── هدر: بودجهٔ عرض در گوشی ۳۶۰px ─────────────────────────────────────
+   باگ v0.21.0 و پیش‌تر: «۱۴:۳۲ تهران» در دو خط می‌شکست.
+   علت (اندازه‌گیری‌شده، نه حدس): #appsub با ۴۲ نویسه ≈ ۲۱۷px و سمت چپ
+   ≈ ۱۲۹px، روی هم ۳۵۶px در فضای ۳۲۴px → ۳۲px سرریز. چون هیچ‌کدام از
+   دو طرف flex-shrink مهار نشده بود، مرورگر متنِ ساعت را می‌شکست.
+   سه محافظ لازم است و هر سه با هم کار می‌کنند:
+     ۱) ظرف متن: flex:1 + min-width:0 (بدون min-width:0، flex آیتم
+        هرگز کوچک‌تر از عرض محتوایش نمی‌شود — نکتهٔ رایج و فراموش‌شده)
+     ۲) خودِ متن: nowrap + ellipsis
+     ۳) قرص ساعت: nowrap + flex:0 0 auto تا هرگز جمع نشود          */
 .hdr-main { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
-#greet { font-size: 21px; font-weight: 700; letter-spacing: -.2px; }
-#appsub { font-size: 10.5px; color: var(--text-3); font-weight: 500; }
+.hdr-main > div:first-child { flex: 1 1 auto; min-width: 0; }
+#greet {
+  font-size: 21px; font-weight: 700; letter-spacing: -.2px;
+  /* نام کاربر می‌تواند هر طولی داشته باشد؛ بدون این، یک نام بلند کل هدر را
+     هل می‌دهد و ساعت را دوخطی می‌کند. با ellipsis «مودبانه» کوتاه می‌شود. */
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+#appsub {
+  font-size: 10.5px; color: var(--text-3); font-weight: 500;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
 .hdr-side { display: flex; align-items: center; gap: 8px; }
 .clock-pill {
   background: rgba(255,255,255,.65);
@@ -153,6 +172,7 @@ body {
   font-size: 11px; font-weight: 500; color: var(--text-2);
   backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
   direction: ltr; unicode-bidi: embed;
+  white-space: nowrap; flex: 0 0 auto;   /* هرگز دوخطی نشود، هرگز جمع نشود */
 }
 .circle-btn {
   width: 40px; height: 40px; border-radius: 50%;
@@ -325,7 +345,7 @@ body {
   margin-top: 9px; padding: 10px 12px; background: var(--bg-alt);
   border-radius: 14px; font-size: 11.5px; color: var(--text-2); line-height: 2;
 }
-.ev-explain .tip { color: var(--text-3); font-size: 10.5px; }
+/* .ev-explain .tip حذف شد — CSS مرده (صفر استفاده در کد) */
 .countdown { font-size: 10.5px; font-weight: 700; color: var(--text-2); }
 
 /* ── اخبار ──────────────────────────────────────────────────── */
@@ -349,14 +369,12 @@ body {
 }
 
 /* ── سیگنال‌ها ──────────────────────────────────────────────── */
-.sig-card { overflow: hidden; }
+/* .sig-card پیش‌تر اینجا «overflow:hidden» داشت و در بلوک Aurora Glass 2.0
+   دوباره با «overflow:visible» تعریف شد — دو تعریف متناقض برای یک سلکتور.
+   تعریف مرده حذف شد؛ تنها تعریف معتبر در بخش Aurora است.            */
 .sig-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
-.dir-pill {
-  display: inline-flex; align-items: center; gap: 6px;
-  font-size: 12.5px; font-weight: 700; padding: 5px 14px; border-radius: var(--r-pill);
-}
-.dir-pill.buy { background: var(--green-tint); color: var(--green-text); }
-.dir-pill.sell { background: var(--red-tint); color: var(--red-text); }
+/* .dir-pill حذف شد — CSS مرده (جایگزین شد با چیپ جهت در v0.21.0) */
+/* .dir-pill.buy/.sell حذف شد — در v0.21.0 با چیپ جهت جایگزین شد */
 .score-bar-wrap { margin: 12px 0 4px; }
 .score-bar {
   height: 8px; background: var(--bg-alt); border-radius: 4px; position: relative; overflow: visible;
@@ -370,7 +388,7 @@ body {
 .level-box { flex: 1; background: var(--bg-alt); border-radius: 16px; padding: 10px 8px; text-align: center; }
 .level-box .l-cap { font-size: 9.5px; color: var(--text-3); font-weight: 500; }
 .level-box .l-val { font-size: 15px; font-weight: 700; direction: ltr; margin: 2px 0; }
-.level-box .l-sub { font-size: 9px; color: var(--text-3); }
+/* .level-box .l-sub حذف شد — زیرعنوان کاشی در v0.21.0 به .sc-tile-sub منتقل شد */
 .level-box.sl .l-val { color: var(--red-text); }
 .level-box.tp .l-val { color: var(--green-text); }
 
@@ -421,7 +439,13 @@ body {
 .r-chip.loss { background: var(--red-tint); color: var(--red-text); }
 .r-chip.exp { background: var(--raised); color: var(--text-3); }
 
-.stat-defs { font-size: 10px; color: rgba(255,255,255,.55); line-height: 2; margin-top: 8px; }
+/* ⚠️ رگرسیون v0.21.0 که در همین بازبینی پیدا شد:
+   .stat-defs برای «داخل کارت مشکی» ساخته شده بود (رنگ سفیدِ نیمه‌شفاف)، ولی در
+   v0.21.0 کارنامه از کارت مشکی به ردیف KPI روشن منتقل شد و این توضیح هم داخل
+   یک .card سفید رفت → سفید روی سفید = متن کاملاً نامرئی. هیچ تستی نگرفتشان
+   چون تست کنتراست نداشتیم؛ حالا smoke_layout.js این کلاس را قفل می‌کند. */
+.stat-defs { font-size: 10px; color: var(--text-3); line-height: 2; margin-top: 8px; }
+.ink .stat-defs, .card.ink .stat-defs { color: rgba(255,255,255,.55); }
 
 /* ── تنظیمات ────────────────────────────────────────────────── */
 .set-row {
@@ -609,9 +633,8 @@ body {
 @keyframes shimmer { to { background-position: -200% 0; } }
 
 /* ── بریفینگ ────────────────────────────────────────────────── */
-.brief-line { font-size: 12px; line-height: 2.15; color: var(--text-2); white-space: pre-wrap; }
-.brief-line.head { font-weight: 700; color: var(--text); margin-top: 10px; }
-.brief-line.title { font-size: 14.5px; font-weight: 700; color: var(--text); }
+/* .brief-line حذف شد — CSS مرده (صفحهٔ بریفینگ در v0.21.0 کنسول‌کارت شد) */
+/* .brief-line.head/.title حذف شد — بریفینگ در v0.21.0 کنسول‌کارت شد */
 
 /* اسکرول‌بار نازک */
 ::-webkit-scrollbar { width: 0; height: 0; }
@@ -646,10 +669,9 @@ body {
 .veto-row .v-icon { display: flex; align-items: flex-start; padding-top: 3px; }
 
 /* ستاره‌های امتیاز سیگنال */
-.stars-row { display: inline-flex; align-items: center; gap: 2px; color: var(--amber); }
-
+/* .stars-row حذف شد — CSS مرده (جایگزین شد با O.stars در v0.21.0) */
 /* دکمهٔ «توقف رصد» داخل اعلان ماندگار با بقیهٔ اکشن‌ها یکی است */
-.brief-line .ico, .hint .ico, .card-sub .ico, .set-sub .ico, .news-src .ico { vertical-align: -0.2em; }
+.hint .ico, .card-sub .ico, .set-sub .ico, .news-src .ico { vertical-align: -0.2em; }  /* .brief-line حذف شد */
 
 /* ── v0.16.0 دکمهٔ دایره‌ای کوچک (حذف هشدار و...) ─────────────── */
 .icon-btn {
@@ -659,7 +681,8 @@ body {
   transition: transform .12s, color .15s, background .15s;
 }
 .icon-btn:active { transform: scale(.9); }
-.icon-btn.del:hover, .icon-btn.del.arm { background: var(--red-tint); color: var(--red-text); border-color: #EBC9C9; }
+/* «.arm» (حالت «مسلح» برای حذف) هیچ‌وقت از JS اضافه نمی‌شد — CSS مرده */
+.icon-btn.del:hover { background: var(--red-tint); color: var(--red-text); border-color: #EBC9C9; }
 
 /* ══════════════════════════════════════════════════════════════
    v0.14.2 — پیل تلگرام (ارتباط با سازنده) و فهرست تیم پروژه
@@ -790,8 +813,7 @@ body.no-anim .kpi-card { animation: none !important; }
 .stars .ico-wrap { display: inline-flex; line-height: 0; }
 .stars .ico-wrap.on  { color: var(--amber); }
 .stars .ico-wrap.off { color: var(--border-strong); }
-/* سلکتور قدیمی هم نگه داشته می‌شود — .stars-row هنوز در ui.js استفاده می‌شود */
-.stars-row .ico { color: var(--amber); }
+/* .stars-row حذف شد — در v0.21.0 با O.stars جایگزین شد */
 
 /* ── ۵. سربرگ بخش (SectionHeader) ────────────────────────────────────── */
 .section-header {
@@ -971,5 +993,38 @@ body.no-anim .kpi-card { animation: none !important; }
 }
 .sig-card .sc-reason-txt b { font-weight: 700; }
 .sig-card .sc-reason-pts { flex: 0 0 auto; }
-.sig-card .sc-acts { display: flex; align-items: center; gap: 7px; margin-top: 12px; }
-.sig-card .sc-full { margin-top: 12px; margin-bottom: 0; }
+/* .sc-acts و .sc-full در v0.21.0 تعریف شدند ولی هرگز استفاده نشدند — حذف */
+
+/* ══════════════════════════════════════════════════════════════════════
+   v0.22.0 — محافظِ سرریز متن (Layout overflow guards)
+
+   چرا این بلوک وجود دارد: در گوشی ۳۶۰px عرض مفیدِ داخل کارت فقط ۲۹۲px است.
+   اندازه‌گیری نشان داد «.j-sym .s2» (سطر جزئیات ژورنال: ورود/SL/TP/زمان)
+   ۲۳۱px در ظرف ۲۲۲px است و بی‌محافظ می‌شکست؛ «.cc-stamp» هم لبِ مرز بود.
+   قاعدهٔ کلی این بلوک: هر عنصری که «یک مقدار کوتاه» دارد nowrap می‌گیرد
+   (شکستنش بی‌معناست)، و هر عنصری که «متن بلندِ توضیحی» دارد clamp می‌گیرد
+   (تا ارتفاع ردیف‌ها در فهرست‌ها قابل پیش‌بینی بماند).
+   ══════════════════════════════════════════════════════════════════════ */
+
+/* مقدارهای کوتاه: هرگز نشکنند */
+.ev-time, .countdown, .r-chip, .sc-tile-val, .sc-tile-cap,
+.ev-pts, .chip, .pill, .cc-stamp { white-space: nowrap; }
+
+/* مهر زمانِ کنسول‌کارت: تاریخ شمسی کامل طولانی است؛ سقف عرض + ellipsis */
+.cc-stamp { max-width: 150px; overflow: hidden; text-overflow: ellipsis; }
+
+/* ردیف ژورنال: سطر اول یک‌خطی، سطر جزئیات حداکثر دو خط با ellipsis.
+   -webkit-line-clamp در WebView اندروید پشتیبانی می‌شود (Chromium). */
+.j-sym .s1 {
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.j-sym .s2 {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  overflow: hidden;
+}
+
+/* عنوان کارت/صفحه: اگر نام نماد یا عنوان خبر بلند بود، نشکند */
+.cc-title, .sh-title { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }

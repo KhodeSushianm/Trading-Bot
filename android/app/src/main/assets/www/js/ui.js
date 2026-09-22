@@ -131,7 +131,7 @@
     if (!st) {
       html += '<div class="card"><div class="empty-state">' +
         '<div class="e-ico">' + O.ico('antenna', 40) + '</div><div class="e-t">هنوز تحلیلی اجرا نشده</div>' +
-        '<div class="e-s">دکمهٔ «تحلیل تازه» را بزن تا قیمت‌ها، تقویم اقتصادی و اخبار دریافت شود و داور امتیازدهی تصمیم بگیرد.<br>اولین تحلیل کمی طول می‌کشد (دریافت ۷ نماد).</div>' +
+        '<div class="e-s">«تحلیل تازه» را بزن — اولین بار کمی طول می‌کشد.</div>' +
         '</div></div>';
       html += skeletonCards(3);
       return html;
@@ -276,7 +276,7 @@
     var st = S.state;
     var minScore = S.cfg.judge.min_score | 0;
     var html = pt('scale', 'داور امتیازدهی') +
-      '<div class="page-sub">آستانهٔ صدور سیگنال: ' + O.faNum(minScore) + ' از ۱۱ امتیاز — اول دروازه‌های وتو، بعد جدول مدارک. «چرا سیگنال نشد» هم خروجی معتبر است.</div>';
+      '<div class="page-sub">آستانهٔ صدور: ' + O.faNum(minScore) + ' از ۱۱ امتیاز — اول وتوها، بعد مدارک.</div>';
 
     if (S.cfg.judge.enabled === false) {
       return html + '<div class="card"><div class="empty-state"><div class="e-ico">' + O.ico('gear', 40) + '</div><div class="e-t">داور خاموش است</div><div class="e-s">از تنظیمات فعالش کن.</div></div></div>';
@@ -441,7 +441,7 @@
     var st = S.state;
     var nowMs = Date.now();
     var html = pt('bank', 'تقویم اقتصادی') +
-      '<div class="page-sub">منبع: ForexFactory — فقط هفتهٔ جاری (شنبه تا جمعه). همهٔ ساعت‌ها به وقت تهران است. رویداد پراثر در ۳۰ دقیقهٔ آینده = وتوی سیگنال آن نماد.</div>';
+      '<div class="page-sub">ForexFactory · هفتهٔ جاری · ساعت تهران — رویداد پراثر تا ۳۰ دقیقهٔ آینده = وتو.</div>';
 
     var cal = st && st.calSnap;
     if (!cal) {
@@ -517,7 +517,7 @@
     var st = S.state;
     var nowMs = Date.now();
     var html = pt('news', 'اخبار بازار') +
-      '<div class="page-sub">رصد زندهٔ ForexLive، Investing.com و FXStreet با امتیازدهی جهت‌دار (۰ تا ۶).</div>';
+      '<div class="page-sub">ForexLive · Investing.com · FXStreet — امتیاز جهت‌دار ۰ تا ۶.</div>';
 
     var ns = st && st.newsSnap;
     if (!ns) {
@@ -567,11 +567,11 @@
     var stats = S.stats;
     var entries = S.journal ? S.journal.load() : [];
     var html = pt('book', 'ژورنال و کارنامهٔ دقت') +
-      '<div class="page-sub">حلقهٔ صداقت: نتیجهٔ هر سیگنال از روی کندل‌های ۱۵ دقیقه تعیین و اینجا ثبت می‌شود — با قاعدهٔ محتاطانهٔ «برخورد هر دو سطح = ضرر».</div>';
+      '<div class="page-sub">نتیجهٔ هر سیگنال خودکار از کندل‌ها پیگیری می‌شود (برخورد هر دو سطح = ضرر).</div>';
 
     if (!entries.length) {
       html += '<div class="card"><div class="empty-state"><div class="e-ico">' + O.ico('book', 40) + '</div><div class="e-t">ژورنال خالی است</div>' +
-        '<div class="e-s">هر سیگنالی که داور صادر کند اینجا ثبت و نتیجه‌اش پیگیری می‌شود. فعلاً سیگنالی نبوده — این یعنی سیستم وعدهٔ الکی نداده ' + O.ico('smile', 13) + '</div></div></div>';
+        '<div class="e-s">هر سیگنال اینجا ثبت و پیگیری می‌شود. فعلاً سیگنالی نبوده. ' + O.ico('smile', 13) + '</div></div></div>';
       return html;
     }
 
@@ -678,7 +678,7 @@
     var notifOn = nat.notificationsEnabled ? nat.notificationsEnabled() : true;
     var battOk = nat.isIgnoringBattery ? nat.isIgnoringBattery() : true;
     var html = pt('gear', 'تنظیمات') +
-      '<div class="page-sub">تغییرها فوری ذخیره می‌شوند و در تحلیل بعدی اثر می‌کنند.</div>';
+      '<div class="page-sub">تغییرها فوری ذخیره می‌شوند.</div>';
 
     html += '<div class="card"><div class="section-title" style="margin-top:0">' + ct('user', 'شخصی', 13) + '</div>' +
       '<div class="set-row"><div><div class="set-label">نام نمایشی</div><div class="set-sub">در خوش‌آمدگویی و هدر استفاده می‌شود</div></div></div>' +
@@ -720,7 +720,7 @@
     // رصد پس‌زمینه — سیگنال بدون باز کردن اپ (v0.13.0)
     html += '<div class="card"><div class="section-title" style="margin-top:0">' + ct('activity', 'رصد پس‌زمینه', 13) + '</div>' +
       '<div class="set-row"><div><div class="set-label">رصد بازار بدون باز کردن اپ</div>' +
-      '<div class="set-sub">تحلیل در پس‌زمینه تکرار می‌شود و سیگنال تازه/خبر فوری با اعلان می‌رسد — حتی وقتی اپ بسته است. یک اعلان ماندگار «در حال رصد» نشان داده می‌شود.</div></div>' +
+      '<div class="set-sub">سیگنال و خبر فوری حتی با اپ بسته — با اعلان ماندگار «در حال رصد».</div></div>' +
       switchHtml('background_enabled', set.background_enabled !== false) + '</div>' +
       (bgRunning
         ? '<div class="set-row"><div><div class="set-label">' + O.ico('activity', 12, 'c-green') + ' رصد فعال است</div><div class="set-sub">چرخه‌ها توسط سرویس پس‌زمینه اجرا می‌شوند</div></div></div>'
@@ -737,11 +737,11 @@
 
     html += '<div class="card"><div class="section-title" style="margin-top:0">' + ct('scale', 'داور امتیازدهی', 13) + '</div>' +
       '<div class="set-row"><div><div class="set-label">داور فعال است</div><div class="set-sub">خاموش = هیچ سیگنالی داوری/صادر نمی‌شود</div></div>' + switchHtml('judge_enabled', set.judge_enabled) + '</div>' +
-      '<div class="set-row"><div><div class="set-label">آستانهٔ صدور سیگنال</div><div class="set-sub">حداکثر ممکن ۱۱ امتیاز است — پیش‌فرض ۷</div></div>' +
+      '<div class="set-row"><div><div class="set-label">آستانهٔ صدور سیگنال</div><div class="set-sub">از حداکثر ۱۱ امتیاز</div></div>' +
       '<span class="stepper"><button data-step="min_score:-1">−</button><span class="val">' + O.faNum(set.min_score) + '</span><button data-step="min_score:1">+</button></span></div>' +
       '</div>';
 
-    html += '<div class="card"><div class="section-title" style="margin-top:0">' + ct('ban', 'دروازه‌های وتو', 13) + '</div><div class="hint" style="margin-bottom:6px">وتوها بدون استثنا هستند: حتی با امتیاز کامل، سیگنال صادر نمی‌شود.</div>' +
+    html += '<div class="card"><div class="section-title" style="margin-top:0">' + ct('ban', 'دروازه‌های وتو', 13) + '</div><div class="hint" style="margin-bottom:6px">وتو بدون استثناست — حتی با امتیاز کامل.</div>' +
       row('weekend', 'lock', 'بازار بسته', 'شنبه/یکشنبه و جمعه از ۰۰:۳۰ بامداد شنبه (تهران)', v.weekend) +
       row('high_impact_event', 'calendar', 'رویداد پراثر تقویم', 'رویداد پراثر تا ۳۰ دقیقهٔ آینده', v.high_impact_event) +
       row('timeframe_conflict', 'shuffle', 'تضاد تایم‌فریم', 'H4 و H1 هم‌جهت نباشند', v.timeframe_conflict) +
@@ -757,17 +757,17 @@
       '</div>';
 
     html += '<div class="card"><div class="section-title" style="margin-top:0">' + ct('refresh', 'تازه‌سازی و اعلان‌ها', 13) + '</div>' +
-      '<div class="set-row"><div><div class="set-label">تازه‌سازی خودکار تحلیل</div><div class="set-sub">وقتی اپ باز و بازار فعال است — اگر رصد پس‌زمینه روشن باشد، چرخه‌ها در پس‌زمینه هم اجرا می‌شوند. معامله خودکار نمی‌کند.</div></div>' + switchHtml('auto_refresh_enabled', set.auto_refresh_enabled !== false) + '</div>' +
-      '<div class="set-row"><div><div class="set-label">فاصلهٔ تازه‌سازی</div><div class="set-sub">هر چند دقیقه یک‌بار تحلیل تکرار شود (پس‌زمینه هم همین فاصله را دارد)</div></div>' +
+      '<div class="set-row"><div><div class="set-label">تازه‌سازی خودکار تحلیل</div><div class="set-sub">چرخه‌های تحلیل خودکار — معامله اجرا نمی‌شود.</div></div>' + switchHtml('auto_refresh_enabled', set.auto_refresh_enabled !== false) + '</div>' +
+      '<div class="set-row"><div><div class="set-label">فاصلهٔ تازه‌سازی</div><div class="set-sub">فاصلهٔ تکرار تحلیل (پس‌زمینه هم همین)</div></div>' +
       '<span class="stepper"><button data-step="auto_refresh_min:-1">−</button><span class="val">' + O.faNum(set.auto_refresh_min || 15) + ' دقیقه</span><button data-step="auto_refresh_min:1">+</button></span></div>' +
-      '<div class="set-row"><div><div class="set-label">اعلان سیگنال جدید و خبر فوری ' + O.ico('bell', 12) + '</div><div class="set-sub">نوتیفیکیشن اندروید + لرزش هنگام صدور سیگنال تازه یا خبر فوری</div></div>' + switchHtml('notify_enabled', set.notify_enabled !== false) + '</div>' +
-      '<div class="set-row"><div><div class="set-label">انیمیشن‌ها ' + O.ico('wave', 12) + '</div><div class="set-sub">پس‌زمینهٔ شفق متحرک و حرکت ظریف کارت‌ها — خاموشش کنی همه‌چیز آنی می‌شود (باتری/تمرکز). همتای ui.animations در نسخهٔ ویندوز.</div></div>' + switchHtml('animations_enabled', set.animations_enabled !== false) + '</div>' +
+      '<div class="set-row"><div><div class="set-label">اعلان سیگنال جدید و خبر فوری ' + O.ico('bell', 12) + '</div><div class="set-sub">اعلان + لرزش برای سیگنال و خبر فوری</div></div>' + switchHtml('notify_enabled', set.notify_enabled !== false) + '</div>' +
+      '<div class="set-row"><div><div class="set-label">انیمیشن‌ها ' + O.ico('wave', 12) + '</div><div class="set-sub">شفق متحرک و حرکت کارت‌ها — خاموش = همه‌چیز آنی (باتری).</div></div>' + switchHtml('animations_enabled', set.animations_enabled !== false) + '</div>' +
       '</div>';
 
     html += '<div class="card"><div class="section-title" style="margin-top:0">' + ct('archive', 'داده‌ها', 13) + '</div>' +
       '<div class="set-row"><div><div class="set-label">پاک‌کردن کش تقویم و تحلیل</div><div class="set-sub">دادهٔ بازار دفعهٔ بعد تازه دریافت می‌شود</div></div>' +
       '<button class="btn ghost sm" data-action="clear-cache">پاک‌کردن</button></div>' +
-      '<div class="set-row"><div><div class="set-label">بازنشانی تنظیمات</div><div class="set-sub">همه به حالت پیش‌فرض برمی‌گردند (ژورنال پاک نمی‌شود)</div></div>' +
+      '<div class="set-row"><div><div class="set-label">بازنشانی تنظیمات</div><div class="set-sub">ژورنال پاک نمی‌شود</div></div>' +
       '<button class="btn ghost sm" data-action="reset-settings">بازنشانی</button></div>' +
       '</div>';
 

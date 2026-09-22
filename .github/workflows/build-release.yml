@@ -1,23 +1,33 @@
-name: Tests & Build Windows EXE
+name: Tests (Python + Android JS)
 
-# تست‌ها روی هر push و PR اجرا می‌شوند (سریع، بدون ساخت EXE).
-# ساخت و انتشار (نصب‌کننده + EXE پرتابل) فقط روی تگ v* یا اجرای دستی.
+# ── تغییر مسیر پروژه (۲۰۲۶-۰۹-۲۲) ────────────────────────────────────
+# توسعهٔ نسخهٔ ویندوز «منجمد» شد: دیگر بیلد/ریلیز/قابلیت جدید ویندوزی نداریم.
+# پس jobهای windows_guard و build-windows از این ورک‌فلو حذف شدند و تنها خروجی
+# قابل‌توزیع، APK است (ورک‌فلو build-android.yml).
+#
+# ⚠️ این ورک‌فلو عمداً «نگه داشته» شده و فقط job تست را می‌دود، چون:
+#   ۱) موتور پایتون هنوز اوراکلِ تستِ اپ اندروید است — tests/js/gen_fixtures.py
+#      دوازده ماژول آن را import می‌کند تا فیکسچرِ ۲۴ تست برابری ساخته شود.
+#      بدون این job، هیچ‌چیز درستیِ محاسبات موتور JS اندروید را نمی‌سنجد.
+#   ۲) src/ui/theme.py هنوز منبع حقیقتِ ۴۱ توکن رنگ اندروید است
+#      (smoke_theme_parity.js — ۲۰۸ بررسی).
+#   ۳) src/app_paths.py منبع حقیقتِ versionName/versionCode اندروید است.
+#   یعنی «انجماد ویندوز» ≠ «حذف پایتون». کد ویندوزی (panel.py، src/ui/،
+#   installer/) سر جایش می‌ماند ولی بیلد نمی‌شود.
 on:
   push:
-    branches: [main]
+    branches: [main, android]
     tags: ["v*"]
   pull_request:
   workflow_dispatch:
-    inputs:
-      debug_smoke:
-        description: "1 = اسموک‌تست به‌جای شکست، شواهد کامل چاپ می‌کند"
-        default: ""
 
 permissions:
-  contents: write
+  contents: read   # فقط تست می‌دود؛ هیچ انتشاری ندارد (اصل کمینه‌بودن دسترسی)
 
 jobs:
-  # ── تست‌های سریع (بدون GUI، بدون اینترنت) ───────────────────
+  # ── تست‌ها: موتور پایتون (اوراکل) + اسموک‌های اپ اندروید ──────
+  # بدون GUI و بدون اینترنت. panel.py --selftest عمداً اینجا نیست: به Qt
+  # نیاز دارد و نسخهٔ ویندوز منجمد شده، پس اجرايش هزینهٔ بی‌فایده است.
   test:
     runs-on: ubuntu-latest
     steps:
@@ -54,209 +64,10 @@ jobs:
           node tests/js/smoke_chart.js
           node tests/js/smoke_share.js
           node tests/js/smoke_theme_parity.js
+          node tests/js/smoke_layout.js
 
       - name: Data-dir logic test (پرتابل vs نصب‌شده)
         run: python tests/manual/test_paths_install.py
 
       - name: Byte-compile all sources
         run: python -m compileall -q src panel.py main.py
-
-  # ── نگهبان: فقط تگی که روی main است بیلد ویندوز می‌گیرد ────────
-  # چرا: تگ‌های v* از برنچ android هم این ورک‌فلو را بیدار می‌کنند. اگر تگی روی
-  #   main قابل‌دسترس نباشد، ساخت ویندوز از کدِ آن تگ بی‌معناست (و پیش‌تر job
-  #   «Publish GitHub Release» نام/متن ریلیز اندروید را بازنویسی می‌کرد و EXEهای
-  #   ساخته‌شده از کد برنچ اندروید را به آن می‌چسباند — اتفاقی که برای v0.9.0 افتاد).
-  # نکتهٔ v0.20.1: از v0.19.0 به بعد دو پلتفرم یک درخت کد دارند، پس برای تگ‌های
-  #   جدید هر دو ورک‌فلو اجرا می‌شوند و روی «یک» ریلیز می‌نشینند. واگرایی
-  #   نام/متن هم حل شده چون هر دو یادداشت را از CHANGELOG.md می‌خوانند.
-  # حالت خطا: اگر بررسی نسبیت با خطا (نه «نه»ی قطعی) مواجه شود، build=true
-  #   می‌ماند تا انتشار ویندوزِ برنچ main هرگز بی‌صدا از کار نیفتد.
-  windows_guard:
-    runs-on: ubuntu-latest
-    outputs:
-      build: ${{ steps.chk.outputs.build }}
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: Is this tag reachable from main?
-        id: chk
-        run: |
-          if [[ "${{ github.ref }}" != refs/tags/* ]]; then
-            echo "build=true" >> "$GITHUB_OUTPUT"
-            echo "not a tag push (ref=${{ github.ref }}) — Windows build allowed"
-            exit 0
-          fi
-          TAG_SHA=$(git rev-list -n 1 "${{ github.ref }}")
-          git fetch --no-tags origin main
-          MAIN_SHA=$(git rev-parse FETCH_HEAD)
-          echo "tag ${{ github.ref_name }} -> $TAG_SHA ; main -> $MAIN_SHA"
-          set +e
-          git merge-base --is-ancestor "$TAG_SHA" "$MAIN_SHA"
-          rc=$?
-          set -e
-          if [ "$rc" -eq 1 ]; then
-            echo "build=false" >> "$GITHUB_OUTPUT"
-            echo "::notice::Tag ${{ github.ref_name }} is not on main (Android release) — skipping the Windows build."
-            echo "tag is NOT reachable from main -> skipping Windows build"
-          else
-            echo "build=true" >> "$GITHUB_OUTPUT"
-            echo "tag is reachable from main (rc=$rc) -> Windows build allowed"
-          fi
-
-  # ── ساخت و انتشار نصب‌کننده + EXE ویندوز ────────────────────
-  build-windows:
-    needs: [test, windows_guard]
-    if: >-
-      (startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch') &&
-      needs.windows_guard.outputs.build == 'true'
-    runs-on: windows-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup Python 3.11
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
-
-      - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt
-          pip install pyinstaller
-
-      - name: Resolve version & stamp Windows file info
-        id: ver
-        shell: pwsh
-        run: |
-          $ref = "${{ github.ref_name }}"
-          if ($ref -match '^v?(\d+\.\d+\.\d+(?:[.\-+][0-9A-Za-z.\-]+)?)$') { $v = $Matches[1] }
-          else { $v = (python -c "from src import app_paths; print(app_paths.APP_VERSION)").Trim() }
-          python installer/stamp_version.py $v
-          "version=$v" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
-
-      - name: Panel selftest (offscreen GUI)
-        env:
-          QT_QPA_PLATFORM: offscreen
-        run: python panel.py --selftest
-
-      - name: Build EXE (PyInstaller)
-        run: pyinstaller ODINAssistant.spec --noconfirm
-
-      - name: Smoke test (offscreen GUI + engine selftest)
-        env:
-          QT_QPA_PLATFORM: offscreen
-        run: .\dist\ODINAssistant.exe --selftest
-
-      - name: Locate (or install) Inno Setup
-        id: iscc
-        shell: pwsh
-        run: |
-          $p = "C:\Program Files (x86)\Inno Setup 6\ISCC.exe"
-          if (-not (Test-Path $p)) {
-            choco install innosetup -y --no-progress | Out-Null
-          }
-          if (-not (Test-Path $p)) { throw "Inno Setup (ISCC.exe) not found" }
-          "path=$p" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
-
-      - name: Build installer (Inno Setup)
-        shell: pwsh
-        run: '& "${{ steps.iscc.outputs.path }}" /DAppVersion=${{ steps.ver.outputs.version }} installer\odin.iss'
-
-      - name: Installer smoke test (silent install + uninstall)
-        env:
-          DEBUG_SMOKE: ${{ github.event.inputs.debug_smoke }}
-        shell: pwsh
-        run: |
-          # دام شمارهٔ ۱: اینو ستاپ اگر پوشهٔ مسیر /LOG وجود نداشته باشد،
-          #   نمی‌تواند لاگ بسازد و بی‌سروصدا با «Setup failed to initialize»
-          #   (کد خروج 1) خارج می‌شود؛ پس اول $dir را می‌سازیم.
-          # دام شمارهٔ ۲: اگر اینو سطح دسترسی عوض کند، فرزند detached می‌سازد و
-          #   پدر فوراً خارج می‌شود؛ پس معیار اصلی poll روی فایل‌های نصب است و
-          #   کد خروج فقط برای شکستِ زودهنگامِ غیرصفر به کار می‌رود.
-          $dir = Join-Path $env:RUNNER_TEMP "OdinSmokeTest"
-          if (Test-Path $dir) { Remove-Item $dir -Recurse -Force }
-          New-Item -ItemType Directory -Force -Path $dir | Out-Null
-          $setup = Get-ChildItem installer\Output\*-setup.exe | Select-Object -First 1
-          if (-not $setup) { throw "installer output missing" }
-          "launching: $($setup.FullName)"
-          "target dir: $dir"
-          $p = Start-Process -FilePath $setup.FullName -ArgumentList `
-            "/VERYSILENT","/SUPPRESSMSGBOXES","/NORESTART","/NOICONS", `
-            "/DIR=$dir","/LOG=$dir\setup.log" -PassThru
-          $ok = $false
-          $deadline = (Get-Date).AddSeconds(240)
-          while ((Get-Date) -lt $deadline) {
-            if ((Test-Path "$dir\ODINAssistant.exe") -and (Test-Path "$dir\.installed") -and
-                (Test-Path "$dir\unins000.exe")) { $ok = $true; break }
-            if ($p.HasExited -and $p.ExitCode -ne 0) {
-              "---- evidence: dir listing ----"
-              Get-ChildItem $dir -Recurse -Force -ErrorAction SilentlyContinue |
-                Select-Object -First 40 -ExpandProperty FullName
-              "---- evidence: setup.log ----"
-              Get-Content "$dir\setup.log" -ErrorAction SilentlyContinue | Select-Object -Last 50
-              throw "setup exited early with code $($p.ExitCode)"
-            }
-            Start-Sleep -Seconds 2
-          }
-          if (-not $ok) {
-            "---- evidence: dir listing ----"
-            Get-ChildItem $dir -Recurse -Force -ErrorAction SilentlyContinue |
-              Select-Object -First 60 -ExpandProperty FullName
-            "---- evidence: setup.log ----"
-            Get-Content "$dir\setup.log" -ErrorAction SilentlyContinue | Select-Object -Last 50
-            throw "silent install did not produce artifacts in 240s"
-          }
-          "install artifacts OK"
-          $u = Start-Process -FilePath "$dir\unins000.exe" -ArgumentList `
-            "/VERYSILENT","/NORESTART","/LOG=$dir\unins.log" -PassThru
-          $gone = $false
-          $deadline = (Get-Date).AddSeconds(180)
-          while ((Get-Date) -lt $deadline) {
-            if (-not (Test-Path "$dir\ODINAssistant.exe")) { $gone = $true; break }
-            if ($u.HasExited -and $u.ExitCode -ne 0) {
-              "---- evidence: unins.log ----"
-              Get-Content "$dir\unins.log" -ErrorAction SilentlyContinue | Select-Object -Last 40
-              throw "uninstaller exited early with code $($u.ExitCode)"
-            }
-            Start-Sleep -Seconds 2
-          }
-          if (-not $gone) {
-            "---- evidence: unins.log ----"
-            Get-Content "$dir\unins.log" -ErrorAction SilentlyContinue | Select-Object -Last 40
-            throw "silent uninstall did not remove the EXE in 180s"
-          }
-          Start-Sleep -Seconds 3
-          if (Test-Path "$dir\ODINAssistant.exe") { throw "uninstall left the EXE behind" }
-          "uninstall OK — smoke test passed"
-
-      - name: Rename portable artifact with version
-        shell: pwsh
-        run: Rename-Item -Path dist/ODINAssistant.exe -NewName "ODINAssistant-v${{ steps.ver.outputs.version }}-windows.exe"
-
-      # یادداشت ریلیز از CHANGELOG.md خوانده می‌شود (نه هاردکد داخل YAML).
-      # چرا: متن قبلی مستقیم همین‌جا نوشته شده بود و بعد از v0.8.1 به‌روز نشد؛
-      #   در نتیجه ۱۹ ریلیز پیاپی (v0.9.0 → v0.20.0) با یادداشت «تازه در v0.8.1»
-      #   منتشر شدند. حالا یک منبع حقیقت داریم و ورک‌فلو اندروید هم از همان
-      #   CHANGELOG.md می‌خواند، پس یادداشت دو پلتفرم هرگز از هم واگرا نمی‌شود.
-      - name: Generate release notes from CHANGELOG.md
-        if: startsWith(github.ref, 'refs/tags/')
-        run: python installer/release_notes.py "${{ github.ref_name }}" --out RELEASE_NOTES.md
-
-      - name: Publish GitHub Release
-        if: startsWith(github.ref, 'refs/tags/')
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: ${{ github.ref_name }}
-          # از v0.20.1 هر دو پلتفرم روی یک ریلیز منتشر می‌شوند (ورک‌فلو اندروید
-          # APK را جداگانه می‌چسباند)؛ assets تجمیع می‌شوند و همدیگر را پاک نمی‌کنند.
-          name: "ODIN Assistant ${{ github.ref_name }} — ویندوز + اندروید"
-          body_path: RELEASE_NOTES.md
-          files: |
-            dist/ODINAssistant-*.exe
-            installer/Output/ODINAssistant-*-setup.exe
-          draft: false
-          prerelease: false

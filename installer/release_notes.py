@@ -81,6 +81,29 @@ def fallback_body(version: str) -> str:
     )
 
 
+def _release_tail(version: str) -> str:
+    """دمبرِ ثابت ریلیز: جدول فایل‌ها + راهنمای نصب + سلب مسئولیت."""
+    # از v0.22.0 فقط اندروید منتشر می‌شود (نسخهٔ ویندوز منجمد شد).
+    # جدول فایل‌ها عمداً با دادهٔ واقعیِ ریلیز پر نمی‌شود: این اسکریپت
+    # «پیش از» آپلود اجرا می‌شود، پس فقط آنچه را که قرار است ساخته شود می‌گوید.
+    tail = (
+        "\n---\n\n"
+        "### 📦 فایل این نسخه (Assets پایین همین صفحه)\n\n"
+        "| فایل | توضیح |\n"
+        "|---|---|\n"
+        f"| `ODIN-Assistant-android-v{version}.apk` | اندروید ۷.۰+ — امضاشده با کلید رسمی (`bd11159e…`) |\n\n"
+        "**نصب:** فایل را روی گوشی کپی کنید و رویش بزنید («Install unknown apps» را\n"
+        "برای مرورگر/فایل‌منیجر مجاز کنید). ارتقا از v0.13.0 به بعد **درجا** است —\n"
+        "کلید امضا تغییر نکرده، پس ژورنال و تنظیماتتان پاک نمی‌شود.\n\n"
+        "> 🖥️ **نسخهٔ ویندوز از v0.21.0 منجمد شد** و دیگر بیلد/منتشر نمی‌شود.\n"
+        "> آخرین نسخهٔ ویندوز: [v0.21.0](https://github.com/KhodeSushianm/Trading-Bot/releases/tag/v0.21.0).\n"
+        "> کاربران فعلی ویندوز می‌توانند همان نسخه را نگه دارند؛ کدش در ریپو باقی است.\n\n"
+        "> ⚠️ ODIN هیچ معامله‌ای را خودکار اجرا نمی‌کند؛ تحلیل و پیشنهاد می‌دهد و\n"
+        "> تصمیم نهایی با شماست.\n"
+    )
+    return tail
+
+
 def build_body(version: str) -> tuple[str, bool]:
     """(متن یادداشت, آیا از CHANGELOG آمد؟)"""
     if not CHANGELOG.exists():
@@ -88,19 +111,11 @@ def build_body(version: str) -> tuple[str, bool]:
     changelog = CHANGELOG.read_text(encoding="utf-8")
     section = extract_section(changelog, version)
     if section is None:
-        return fallback_body(version), False
-    tail = (
-        "\n---\n\n"
-        "### 📦 فایل‌های این نسخه (Assets پایین همین صفحه)\n\n"
-        "| فایل | پلتفرم |\n"
-        "|---|---|\n"
-        f"| `ODINAssistant-v{version}-windows-setup.exe` | ویندوز — نصب‌کنندهٔ رسمی (پیشنهادی) |\n"
-        f"| `ODINAssistant-v{version}-windows.exe` | ویندوز — نسخهٔ پرتابل تک‌فایلی |\n"
-        f"| `ODIN-Assistant-android-v{version}.apk` | اندروید — امضاشده با کلید رسمی |\n\n"
-        "> ⚠️ ODIN هیچ معامله‌ای را خودکار اجرا نمی‌کند؛ تحلیل و پیشنهاد می‌دهد و\n"
-        "> تصمیم نهایی با شماست. اگر هشدار آبی SmartScreen دیدید: **More info → Run anyway**.\n"
-    )
-    return section + tail, True
+        # «دمبر» (جدول فایل‌ها + راهنمای نصب) حتی در حالت fallback هم لازم است:
+        # پیش‌تر return زودهنگام بود و ریلیزِ بدونِ بخشِ CHANGELOG هیچ راهنمای
+        # نصبی نداشت — یعنی کاربر فایل را می‌دید ولی نمی‌دانست چکار کند.
+        return fallback_body(version) + _release_tail(version), False
+    return section + _release_tail(version), True
 
 
 def main(argv: list[str] | None = None) -> int:

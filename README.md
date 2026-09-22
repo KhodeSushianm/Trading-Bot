@@ -12,11 +12,22 @@
 
 [![نسخه](https://img.shields.io/github/v/release/KhodeSushianm/Trading-Bot?display_name=tag&style=for-the-badge&color=111111&labelColor=eeeeee&label=release)](https://github.com/KhodeSushianm/Trading-Bot/releases/latest)
 [![CI](https://img.shields.io/github/actions/workflow/status/KhodeSushianm/Trading-Bot/build-release.yml?style=for-the-badge&logo=githubactions&logoColor=white&label=CI&color=111111&labelColor=eeeeee)](https://github.com/KhodeSushianm/Trading-Bot/actions)
-[![ویندوز](https://img.shields.io/badge/Windows-10%2F11-111111?style=for-the-badge&logo=windows&logoColor=white&labelColor=eeeeee)](https://github.com/KhodeSushianm/Trading-Bot/releases/latest)
+[![اندروید](https://img.shields.io/badge/Android-7.0%2B-111111?style=for-the-badge&logo=android&logoColor=white&labelColor=eeeeee)](https://github.com/KhodeSushianm/Trading-Bot/releases/latest)
+[![ویندوز](https://img.shields.io/badge/Windows-FROZEN%20v0.21.0-111111?style=for-the-badge&logo=windows&logoColor=white&labelColor=eeeeee)](https://github.com/KhodeSushianm/Trading-Bot/releases/tag/v0.21.0)
 [![پایتون](https://img.shields.io/badge/Python-3.11-111111?style=for-the-badge&logo=python&logoColor=white&labelColor=eeeeee)](requirements.txt)
 [![هزینه داده](https://img.shields.io/badge/Data%20Cost-%240-111111?style=for-the-badge&labelColor=eeeeee)](#-چرا-odin)
 
 </div>
+
+> ### 🔀 تغییر مسیر پروژه (v0.22.0)
+> **تمرکز توسعه از v0.22.0 فقط روی نسخهٔ اندروید است.** نسخهٔ ویندوز در
+> `v0.21.0` **منجمد** شد: کدش در ریپو باقی است و کار می‌کند، ولی دیگر بیلد،
+> ریلیز یا قابلیت تازه نمی‌گیرد. آخرین نسخهٔ ویندوز:
+> [v0.21.0](https://github.com/KhodeSushianm/Trading-Bot/releases/tag/v0.21.0).
+>
+> ⚠️ موتور پایتون **حذف نشد**، چون سه نقش حیاتی برای خودِ اپ اندروید دارد:
+> اوراکلِ ۲۴ تست برابری موتور JS · منبع حقیقتِ ۴۱ توکن رنگ · منبع
+> `versionName`/`versionCode`. جزئیات در [`CHANGELOG.md`](CHANGELOG.md).
 
 ![داشبورد ODIN Assistant](docs/images/panel-dashboard.png)
 
@@ -26,8 +37,9 @@
 
 | | |
 |:---:|---|
-| 🖥️ | **نصب‌کنندهٔ رسمی ویندوز** — setup.exe با منوی استارت و حذف تمیز، به‌همراه نسخهٔ پرتابل تک‌فایلی؛ بدون ترمینال، بدون CMD |
-| 🎨 | **Aurora Glass 2.0** — پس‌زمینهٔ شفق متحرک، کارت کنسول تیره، کارت سیگنال ساختاریافته، کارت‌های KPI؛ مونوکروم به‌جز سبزِ خرید، قرمزِ فروش/وتو و کهرباییِ رتبه. **روی ویندوز و اندروید یکسان** (پاریتی توکن‌به‌توکن با تست خودکار) |
+| 📱 | **اپ اندروید ۷.۰+ با رصد پس‌زمینه** — سیگنال بدون باز کردن اپ، هشدار قیمت، نمودار کندل، اشتراک کارت تصویری. APK فقط ~۰٫۴MB و بدون هیچ وابستگی بیرونی (بدون AndroidX) |
+| 🎨 | **Aurora Glass 2.0** — پس‌زمینهٔ شفق متحرک، کارت کنسول تیره، کارت سیگنال ساختاریافته، کارت‌های KPI؛ مونوکروم به‌جز سبزِ خرید، قرمزِ فروش/وتو و کهرباییِ رتبه |
+| 🖥️ | ~~نصب‌کنندهٔ رسمی ویندوز~~ — **منجمد در v0.21.0** (setup.exe + نسخهٔ پرتابل؛ هنوز قابل دانلود و استفاده) |
 | 📱 | **اندروید ۷.۰+ با رصد پس‌زمینه** — همان مغز، در جیب؛ سیگنال بدون باز کردن اپ، هشدار قیمت، نمودار کندل، اشتراک کارت تصویری |
 | ⚖️ | **داور امتیازدهی** — سیگنال فقط با ≥۷ از ۱۱ امتیاز و عبور از ۷ دروازهٔ وتو؛ وگرنه دلیل رد شدن مکتوب می‌شود |
 | 🪞 | **حلقهٔ صداقت** — هر سیگنال در ژورنال ثبت و نتیجه‌اش **خودکار** از کندل‌ها پیگیری می‌شود؛ کارنامهٔ هفتگی نرخ برد و میانگین R را بدون روتوش نشان می‌دهد |
@@ -125,14 +137,25 @@ TwelveData  ────┤ زاپاس خودکار       ForexFactory         R
 
 ## 🚀 شروع کار
 
-### مسیر پیشنهادی — نصب‌کنندهٔ رسمی (ویندوز)
+### مسیر اصلی — اپ اندروید 📱
 
-1. از تب **Releases** فایل `ODINAssistant-...-windows-setup.exe` را بگیر
-2. دابل‌کلیک و نصب ← اجرای **ODIN Assistant** از منوی استارت
-3. در پنل: تلگرام را وصل کن ← «▶ شروع ربات»
+1. از تب **Releases** فایل `ODIN-Assistant-android-v...apk` را بگیر و روی گوشی کپی کن
+2. رویش بزن و «Install unknown apps» را برای مرورگر/فایل‌منیجر مجاز کن
+   (امضای کلید شخصی به نام Sushian Khoshkhani دارد، نه Play Store — طبیعی است)
+3. اپ را باز کن: سلب‌مسئولیت ← **هدیهٔ ۷ روز رایگان** (یا فعال‌سازی با کلید
+   لایسنس: کد دستگاه را برای سازنده بفرست و کلید را وارد کن) ← اسمتان ←
+   پیشنهاد «رصد پس‌زمینه» — و اولین تحلیل خودکار اجرا می‌شود
 
-> 🗂️ حالت نصب‌شده داده‌ها را در `%APPDATA%\ODIN Assistant` نگه می‌دارد؛
-> نسخهٔ پرتابل (`...-windows.exe`) همه‌چیز را کنار خودش نگه می‌دارد — مناسب فلش و تست.
+> 🔑 ارتقا از v0.13.0 به بعد **درجا** است: کلید امضا (`bd11159e…`) تغییر نکرده،
+> پس ژورنال و تنظیماتت پاک نمی‌شود. حداقل اندروید: **7.0 (API 24)**.
+> جزئیات کامل: [`docs/android-fa.md`](docs/android-fa.md)
+
+### نسخهٔ ویندوز 🖥️ (منجمد در v0.21.0)
+
+از [ریلیز v0.21.0](https://github.com/KhodeSushianm/Trading-Bot/releases/tag/v0.21.0)
+قابل دانلود است: `ODINAssistant-v0.21.0-windows-setup.exe` (نصب‌کنندهٔ رسمی) یا
+`ODINAssistant-v0.21.0-windows.exe` (پرتابل تک‌فایلی). کار می‌کند ولی به‌روز
+نمی‌شود. داده‌ها در `%APPDATA%\ODIN Assistant` نگه داشته می‌شوند.
 
 ### مسیر توسعه (سورس)
 
@@ -161,18 +184,19 @@ python main.py --selftest            # 🩺 خودآزمون بدون اینتر
 | `python panel.py --selftest` | پنل offscreen: ۸ صفحه، فونت، آیکون‌ها، داور/رندر |
 | `python tests/check_config.py` | اعتبار `config.yaml` (۲۳ بررسی بخش داور) |
 | `node tests/js/run_parity.js` | **۲۴ تست برابری** موتور JS اندروید با پایتون — با دادهٔ زندهٔ بازار |
-| `node tests/js/smoke_theme_parity.js` | **۲۰۸ بررسی پاریتی ظاهر:** ۴۱ توکن تم با `theme.py` هم‌نام و هم‌مقدار، نبودِ رنگ/نسخهٔ هاردکد، اجزای Aurora Glass 2.0، رفتار `Stars` و `parseReasons`، صفر ایموجی |
+| `node tests/js/smoke_theme_parity.js` | **۲۱۱ بررسی پاریتی ظاهر:** ۴۱ توکن تم با `theme.py` هم‌نام و هم‌مقدار، نبودِ رنگ/نسخهٔ هاردکد، اجزای Aurora Glass 2.0، رفتار `Stars` و `parseReasons`، صفر ایموجی |
+| `node tests/js/smoke_layout.js` | **۳۹ بررسی چیدمان و خوانایی:** بودجهٔ عرض هدر در ۳۲۰/۳۶۰/۳۹۰px، کنتراست (متن روشن بیرونِ ظرف تیره)، CSS مرده، بودجهٔ طول متن راهنما، محافظ‌های سرریز |
 | `node tests/js/smoke_icons.js` | ۱۸ رندر از ۸ صفحه — صفر ایموجی + markup اجزای نو |
 | `node tests/js/smoke_{license,alerts,chart,share,about,service}.js` | لایسنس/تریال، هشدار قیمت، نمودار کندل، کارت اشتراک، دربارهٔ ما، حالت سرویس end-to-end |
 | `tests/manual/*` (۱۶ سوئیت) | داور، ژورنال، وتوها، اخبار، رگرسیون ممیزی، یکپارچگی GUI، چیدمان، مسیرهای نصب، دیالوگ فعال‌سازی، لایسنس |
 
-هر push روی GitHub Actions تست می‌شود (پایتون **+ ۷ اسموک JS**). هر تگ `v*`
-**هر دو خروجی** را می‌سازد و روی **یک Release** منتشر می‌کند:
+هر push روی GitHub Actions تست می‌شود (پایتون **+ ۸ اسموک JS**). هر تگ `v*`
+**فقط APK** می‌سازد و منتشر می‌کند (ویندوز از v0.22.0 منجمد است):
 
-| ورک‌فلو | خروجی |
-|---|---|
-| `build-release.yml` | نصب‌کنندهٔ Inno Setup + EXE پرتابل، با اسموک نصب/حذف خاموش |
-| `build-android.yml` | APK release با Gradle 8.7 + **راستی‌آزمایی اثر انگشت کلید امضا** |
+| ورک‌فلو | نقش | خروجی |
+|---|---|---|
+| `build-release.yml` | فقط job «تست» — پایتون (اوراکل برابری) + ۸ اسموک JS اندروید | هیچ (بیلد نمی‌کند) |
+| `build-android.yml` | تست + Gradle 8.7 + **راستی‌آزمایی اثر انگشت کلید امضا** | `ODIN-Assistant-android-v*.apk` روی Release |
 
 یادداشت هر Release از [`CHANGELOG.md`](CHANGELOG.md) خوانده می‌شود
 (`installer/release_notes.py`)، پس دو پلتفرم هرگز واگرا نمی‌شوند.
@@ -200,9 +224,14 @@ python main.py --selftest            # 🩺 خودآزمون بدون اینتر
 | ۹ | یکسان‌سازی دو پلتفرم در یک درخت کد (`v0.19.0`) | ✅ |
 | ۱۰ | **Aurora Glass 2.0** — ویندوز (`v0.20.0`) و اندروید (`v0.21.0`) | ✅ |
 | ۱۱ | انتشار خودکار هر دو پلتفرم از یک تگ + `CHANGELOG` + تک‌منبع نسخه (`v0.20.1`) | ✅ |
-| ۱۲ | صفحهٔ ورود اندروید هم‌تراز `onboarding.py` دسکتاپ | ⬜ |
-| ۱۳ | زمان‌بندی Task Scheduler ویندوز (اجرای خودکار) | ⬜ |
-| **۱۴** | **دورهٔ سایه — اثبات دقت با آمار ژورنال** | ⬜ |
+| ۱۲ | 🖥️ **انجماد نسخهٔ ویندوز** + فقط-اندروید شدن پایپلاین انتشار | ✅ `v0.22.0` |
+| ۱۳ | رفع باگ‌های ظاهری اندروید + نگهبان چیدمان (`smoke_layout.js`) | ✅ `v0.22.0` |
+| ۱۴ | صفحهٔ ورود اندروید هم‌تراز `onboarding.py` دسکتاپ | ⬜ |
+| ۱۵ | پایداری رصد پس‌زمینه روی گوشی واقعی (Doze / OEMها) | ⬜ |
+| **۱۶** | **دورهٔ سایه — اثبات دقت با آمار ژورنال** | ⬜ |
+
+> ~~زمان‌بندی Task Scheduler ویندوز~~ از نقشهٔ راه **حذف شد** — با انجماد نسخهٔ
+> ویندوز بی‌معنا شد.
 
 📄 **گزارش کامل وضعیت پروژه:** [`docs/project-report-fa.md`](docs/project-report-fa.md)
 
@@ -215,7 +244,7 @@ Trading-Bot/
 ├── panel.py / main.py        ← پنل گرافیکی / خط فرمان
 ├── config.yaml               ← پیکربندی (نمادها، آستانه‌ها، منابع)
 ├── ODINAssistant.spec        ← PyInstaller
-├── installer/                ← نصب‌کنندهٔ رسمی ویندوز (Inno Setup)
+├── installer/                ← 🖥️ منجمد: نصب‌کنندهٔ ویندوز + release_notes.py (مشترک)
 ├── assets/                   ← آیکون، فونت وزیرمتن
 ├── docs/                     ← مستندات فارسی + اسکرین‌شات‌ها + گزارش پروژه
 ├── tests/                    ← خودآزمون‌ها + ۹ سوئیت دستی
@@ -227,14 +256,16 @@ Trading-Bot/
     ├── journal/              ← 📔 ثبت append-only + نتیجهٔ خودکار + آمار
     ├── report/               ← گزارش‌نویس فارسی (کنسول/سیگنال/بریفینگ/کارنامه)
     ├── notify/               ← تلگرام
-    └── ui/                   ← 🎨 Aurora Glass 2.0: تم ۴۱ توکنی، شفق متحرک،
-                                 صفحهٔ ورود، ۸ ویجت ساختاریافته، آیکون SVG
+    └── ui/                   ← 🖥️ منجمد (Aurora Glass 2.0 ویندوز) — ولی
+                                 theme.py هنوز «منبع حقیقت» توکن‌های رنگ
+                                 اندروید است و توسط smoke_theme_parity.js
+                                 سنجیده می‌شود. حذفش = از دست رفتن آن نگهبان.
 ```
 
 **اپ اندروید** (`android/app/src/main/assets/www/`) آینهٔ همان معماری است:
 موتور به JS پورت شده (با ۲۴ تست برابری قفل شده) و لایهٔ بصری در
 `js/components.js` + `style.css` با `src/ui/` دسکتاپ **پاریتی توکن‌به‌توکن** دارد
-(۲۰۸ بررسی خودکار).
+(۲۱۱ بررسی خودکار).
 
 ---
 
