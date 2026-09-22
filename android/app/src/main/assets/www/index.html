@@ -116,6 +116,11 @@
   </div>
 </div>
 
+<!-- صفحهٔ ورود جوهری (v0.23.0) — پورت src/ui/onboarding.py دسکتاپ.
+     محتوا را js/onboarding.js می‌سازد؛ این فقط ریشه است تا پیش از بوتِ JS
+     چیزی چشمک نزند. -->
+<div id="onb-root" class="hidden"></div>
+
 <!-- تست -->
 <div id="toast-root" class="hidden"></div>
 
@@ -138,6 +143,7 @@
 <script src="js/briefing.js"></script>
 <!-- اجزای Aurora Glass 2.0 (پورت widgets.py دسکتاپ) — باید پیش از ui.js بار شود -->
 <script src="js/components.js"></script>
+<script src="js/onboarding.js"></script>
 <script src="js/ui.js"></script>
 <script src="js/app.js"></script>
 </body>

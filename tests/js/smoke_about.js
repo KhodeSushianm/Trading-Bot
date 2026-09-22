@@ -10,7 +10,7 @@ const WWW = path.join(__dirname, '..', '..', 'android', 'app', 'src', 'main', 'a
 const ctx = { console };
 ctx.globalThis = ctx;
 vm.createContext(ctx);
-for (const f of ['fa.js', 'icons.js', 'components.js', 'ui.js']) {
+for (const f of ['fa.js', 'icons.js', 'components.js', 'onboarding.js', 'ui.js']) {
   vm.runInContext(fs.readFileSync(path.join(WWW, f), 'utf8'), ctx, { filename: f });
 }
 const O = ctx.ODIN;

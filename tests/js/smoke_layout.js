@@ -193,7 +193,43 @@ group('۲) کنتراست: متن روشن فقط روی ظرف تیره');
     '.tab.active', '.tab .badge', '#toast-root', '.status-pill', '.tg-pill',
     '.progress', '#progress', '.modal-card', '.sig-head', '.r-chip.win',
     '.r-chip.loss', '.dir-chip', '.toast', '.on-ink',
+    // صفحهٔ ورود جوهری (v0.23.0): یک overlay تمام‌صفحه با زمینهٔ --onb-bg
+    // (#0B0B10). همهٔ .onb-* ها «فقط» داخل #onb-root ظاهر می‌شوند، پس متن
+    // روشن در آن‌ها درست است. فرضِ «تیره‌بودن» در پایین راستی‌آزمایی می‌شود.
+    '#onb-root', '.onb-',
   ];
+
+  // ⚠️ allowlist به‌تنهایی خطرناک است: اگر روزی #onb-root زمینهٔ روشن بگیرد،
+  //   این فهرست بی‌صدا متنِ نامرئی را «مجاز» می‌شمارد — یعنی نگهبان به
+  //   ضدِ خودش تبدیل می‌شود. پس فرضِ هر ظرفِ allowlist‌شدهٔ کلیدی را هم
+  //   می‌سنجیم: واقعاً باید تیره باشد.
+  function lumOf(hex) {
+    const h = hex.replace('#', '');
+    const f = (i) => {
+      const c = parseInt(h.slice(i, i + 2), 16) / 255;
+      return c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4);
+    };
+    return 0.2126 * f(0) + 0.7152 * f(2) + 0.0722 * f(4);
+  }
+  {
+    const onbBg = (/--onb-bg\s*:\s*(#[0-9A-Fa-f]{6})/.exec(css) || [])[1];
+    ok(!!onbBg, '--onb-bg در :root پیدا نشد (صفحهٔ ورود به آن تکیه دارد)');
+    if (onbBg) {
+      const L = lumOf(onbBg);
+      ok(L < 0.12,
+        '#onb-root در allowlist کنتراست است چون «تیره» فرض شده، ولی --onb-bg = ' + onbBg +
+        ' با روشنایی ' + L.toFixed(3) + ' تیره نیست — allowlist باید بازبینی شود');
+      const rootBg = cssProp('#onb-root', 'background');
+      ok(/var\(--onb-bg\)/.test(rootBg || ''),
+        '#onb-root باید background: var(--onb-bg) داشته باشد — یافته: ' + rootBg);
+      console.log('    ✓ فرضِ تیره‌بودنِ #onb-root راستی‌آزمایی شد (--onb-bg=' + onbBg +
+        '، روشنایی ' + L.toFixed(3) + ')');
+    }
+    // بدنهٔ کنسول‌کارت هم باید از توکن تیره بیاید، نه رنگ هاردکد
+    const ccBg = cssProp('.console-card .cc-body', 'background');
+    ok(ccBg != null && /var\(--console-bg\)/.test(ccBg),
+      '.cc-body باید background: var(--console-bg) داشته باشد — یافته: ' + ccBg);
+  }
 
   const lightRe = /(?:^|[{;])\s*color\s*:\s*(rgba?\(\s*255\s*,\s*255\s*,\s*255[^)]*\)|#fff\b|#ffffff\b|var\(--on-ink\)|var\(--console-text\))/gi;
   const offenders = [];
