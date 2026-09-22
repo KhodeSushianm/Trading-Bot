@@ -1,5 +1,49 @@
 apply plugin: 'com.android.application'
 
+// ── نسخه از یک منبع واحد ────────────────────────────────────────────────
+// منبع حقیقت: APP_VERSION در src/app_paths.py — همان متغیری که EXE ویندوز،
+// VERSIONINFO نصب‌کننده و نام ریلیز از آن می‌خوانند.
+//
+// چرا: پیش‌تر versionName/versionCode دستی همین‌جا نوشته می‌شد. نتیجه‌اش در
+// v0.20.0 این بود که پایتون «0.20.0» بود و اپ اندروید هنوز «0.19.0»
+// (versionCode 1900) — یعنی APK با شمارهٔ نسخهٔ اشتباه ساخته می‌شد و
+// «دربارهٔ ما» داخل اپ عدد قدیمی نشان می‌داد. حالا دستی‌زدنی در کار نیست.
+//
+// schema شمارهٔ نسخه (همان قرارداد قبلی، تا زنجیرهٔ آپدیت نشکند):
+//   major*10000 + minor*100 + patch      →  0.19.0 = 1900 ، 0.20.1 = 2001
+def appPathsFile = rootProject.file("../src/app_paths.py")
+def appVersion = null
+if (appPathsFile.exists()) {
+    def m = (appPathsFile.getText("UTF-8") =~ /APP_VERSION\s*=\s*"([^"]+)"/)
+    if (m.find()) { appVersion = m.group(1) }
+}
+if (appVersion == null) {
+    // بی‌صدا نسخهٔ اشتباه نساز — بیلد باید با پیام روشن بخوابد
+    throw new GradleException(
+        "نمی‌توانم APP_VERSION را از ${appPathsFile} بخوانم. " +
+        "مطمئن شوید src/app_paths.py کنار پوشهٔ android/ وجود دارد و خط APP_VERSION = \"x.y.z\" دارد.")
+}
+
+def coreVersion = appVersion.split(/[-+]/)[0]          // پیشوند release مثل -rc1 را جدا کن
+def verParts = coreVersion.tokenize('.')
+while (verParts.size() < 3) { verParts.add('0') }
+
+def nums = verParts[0..2].collect { it.toString().trim() }
+nums.each {
+    if (!(it ==~ /\d+/)) {
+        throw new GradleException("APP_VERSION=\"$appVersion\" بخش غیرعددی دارد: «$it»")
+    }
+}
+// نگهبان schema: اگر روزی minor یا patch از ۹۹ بگذرد، versionCode برخوردمی‌کند
+// و اندروید آپدیت را «قدیمی‌تر» می‌بیند. پس زود و با پیام روشن شکست بخور.
+if (nums[1].toInteger() > 99 || nums[2].toInteger() > 99) {
+    throw new GradleException(
+        "APP_VERSION=\"$appVersion\" در schema versionCode (major*10000+minor*100+patch) جا نمی‌شود؛ " +
+        "minor و patch باید ≤ ۹۹ باشند.")
+}
+def computedVersionCode = nums[0].toInteger() * 10000 + nums[1].toInteger() * 100 + nums[2].toInteger()
+logger.lifecycle("[version] اپ اندروید: versionName=$appVersion  versionCode=$computedVersionCode  (از src/app_paths.py)")
+
 // امضای نسخهٔ release از keystore.properties خوانده می‌شود (بیرون از گیت).
 // ساخت کلید: android/make-keystore.sh  (یک‌بار اجرا شود)
 def keystorePropsFile = rootProject.file("keystore.properties")
@@ -16,8 +60,8 @@ android {
         applicationId "com.odin.assistant"
         minSdk 24
         targetSdk 34
-        versionCode 1900
-        versionName "0.19.0"
+        versionCode computedVersionCode
+        versionName appVersion
         resourceConfigurations += ["fa"]
     }
 

@@ -49,3 +49,6 @@ tests/js/fixtures.json
 /config.local.yaml
 /state.last.json
 shots-v20/
+
+# یادداشت ریلیز تولیدشده توسط installer/release_notes.py (در CI ساخته می‌شود)
+RELEASE_NOTES.md

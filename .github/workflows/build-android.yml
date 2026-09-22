@@ -1,27 +1,37 @@
 name: Build Android APK
 
-# ساخت «release» اپ اندروید روی برنچ android (و تگ‌هایی که به آن می‌رسند).
-# درس‌های شکست‌های v0.14.0 اولیه:
-#   ۱) AGP 8.5.2 حداقل Gradle 8.7 می‌خواهد (نه 8.5) — خطای VersionCheckPlugin.
-#   ۲) APK debug با keystore یک‌بارمصرفِ CI قابل توزیع نیست (زنجیرهٔ امضای
-#      رسمی bd11159e… را می‌شکند)؛ پس release می‌سازیم و اگر Secrets کلید
-#      رسمی موجود باشد، همان‌جا امضا می‌شود؛ وگرنه خروجی unsigned فقط برای
-#      «صحت بیلد» است و هرگز توزیع نمی‌شود.
-#   ۳) تگ‌های برنچ main (ویندوز) نباید اینجا بیلد اندروید بسازند → guard.
+# ساخت «release» اپ اندروید و انتشار خودکار APK امضاشده روی GitHub Release.
+#
+# درس‌های شکست‌های گذشته (به‌ترتیب وقوع):
+#   ۱) v0.14.0 — AGP 8.5.2 حداقل Gradle 8.7 می‌خواهد (نه 8.5) → خطای VersionCheckPlugin.
+#   ۲) v0.14.0 — APK debug با keystore یک‌بارمصرفِ CI قابل توزیع نیست (زنجیرهٔ امضای
+#      رسمی bd11159e… را می‌شکند)؛ پس release می‌سازیم و از Secrets امضا می‌کنیم.
+#      اگر Secrets نبود، خروجی unsigned فقط برای «صحت بیلد» است و هرگز منتشر نمی‌شود.
+#   ۳) v0.19.1 / v0.20.0 — نگهبان قدیمی فقط تگ‌های قابل‌دسترس از برنچ `android` را
+#      قبول می‌کرد. اما از v0.19.0 به بعد هر دو پلتفرم در یک درخت کد زندگی می‌کنند و
+#      پوشهٔ `android/` روی `main` هم هست؛ پس تگ‌های main بی‌صدا `skipped` شدند و
+#      **هیچ APK منتشر نشد**. حالا تگِ قابل‌دسترس از `android` یا `main` بیلد می‌شود.
+#   ۴) v0.16 → v0.19 — این ورک‌فلو فقط upload-artifact می‌کرد و APKها دستی به Release
+#      چسبانده می‌شدند؛ یعنی انتشار به یک انسان وابسته بود و دو بار جا افتاد. حالا
+#      خودش با `gh` روی Release می‌چسباند.
 
 on:
   push:
-    branches: [ "android" ]
+    branches: [ "android", "main" ]
     tags: [ 'v*' ]
   pull_request:
-    branches: [ "android" ]
+    branches: [ "android", "main" ]
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write   # برای چسباندن APK به Release (مرحلهٔ «Publish APK»)
 
 jobs:
-  # ── نگهبان: تگ باید از برنچ android قابل‌دسترس باشد ──────────────
+  # ── نگهبان: تگ باید از برنچ android یا main قابل‌دسترس باشد ───────────
+  # چرا هنوز نگهبان لازم است؟ یک تگ می‌تواند روی برنچی باشد که اصلاً پوشهٔ
+  # android/ ندارد یا قدیمی است؛ در آن حالت بیلد اندروید یا شکست می‌خورد یا
+  # APK کهنه می‌سازد. پس «نه»ی قطعی یعنی skip، و «خطا در بررسی» یعنی build
+  # (تا انتشار اندروید هرگز بی‌صدا از کار نیفتد).
   android_guard:
     runs-on: ubuntu-latest
     outputs:
@@ -31,7 +41,7 @@ jobs:
         with:
           fetch-depth: 0
       - id: chk
-        name: Is this ref part of the android branch?
+        name: Is this ref reachable from the android or main branch?
         run: |
           if [[ "${{ github.ref }}" != refs/tags/* ]]; then
             echo "build=true" >> "$GITHUB_OUTPUT"
@@ -39,15 +49,23 @@ jobs:
             exit 0
           fi
           TAG_SHA=$(git rev-list -n 1 "${{ github.ref }}")
-          git fetch --no-tags origin android || true
-          AND_SHA=$(git rev-parse FETCH_HEAD 2>/dev/null || echo "")
-          if [[ -n "$AND_SHA" ]] && git merge-base --is-ancestor "$TAG_SHA" "$AND_SHA" 2>/dev/null; then
-            echo "build=true" >> "$GITHUB_OUTPUT"
-            echo "tag ${{ github.ref_name }} reachable from android — build"
-          else
-            echo "build=false" >> "$GITHUB_OUTPUT"
-            echo "tag ${{ github.ref_name }} NOT on android (windows release?) — skip"
-          fi
+          echo "tag ${{ github.ref_name }} -> $TAG_SHA"
+          for BR in android main; do
+            git fetch --no-tags origin "$BR" || true
+            BR_SHA=$(git rev-parse FETCH_HEAD 2>/dev/null || echo "")
+            if [[ -z "$BR_SHA" ]]; then
+              echo "  branch $BR not found — cannot rule it out, keep trying"
+              continue
+            fi
+            if git merge-base --is-ancestor "$TAG_SHA" "$BR_SHA" 2>/dev/null; then
+              echo "build=true" >> "$GITHUB_OUTPUT"
+              echo "  ✓ reachable from $BR ($BR_SHA) — android/ is in this tree, build"
+              exit 0
+            fi
+            echo "  ✗ not reachable from $BR ($BR_SHA)"
+          done
+          echo "build=false" >> "$GITHUB_OUTPUT"
+          echo "::notice::Tag ${{ github.ref_name }} is not reachable from android or main — skipping the Android build."
 
   build:
     needs: android_guard
@@ -73,6 +91,11 @@ jobs:
         with:
           gradle-version: '8.7'
 
+      - name: Setup Python 3.11 (برای release_notes.py)
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
       - name: JS smoke tests (رندر بدون ایموجی، لایسنس، دربارهٔ ما)
         run: |
           node tests/js/smoke_about.js
@@ -81,6 +104,30 @@ jobs:
           node tests/js/smoke_alerts.js
           node tests/js/smoke_chart.js
           node tests/js/smoke_share.js
+
+      # نگهبان ارزان و هدفمند: versionName/versionCode از src/app_paths.py مشتق
+      # می‌شوند، پس اگر آن فایل یا الگوی regex عوض شود APK بی‌صدا با نسخهٔ
+      # اشتباه ساخته می‌شود. اینجا همان الگوی build.gradle را بازآزمایی می‌کنیم
+      # (بدون pip install — چون Gradle خودش در مرحلهٔ بعد این را قطعی می‌سنجد).
+      - name: "Guard: version single-source-of-truth is parseable"
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import re, sys, pathlib
+          txt = pathlib.Path("src/app_paths.py").read_text(encoding="utf-8")
+          m = re.search(r'APP_VERSION\s*=\s*"([^"]+)"', txt)
+          if not m:
+              print("::error::APP_VERSION در src/app_paths.py با الگوی build.gradle نمی‌خواند"); sys.exit(1)
+          v = m.group(1)
+          nums = re.split(r"[-+]", v)[0].split(".")
+          nums += ["0"] * (3 - len(nums))
+          if not all(n.isdigit() for n in nums[:3]) or int(nums[1]) > 99 or int(nums[2]) > 99:
+              print(f"::error::APP_VERSION={v} در schema versionCode جا نمی‌شود"); sys.exit(1)
+          code = int(nums[0]) * 10000 + int(nums[1]) * 100 + int(nums[2])
+          print(f"✓ versionName={v}  versionCode={code}")
+          if code <= 1900:
+              print(f"::error::versionCode={code} از نسخهٔ منتشرشدهٔ قبلی (1900 = v0.19.0) بزرگ‌تر نیست؛ اندروید آپدیت را نصب نمی‌کند"); sys.exit(1)
+          PY
 
       - name: Prepare release keystore from Secrets (if present)
         env:
@@ -99,7 +146,7 @@ jobs:
             echo "✓ keystore رسمی از Secrets بارگذاری شد — APK امضا می‌شود"
           else
             echo "SIGNED=0" >> "$GITHUB_ENV"
-            echo "! Secrets کلید امضا تنظیم نشده — بیلد unsigned فقط برای صحت‌سنجی است"
+            echo "::warning::Secrets کلید امضا تنظیم نشده — بیلد unsigned فقط برای صحت‌سنجی است و منتشر نمی‌شود"
           fi
 
       - name: Build release APK (Gradle 8.7 + AGP 8.5.2)
@@ -110,8 +157,30 @@ jobs:
       - name: Verify signature (فقط وقتی امضاشده باشد)
         if: env.SIGNED == '1'
         run: |
-          "$ANDROID_HOME"/build-tools/34.0.0/apksigner verify --print-certs \
-            android/app/build/outputs/apk/release/app-release.apk | head -6
+          set -euo pipefail
+          APK="android/app/build/outputs/apk/release/app-release.apk"
+          APKSIGNER="$ANDROID_HOME/build-tools/34.0.0/apksigner"
+          "$APKSIGNER" verify --print-certs "$APK" | head -8
+
+          # اثر انگشت باید با کلید رسمی یکی باشد، وگرنه زنجیرهٔ آپدیت کاربران
+          # می‌شکند (همان فاجعهٔ v0.12→v0.13 که «کلید گم شد» و هزینه‌اش حذف
+          # نصب برای کاربران بود). پس اینجا سخت‌گیرانه شکست می‌خوریم.
+          CERTS=$("$APKSIGNER" verify --print-certs "$APK")
+          FP=$(printf '%s\n' "$CERTS" \
+               | sed -n 's/^Signer #1 certificate SHA-256 digest: \([0-9a-f]\{64\}\)$/\1/p' \
+               | head -1)
+          EXPECTED="bd11159e003b55b9ae53cd26c192dc6b2bea2840c787fddbd0f523a947cb5189"
+          if [ -z "$FP" ]; then
+            echo "::error::نتوانستم اثر انگشت SHA-256 گواهی را از خروجی apksigner بخوانم (قالب خروجی عوض شده؟)."
+            printf '%s\n' "$CERTS"
+            exit 1
+          fi
+          echo "APK cert SHA-256: $FP"
+          if [ "$FP" != "$EXPECTED" ]; then
+            echo "::error::اثر انگشت کلید امضا ($FP) با کلید رسمی ($EXPECTED) نمی‌خواند — APK منتشر نمی‌شود چون کاربران نمی‌توانند درجا آپدیت کنند."
+            exit 1
+          fi
+          echo "✓ امضا با کلید رسمی مطابقت کرد"
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
@@ -119,3 +188,49 @@ jobs:
           name: ODIN-Assistant-android-CI
           path: android/app/build/outputs/apk/release/app-release*.apk
           if-no-files-found: error
+
+      # ── انتشار روی Release ──────────────────────────────────────────────
+      # فقط روی تگ‌ها و فقط وقتی APK با کلید رسمی امضا شده باشد.
+      # نام و متن ریلیز را ورک‌فلو ویندوز می‌سازد؛ ما فقط «فایل» اضافه می‌کنیم
+      # تا دو ورک‌فلو روی هم ننویسند. اگر ریلیز هنوز ساخته نشده باشد (اندروید
+      # معمولاً زودتر از PyInstaller تمام می‌شود)، خودمان با متن CHANGELOG
+      # می‌سازیمش — چون هر دو از یک منبع می‌خوانند، نتیجه یکی است.
+      - name: Publish APK to GitHub Release
+        if: startsWith(github.ref, 'refs/tags/') && env.SIGNED == '1'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          SRC="android/app/build/outputs/apk/release/app-release.apk"
+          OUT="ODIN-Assistant-android-${TAG}.apk"
+          test -f "$SRC" || { echo "::error::APK ساخته نشد: $SRC"; exit 1; }
+          cp "$SRC" "$OUT"
+          SIZE=$(du -h "$OUT" | cut -f1)
+          echo "✓ $OUT ($SIZE) آمادهٔ انتشار"
+
+          python installer/release_notes.py "$TAG" --out /tmp/notes.md
+
+          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "ریلیز $TAG وجود دارد — فقط APK را می‌چسبانم (نام/متن دست‌نخورده)"
+            gh release upload "$TAG" "$OUT" --repo "$GITHUB_REPOSITORY" --clobber
+          else
+            echo "ریلیز $TAG هنوز نیست — می‌سازمش (ورک‌فلو ویندوز بعداً نام/متن را یکسان بازنویسی می‌کند)"
+            if ! gh release create "$TAG" "$OUT" \
+                   --repo "$GITHUB_REPOSITORY" \
+                   --title "ODIN Assistant ${TAG} — ویندوز + اندروید" \
+                   --notes-file /tmp/notes.md \
+                   --verify-tag; then
+              # رقابت با ورک‌فلو ویندوز: در این فاصله ریلیز ساخته شده
+              echo "ساخت ریلیز ناموفق (احتمالاً هم‌زمان ساخته شد) — به آپلود برمی‌گردم"
+              gh release upload "$TAG" "$OUT" --repo "$GITHUB_REPOSITORY" --clobber
+            fi
+          fi
+
+          echo "::notice::APK اندروید ${TAG} روی Release منتشر شد."
+
+      - name: Warn if unsigned (تگ بود ولی امضا نشد)
+        if: startsWith(github.ref, 'refs/tags/') && env.SIGNED != '1'
+        run: |
+          echo "::error::تگ ${{ github.ref_name }} زده شد ولی APK امضانشده تولید نشد — چیزی منتشر نمی‌شود. Secrets کلید امضا را بررسی کنید."
+          exit 1
