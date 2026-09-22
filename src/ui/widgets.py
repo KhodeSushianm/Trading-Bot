@@ -48,20 +48,57 @@ class SoftCard(QWidget):
 
     def __init__(self, parent=None, t: Theme = DARK, radius: int = 22,
                  body: Optional[str] = None, ink: bool = False,
-                 shadow: bool = True, pad: int = Space.LG, bordered: bool = False):
+                 shadow: bool = True, pad: int = Space.LG, bordered: bool = False,
+                 grad: Optional[tuple] = None, interactive: bool = False):
         super().__init__(parent)
         self._t = t
         self._radius = radius
         self._ink = ink
         self._body = QColor(body) if body else QColor(t.ink_card if ink else t.card)
+        self._grad = grad            # (رنگ بالا, رنگ پایین) یا None
         self._shadow = shadow
         self._bordered = bordered
+        self._interactive = interactive
+        self._lift = 0.0
+        self._lift_anim = None
+        if interactive:
+            self.setCursor(Qt.PointingHandCursor)
         self.setAutoFillBackground(False)
         halo = self.HALO if shadow else 0
         self._halo = halo
         self._lay = QVBoxLayout(self)
         self._lay.setContentsMargins(halo + pad, halo + pad, halo + pad, halo + pad)
         self._lay.setSpacing(Space.SM)
+
+    # ── هاور: بلند شدن نرم کارت (v0.20.0) ──────────────────────
+    def _animate_lift(self, target: float) -> None:
+        if not effects.ANIMATIONS:
+            self._lift = target
+            self.update()
+            return
+        if self._lift_anim is None:
+            self._lift_anim = QVariantAnimation(self)
+            self._lift_anim.setDuration(160)
+            self._lift_anim.setEasingCurve(QEasingCurve.Type.OutCubic)
+            self._lift_anim.valueChanged.connect(self._on_lift)
+        self._lift_anim.stop()
+        self._lift_anim.setStartValue(self._lift)
+        self._lift_anim.setEndValue(target)
+        self._lift_anim.start()
+
+    def _on_lift(self, v) -> None:
+        self._lift = float(v)
+        self.update()
+
+    def enterEvent(self, ev) -> None:      # noqa: N802
+        if self._interactive:
+            self._animate_lift(1.0)
+        super().enterEvent(ev)
+
+    def leaveEvent(self, ev) -> None:      # noqa: N802
+        if self._interactive:
+            self._animate_lift(0.0)
+        super().leaveEvent(ev)
 
     # ── API محتوا ────────────────────────────────────────────
     def add_widget(self, w: QWidget, stretch: int = 0) -> None:
@@ -78,25 +115,49 @@ class SoftCard(QWidget):
 
     # ── نقاشی ────────────────────────────────────────────────
     def paintEvent(self, ev) -> None:      # noqa: N802
+        from PySide6.QtGui import QLinearGradient
         p = QPainter(self)
         p.setRenderHint(QPainter.Antialiasing, True)
         h = self._halo
-        body = QRectF(self.rect()).adjusted(h, h, -h, -h)
+        body = QRectF(self.rect()).adjusted(h, h + 2.0 * self._lift,
+                                            -h, -h + 2.0 * self._lift)
         if self._shadow:
             # هاله: لایه‌های نیمه‌شفافِ هرچه نزدیک‌تر به بدنه، تیره‌تر
+            boost = 1.0 + 0.9 * self._lift
             for i in range(h, 0, -2):
-                a = int(16 * (1 - i / h))
+                a = int(min(40, 16 * boost) * (1 - i / h))
                 p.setPen(Qt.NoPen)
                 p.setBrush(QColor(24, 24, 32, a))
                 p.drawRoundedRect(body.adjusted(-i, -i * 0.55, i, i * 0.9),
                                   self._radius + i, self._radius + i)
         p.setPen(Qt.NoPen)
-        p.setBrush(self._body)
+        if self._grad:
+            g = QLinearGradient(0, body.top(), 0, body.bottom())
+            g.setColorAt(0.0, QColor(self._grad[0]))
+            g.setColorAt(1.0, QColor(self._grad[1]))
+            p.setBrush(g)
+        else:
+            p.setBrush(self._body)
         p.drawRoundedRect(body, self._radius, self._radius)
         if self._bordered:
             p.setBrush(Qt.NoBrush)
             p.setPen(QPen(QColor(self._t.border), 1))
             p.drawRoundedRect(body, self._radius, self._radius)
+        if not self._ink:
+            # درخششِ هلالی بالای لبه — حس شیشهٔ سفید (v0.20.0)
+            hl = QRectF(body)
+            hl.setHeight(min(30.0, hl.height() * 0.25))
+            g2 = QLinearGradient(0, hl.top(), 0, hl.bottom())
+            g2.setColorAt(0.0, QColor(255, 255, 255, 235))
+            g2.setColorAt(1.0, QColor(255, 255, 255, 0))
+            path = QPainterPath()
+            path.addRoundedRect(body, self._radius, self._radius)
+            p.save()
+            p.setClipPath(path)
+            p.setPen(Qt.NoPen)
+            p.setBrush(g2)
+            p.drawRoundedRect(hl, self._radius, self._radius)
+            p.restore()
         p.end()
 
 
@@ -109,12 +170,10 @@ class Card(SoftCard):
         self._t = t
         if title:
             head = QHBoxLayout()
-            head.setSpacing(Space.SM)
+            head.setSpacing(Space.SM + 2)
             if icon_name:
-                ic = QLabel()
-                ic.setFixedSize(18, 18)
-                ic.setPixmap(icons.icon(icon_name, 18, t.text_2).pixmap(18, 18))
-                head.addWidget(ic)
+                head.addWidget(IconChip(icon_name, 28, tint=t.raised,
+                                        color=t.text))
             ttl = QLabel(title)
             ttl.setObjectName("cardtitle")
             head.addWidget(ttl)
@@ -138,7 +197,7 @@ class InkCard(SoftCard):
     """کارت مشکی پرکنتراست — لهجهٔ بصری تم روشن."""
 
     def __init__(self, title: str = "", sub: str = "", parent=None, t: Theme = DARK):
-        super().__init__(parent, t=t, ink=True)
+        super().__init__(parent, t=t, ink=True, grad=("#1C1C25", "#0A0A0E"))
         self._t = t
         if title:
             ttl = QLabel(title)
@@ -164,7 +223,7 @@ class StatTile(QFrame):
         self.setObjectName("inktile")
         self._t = t
         lay = QVBoxLayout(self)
-        lay.setContentsMargins(Space.MD, Space.MD, Space.MD, Space.MD)
+        lay.setContentsMargins(10, 10, 10, 10)
         lay.setSpacing(2)
         self._num = QLabel(value)
         self._num.setObjectName("tile_num")
@@ -860,3 +919,539 @@ class CandleChart(QWidget):
         p.setFont(QFont("Consolas", 8, QFont.Bold))
         p.drawText(QRectF(w - self.PAD_R + 3, ly2 - 9, 70, 18), Qt.AlignCenter, self._fmt(last["c"]))
         p.end()
+
+
+# ══════════════════════════════════════════════════════════════
+#  v0.20.0 — Aurora Glass 2.0: اجزای تازهٔ طراحی
+# ══════════════════════════════════════════════════════════════
+class IconChip(QFrame):
+    """نشانِ آیکون: مربع گردِ رنگی با آیکون SVG در مرکز.
+
+    پایهٔ زبان بصری جدید — هیچ آیکون برهنه‌ای در رابط نمی‌ماند.
+    """
+
+    def __init__(self, icon_name: str, size: int = 36, tint: str = "",
+                 color: str = "", radius: int = -1, parent=None,
+                 t: Theme = DARK):
+        super().__init__(parent)
+        self._t = t
+        self._icon = icon_name
+        self._tint = QColor(tint or t.ink_card)
+        self._color = color or t.on_ink
+        self._size = size
+        self._radius = radius if radius >= 0 else max(8, int(size * 0.32))
+        self.setFixedSize(size, size)
+
+    def set_icon(self, name: str, color: str = "") -> None:
+        self._icon = name
+        if color:
+            self._color = color
+        self.update()
+
+    def paintEvent(self, ev) -> None:      # noqa: N802
+        p = QPainter(self)
+        p.setRenderHint(QPainter.Antialiasing, True)
+        p.setPen(Qt.NoPen)
+        p.setBrush(self._tint)
+        p.drawRoundedRect(QRectF(self.rect()).adjusted(0.5, 0.5, -0.5, -0.5),
+                          self._radius, self._radius)
+        inner = max(10, int(self._size * 0.56))
+        if inner % 2:
+            inner -= 1
+        pm = icons.icon(self._icon, inner, self._color).pixmap(inner, inner)
+        x = (self.width() - inner) // 2
+        y = (self.height() - inner) // 2
+        p.drawPixmap(x, y, pm)
+        p.end()
+
+
+class Chip(QLabel):
+    """برچسب قرصی کوچک با تُن معنایی (neutral/ink/green/red/amber/brand)."""
+
+    def __init__(self, text: str = "", tone: str = "", parent=None):
+        super().__init__(text, parent)
+        self.setObjectName("chip")
+        self.setAlignment(Qt.AlignCenter)
+        self._tone = tone
+        if tone:
+            self.setProperty("tone", tone)
+
+    def set_tone(self, tone: str) -> None:
+        self._tone = tone
+        self.setProperty("tone", tone)
+        st = self.style()
+        st.unpolish(self)
+        st.polish(self)
+
+
+class Stars(QWidget):
+    """رتبهٔ ستاره‌ای نقاشی‌شده (به‌جای گلیف متنی ★)."""
+
+    def __init__(self, value: int = 0, total: int = 5, size: int = 14,
+                 parent=None, t: Theme = DARK):
+        super().__init__(parent)
+        self._t = t
+        self._value = max(0, min(total, int(value)))
+        self._total = total
+        self._size = size
+        self.setFixedHeight(size + 4)
+        self.setMinimumWidth(total * (size + 3))
+
+    def set_value(self, v: int) -> None:
+        v = max(0, min(self._total, int(v)))
+        if v != self._value:
+            self._value = v
+            self.update()
+
+    def paintEvent(self, ev) -> None:      # noqa: N802
+        p = QPainter(self)
+        p.setRenderHint(QPainter.Antialiasing, True)
+        s = self._size
+        y = (self.height() - s) // 2
+        # RTL: از راست بچین
+        x = self.width() - s
+        for i in range(self._total):
+            filled = i < self._value
+            pm = icons.icon("star_filled" if filled else "star", s,
+                            self._t.amber if filled else self._t.border_strong,
+                            1.5).pixmap(s, s)
+            p.drawPixmap(x, y, pm)
+            x -= s + 3
+        p.end()
+
+
+class SectionHeader(QWidget):
+    """سربرگ صفحه/بخش: چیپ آیکون + عنوان بزرگ + زیرعنوان + دنبالهٔ اختیاری."""
+
+    def __init__(self, icon_name: str, title: str, sub: str = "",
+                 parent=None, t: Theme = DARK, trailing: QWidget = None):
+        super().__init__(parent)
+        self._t = t
+        lay = QHBoxLayout(self)
+        lay.setContentsMargins(0, 0, 0, 0)
+        lay.setSpacing(Space.MD)
+        self.chip = IconChip(icon_name, 42, tint=t.ink_card, color=t.on_ink)
+        lay.addWidget(self.chip, 0, Qt.AlignVCenter)
+        col = QVBoxLayout()
+        col.setSpacing(1)
+        self.title_lbl = QLabel(title)
+        self.title_lbl.setObjectName("pagetitle")
+        self.sub_lbl = QLabel(sub)
+        self.sub_lbl.setObjectName("pagesub")
+        self.sub_lbl.setWordWrap(True)
+        col.addWidget(self.title_lbl)
+        col.addWidget(self.sub_lbl)
+        lay.addLayout(col, 1)
+        if trailing is not None:
+            lay.addWidget(trailing, 0, Qt.AlignVCenter)
+
+
+class SegmentedControl(QFrame):
+    """کلید چندحالتهٔ قرصی (مثل H1/H4) — انتخاب = پیِل مشکی."""
+
+    changed = Signal(object)
+
+    def __init__(self, options: list, parent=None, t: Theme = DARK):
+        """options: [(key, label), ...]"""
+        super().__init__(parent)
+        self.setObjectName("seg")
+        self._t = t
+        lay = QHBoxLayout(self)
+        lay.setContentsMargins(4, 4, 4, 4)
+        lay.setSpacing(2)
+        self._btns = {}
+        self._current = options[0][0] if options else None
+        for key, label in options:
+            b = QToolButton()
+            b.setObjectName("segbtn")
+            b.setText(label)
+            b.setCheckable(True)
+            b.setCursor(Qt.PointingHandCursor)
+            b.setChecked(key == self._current)
+            b.clicked.connect(lambda _=False, k=key: self.set_current(k, emit=True))
+            lay.addWidget(b)
+            self._btns[key] = b
+
+    def set_current(self, key, emit: bool = False) -> None:
+        if key not in self._btns:
+            return
+        self._current = key
+        for k, b in self._btns.items():
+            b.setChecked(k == key)
+        if emit:
+            self.changed.emit(key)
+
+    def current(self):
+        return self._current
+
+
+class ConsoleCard(SoftCard):
+    """کارتِ کنسول: سربرگ (چیپ آیکون + عنوان + قرص زمان + کپی) روی بدنهٔ تیره.
+
+    بدنه یک QTextEdit فقط‌خواندنی با استایل «ترمینال پریمیوم» است؛ متن خام
+    همیشه *داخل کارت* و با رنگ‌بندی ساختاری نمایش داده می‌شود.
+    `view` برای سازگاری با تست‌ها همان setPlainText/toPlainText را دارد.
+    """
+
+    def __init__(self, title: str = "", sub: str = "", icon_name: str = "report",
+                 parent=None, t: Theme = DARK, placeholder: str = "",
+                 with_copy: bool = True):
+        super().__init__(parent, t=t, pad=Space.MD)
+        self._t = t
+        head = QHBoxLayout()
+        head.setSpacing(Space.SM + 2)
+        head.addWidget(IconChip(icon_name, 34, tint=t.ink_card, color=t.on_ink))
+        col = QVBoxLayout()
+        col.setSpacing(1)
+        if title:
+            ttl = QLabel(title)
+            ttl.setObjectName("cardtitle")
+            col.addWidget(ttl)
+        self.sub_lbl = QLabel(sub or "")
+        self.sub_lbl.setObjectName("cardsub")
+        col.addWidget(self.sub_lbl)
+        head.addLayout(col, 1)
+        self.time_chip = Chip("", "")
+        self.time_chip.setVisible(False)
+        head.addWidget(self.time_chip)
+        if with_copy:
+            self.copy_btn = QPushButton()
+            self.copy_btn.setObjectName("circle")
+            self.copy_btn.setFixedSize(34, 34)
+            self.copy_btn.setIcon(icons.icon("copy", 16, t.text_2))
+            self.copy_btn.setCursor(Qt.PointingHandCursor)
+            self.copy_btn.setToolTip("کپی متن کامل")
+            self.copy_btn.clicked.connect(self._copy)
+            head.addWidget(self.copy_btn)
+        self.add_layout(head)
+
+        from PySide6.QtWidgets import QTextEdit
+        self.view = QTextEdit()
+        self.view.setObjectName("console")
+        self.view.setReadOnly(True)
+        self.view.setPlaceholderText(placeholder)
+        self.view.setMinimumHeight(120)
+        self.add_widget(self.view, 1)
+
+    def _copy(self) -> None:
+        try:
+            from PySide6.QtWidgets import QApplication
+            QApplication.clipboard().setText(self.view.toPlainText())
+            if getattr(self, "copy_btn", None) is not None:
+                self.copy_btn.setIcon(icons.icon("check", 16, self._t.green_text))
+                QTimer.singleShot(1400, lambda: self.copy_btn.setIcon(
+                    icons.icon("copy", 16, self._t.text_2)))
+        except Exception:
+            pass
+
+    # ── محتوا ────────────────────────────────────────────────
+    def set_stamp(self, stamp: str) -> None:
+        if stamp:
+            self.time_chip.setText(stamp)
+            self.time_chip.setVisible(True)
+        else:
+            self.time_chip.setVisible(False)
+
+    def set_text(self, text: str, stamp: str = "", colorize: bool = True) -> None:
+        """متن کامل را می‌گذارد؛ با colorize سرتیترها/جداکننده‌ها رنگ می‌گیرند."""
+        self.set_stamp(stamp)
+        if colorize:
+            self.view.setHtml(self.colorize(text))
+        else:
+            self.view.setPlainText(text)
+
+    def colorize(self, text: str) -> str:
+        """HTML ساده: جداکننده‌ها و سرتیترهای گزارش را برجسته می‌کند."""
+        import html as _html
+        t = self._t
+        out = []
+        for line in str(text).splitlines():
+            esc = _html.escape(line)
+            s = line.strip()
+            if not s:
+                out.append("&nbsp;")
+            elif s.startswith("═") or set(s) <= {"━", "─", "═"} and len(s) > 3:
+                out.append(f"<span style='color:{t.console_dim}'>{esc}</span>")
+            elif s.startswith("───"):
+                out.append(f"<span style='color:{t.brand};font-weight:700'>{esc}</span>")
+            elif s[:1] in "🔎⚖️📊🕒📅💹🛑🎯⚠️📍🌊💰🧭📈📉✅❌🟢🔴🟡" or \
+                    (len(s) > 1 and s[1] in "️⃣" ):
+                out.append(f"<span style='color:{t.console_text};font-weight:600'>{esc}</span>")
+            elif "سیگنال" in s and ("—" in s or "✅" in s):
+                out.append(f"<span style='color:{t.console_green};font-weight:700'>{esc}</span>")
+            elif s.startswith("❌") or "خطا" in s[:6]:
+                out.append(f"<span style='color:{t.console_red};font-weight:600'>{esc}</span>")
+            else:
+                out.append(f"<span style='color:{t.console_text}'>{esc}</span>")
+        return ("<div style='font-family:Vazirmatn,Consolas,monospace;"
+                f"font-size:12.5px;line-height:1.7;direction:rtl'>"
+                + "<br>".join(out) + "</div>")
+
+    def append_line(self, html_line: str) -> None:
+        self.view.append(html_line)
+
+
+class KpiCard(SoftCard):
+    """کارت شاخص: چیپ آیکون + عدد بزرگ + برچسب."""
+
+    def __init__(self, label: str, value: str = "—", icon_name: str = "gauge",
+                 tone: str = "", parent=None, t: Theme = DARK):
+        super().__init__(parent, t=t, radius=18, pad=Space.MD, bordered=True)
+        self._t = t
+        row = QHBoxLayout()
+        row.setSpacing(Space.SM)
+        tint = {"green": t.green_tint, "red": t.red_tint,
+                "amber": t.amber_tint, "brand": t.brand_tint}.get(tone, t.raised)
+        colr = {"green": t.green_text, "red": t.red_text,
+                "amber": "#9A7220", "brand": t.brand}.get(tone, t.text)
+        self.chip = IconChip(icon_name, 30, tint=tint, color=colr)
+        row.addWidget(self.chip, 0, Qt.AlignVCenter)
+        col = QVBoxLayout()
+        col.setSpacing(0)
+        self.value_lbl = QLabel(value)
+        self.value_lbl.setObjectName("kpi_val")
+        if tone in ("green", "red"):
+            self.value_lbl.setProperty("tone", tone)
+        self.label_lbl = QLabel(label)
+        self.label_lbl.setObjectName("kpi_lab")
+        col.addWidget(self.value_lbl)
+        col.addWidget(self.label_lbl)
+        row.addLayout(col, 1)
+        self.add_layout(row)
+
+    def set_value(self, value: str, tone: str = "") -> None:
+        self.value_lbl.setText(value)
+        if tone:
+            self.value_lbl.setProperty("tone", tone)
+            st = self.value_lbl.style()
+            st.unpolish(self.value_lbl)
+            st.polish(self.value_lbl)
+
+
+_EN_DIGITS = str.maketrans("۰۱۲۳۴۵۶۷۸۹", "0123456789")
+
+
+def _en_num(s: str) -> str:
+    return str(s).translate(_EN_DIGITS)
+
+
+class SignalCard(SoftCard):
+    """کارت سیگنال ساختاریافته — همان زبان بصری کارت اندروید/اشتراک.
+
+    از dict سیگنال موتور ساخته می‌شود (symbol, direction, score, entry, sl,
+    tp, rr, stars, session_fa, fa_name, now, text, sent, pip, is_gold).
+    دلایل از `text` سیگنال با پارسر محافظه‌کار بیرون کشیده می‌شوند؛ اگر
+    پارس نشد، بخش دلایل پنهان می‌ماند و «متن کامل» همیشه در دسترس است.
+    """
+
+    def __init__(self, sig: dict, parent=None, t: Theme = DARK,
+                 on_chart=None, on_share=None):
+        super().__init__(parent, t=t, radius=20, pad=Space.LG, bordered=True,
+                         interactive=True)
+        self._t = t
+        self.sig = dict(sig or {})
+        buy = str(self.sig.get("direction", "")).upper().startswith("B")
+        self._buy = buy
+        acc = t.green_text if buy else t.red_text
+        pip = float(self.sig.get("pip") or (1.0 if self.sig.get("is_gold") else 0.0001))
+
+        from src.report.signal import fmt_price
+
+        # ── ردیف ۱: جهت + ستاره‌ها + وضعیت ارسال ──────────────
+        row1 = QHBoxLayout()
+        row1.setSpacing(Space.SM)
+        dir_chip = Chip(("سیگنال خرید" if buy else "سیگنال فروش"),
+                        "green" if buy else "red")
+        row1.addWidget(dir_chip)
+        sent = bool(self.sig.get("sent", True))
+        row1.addWidget(Chip("ارسال شد" if sent else "ارسال نشد",
+                            "ink" if sent else "amber"))
+        row1.addStretch(1)
+        self.stars = Stars(int(self.sig.get("stars") or 0), 5, 15, t=t)
+        row1.addWidget(self.stars, 0, Qt.AlignVCenter)
+        self.add_layout(row1)
+
+        # ── ردیف ۲: جفت‌ارز + نام فارسی ──────────────────────
+        pair = str(self.sig.get("symbol", ""))
+        if len(pair) == 6:
+            pair = pair[:3] + "/" + pair[3:]
+        row2 = QHBoxLayout()
+        row2.setSpacing(Space.SM)
+        pl = QLabel("\u200E" + pair)
+        pl.setObjectName("sigpair")
+        row2.addWidget(pl)
+        fa_name = str(self.sig.get("fa_name") or "")
+        if fa_name:
+            fn = QLabel(fa_name)
+            fn.setObjectName("sigmeta")
+            row2.addWidget(fn, 0, Qt.AlignBottom)
+        row2.addStretch(1)
+        score = self.sig.get("score")
+        max_score = self.sig.get("max_score")
+        if score is not None:
+            from ..fa import fa_num
+            row2.addWidget(Chip(f"امتیاز {fa_num(score)} از {fa_num(max_score or 11)}",
+                                "ink"))
+        self.add_layout(row2)
+
+        # ── ردیف ۳: زمان + سشن ───────────────────────────────
+        row3 = QHBoxLayout()
+        row3.setSpacing(Space.SM)
+        try:
+            nowv = self.sig.get("now")
+            if isinstance(nowv, str):
+                from datetime import datetime as _dt
+                nowv = _dt.fromisoformat(nowv)
+            if nowv is not None:
+                from ..fa import fa_num, jalali_fa, hhmm_teh
+                if nowv.tzinfo is None:
+                    from datetime import timezone as _tz
+                    nowv = nowv.replace(tzinfo=_tz.utc)
+                row3.addWidget(Chip(jalali_fa(nowv) + " · ساعت " +
+                                    fa_num(hhmm_teh(nowv)) + " تهران", ""))
+        except Exception:
+            pass
+        if self.sig.get("session_fa"):
+            row3.addWidget(Chip("سشن " + str(self.sig["session_fa"]), "brand"))
+        rr = self.sig.get("rr")
+        if rr:
+            from ..fa import fa_num
+            row3.addWidget(Chip("ریسک به ریوارد ۱:" + fa_num(f"{float(rr):.1f}"), "green"))
+        row3.addStretch(1)
+        self.add_layout(row3)
+
+        # ── ردیف ۴: کاشی‌های ورود/حد ضرر/هدف ──────────────────
+        tiles = QHBoxLayout()
+        tiles.setSpacing(Space.SM)
+        for cap_t, key, tone in (("ورود", "entry", ""), ("حد ضرر", "sl", "red"),
+                                 ("هدف", "tp", "green")):
+            tl = QFrame()
+            tl.setObjectName("sigtile")
+            vl = QVBoxLayout(tl)
+            vl.setContentsMargins(Space.MD, 10, Space.MD, 10)
+            vl.setSpacing(2)
+            c = QLabel(cap_t)
+            c.setObjectName("sigtile_cap")
+            v = QLabel("")
+            v.setObjectName("sigtile_val")
+            v.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+            if tone:
+                v.setProperty("tone", tone)
+            try:
+                v.setText("\u200E" + fmt_price(float(self.sig[key]), pip))
+            except Exception:
+                v.setText("—")
+            vl.addWidget(c)
+            vl.addWidget(v)
+            tiles.addWidget(tl, 1)
+        self.add_layout(tiles)
+
+        # ── ردیف ۵: دلایل (پارس‌شده از متن سیگنال) ────────────
+        reasons, warns = self._parse_reasons(str(self.sig.get("text") or ""))
+        if reasons:
+            cap = QLabel("چرا این سیگنال صادر شد؟")
+            cap.setObjectName("cardtitle")
+            self.add_widget(cap)
+            for iconn, label, pts, detail in reasons:
+                r = QFrame()
+                r.setObjectName("sigreason")
+                rl = QHBoxLayout(r)
+                rl.setContentsMargins(Space.MD, 8, Space.MD, 8)
+                rl.setSpacing(Space.SM)
+                rl.addWidget(IconChip(iconn, 24, tint=t.green_tint,
+                                      color=t.green_text))
+                txt = QLabel(f"{label} — {detail}" if detail else label)
+                txt.setObjectName("sigreason_txt")
+                txt.setWordWrap(True)
+                rl.addWidget(txt, 1)
+                if pts:
+                    from ..fa import fa_num
+                    rl.addWidget(Chip("+" + fa_num(pts), "green"))
+                self.add_widget(r)
+        if warns:
+            for wmsg in warns[:3]:
+                r = QFrame()
+                r.setObjectName("sigreason")
+                rl = QHBoxLayout(r)
+                rl.setContentsMargins(Space.MD, 8, Space.MD, 8)
+                rl.setSpacing(Space.SM)
+                rl.addWidget(IconChip("alert", 24, tint=t.amber_tint, color="#9A7220"))
+                txt = QLabel(wmsg)
+                txt.setObjectName("sigreason_txt")
+                txt.setWordWrap(True)
+                rl.addWidget(txt, 1)
+                self.add_widget(r)
+
+        # ── ردیف ۶: اقدام‌ها ──────────────────────────────────
+        acts = QHBoxLayout()
+        acts.setSpacing(Space.SM)
+        from PySide6.QtWidgets import QPushButton
+        b_chart = QPushButton("نمودار")
+        b_chart.setObjectName("ghost")
+        b_chart.setIcon(icons.icon("chart", 15, t.text_2))
+        b_chart.setCursor(Qt.PointingHandCursor)
+        b_share = QPushButton("اشتراک تصویر")
+        b_share.setObjectName("ghost")
+        b_share.setIcon(icons.icon("send", 15, t.text_2))
+        b_share.setCursor(Qt.PointingHandCursor)
+        b_text = QPushButton("متن کامل")
+        b_text.setObjectName("subtle")
+        b_text.setCheckable(True)
+        b_text.setIcon(icons.icon("eye", 15, t.text_3))
+        b_text.setCursor(Qt.PointingHandCursor)
+        acts.addWidget(b_chart)
+        acts.addWidget(b_share)
+        acts.addStretch(1)
+        acts.addWidget(b_text)
+        self.add_layout(acts)
+
+        self._text_card = ConsoleCard("متن کامل سیگنال", "", "report", t=t,
+                                      with_copy=True)
+        self._text_card.set_text(str(self.sig.get("text") or "متنی نیست."))
+        self._text_card.setVisible(False)
+        self.add_widget(self._text_card)
+        b_text.toggled.connect(self._text_card.setVisible)
+
+        if on_chart is not None:
+            b_chart.clicked.connect(lambda _=False, s=self.sig: on_chart(s))
+        if on_share is not None:
+            b_share.clicked.connect(lambda _=False, s=self.sig: on_share(s))
+
+    # ── پارسر محافظه‌کارِ دلایل از متن رندرشده ────────────────
+    _ICON_HINTS = (("روند", "trend_up"), ("H4", "trend_up"), ("H1", "trend_up"),
+                   ("تقویم", "calendar"), ("رویداد", "calendar"), ("خبر", "report"),
+                   ("اخبار", "report"), ("تریدینگ", "eye"), ("TradingView", "eye"),
+                   ("نوسان", "zap"), ("ATR", "zap"), ("حمایت", "layers"),
+                   ("مقاومت", "layers"), ("سشن", "clock"), ("زمان", "clock"),
+                   ("فاصله", "gauge"), ("مومنتوم", "zap"), ("حجم", "chart"))
+
+    def _parse_reasons(self, text: str):
+        import re
+        reasons, warns = [], []
+        if not text:
+            return reasons, warns
+        try:
+            negative = False
+            for raw in text.splitlines():
+                line = raw.strip()
+                if "امتیاز نگرفتند" in line:
+                    negative = True
+                    continue
+                if line.startswith("•"):
+                    warns.append(line.lstrip("• ").strip())
+                    continue
+                m = re.match(r"^(?:[^\w\s]+\s*)?(.+?)\s*\(\+([۰-۹0-9]+)\)\s*(?:—|-)\s*(.*)$",
+                             line)
+                if not m or negative:
+                    continue
+                label, pts, detail = m.group(1).strip(), int(_en_num(m.group(2))), \
+                    m.group(3).strip()
+                iconn = "check"
+                for hint, ic in self._ICON_HINTS:
+                    if hint in label or hint in detail:
+                        iconn = ic
+                        break
+                reasons.append((iconn, label, pts, detail))
+        except Exception:
+            return [], []
+        return reasons[:8], warns

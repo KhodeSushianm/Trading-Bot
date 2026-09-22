@@ -20,6 +20,7 @@ from PySide6.QtWidgets import (QFrame, QGraphicsOpacityEffect, QLabel,
                                QVBoxLayout, QWidget)
 
 from . import effects, icons
+from .backdrop import render_aurora
 from .theme import DARK, Space, Theme
 
 
@@ -88,7 +89,7 @@ class WelcomeSplash(QWidget):
 
         logo = QLabel()
         logo.setFixedSize(44, 44)
-        logo.setPixmap(icons.icon("logo", 44, t.accent_ink, 1.5).pixmap(44, 44))
+        logo.setPixmap(icons.icon("logo", 44, t.on_ink, 1.5).pixmap(44, 44))
         logo.setAlignment(Qt.AlignCenter)
 
         name = QLabel(f"خوش اومدی {user_name}" if user_name else "خوش اومدی")
@@ -99,7 +100,7 @@ class WelcomeSplash(QWidget):
         sub.setObjectName("splash_sub")
         sub.setAlignment(Qt.AlignCenter)
 
-        self._bar = _ProgressLine(t.accent_ink)
+        self._bar = _ProgressLine(t.on_ink)
         self._bar.setFixedWidth(180)
 
         if app_name and version:
@@ -125,6 +126,17 @@ class WelcomeSplash(QWidget):
 
         self._hold = hold_ms
         self.finished = False
+        self._bg = None       # شفق جوهری — در اولین paintEvent رندر می‌شود
+
+    def paintEvent(self, ev) -> None:      # noqa: N802
+        # v0.20.0 — ورود سینمایی: تمام صفحه شفقِ جوهری، کارت مشکی روی آن
+        from PySide6.QtGui import QPainter
+        p = QPainter(self)
+        p.setRenderHint(QPainter.SmoothPixmapTransform, True)
+        if self._bg is None:
+            self._bg = render_aurora(self.size(), self._t, phase=0.7, dark=True)
+        p.drawPixmap(self.rect(), self._bg)
+        p.end()
 
     # ── چیدمان و اجرا ────────────────────────────────────────
     def _center(self) -> None:

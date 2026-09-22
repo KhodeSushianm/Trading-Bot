@@ -37,6 +37,29 @@ def set_animations(on: bool) -> None:
     ANIMATIONS = bool(on)
 
 
+def animations_enabled() -> bool:
+    """وضعیت فعلی کلید سراسری انیمیشن (برای پس‌زمینهٔ متحرک و...)."""
+    return ANIMATIONS
+
+
+def shake(widget: QWidget, amp: int = 7, ms: int = 340) -> None:
+    """لرزش افقی کوتاه — بازخورد خطا (مثلاً کلید لایسنس نامعتبر)."""
+    if not ANIMATIONS:
+        return
+    import math as _m
+    base = widget.pos()
+    anim = QPropertyAnimation(widget, b"pos", widget)
+    anim.setDuration(ms)
+    frames = 12
+    for i in range(frames + 1):
+        k = i / frames
+        off = int(amp * _m.sin(k * _m.pi * 3.0) * (1.0 - k))
+        anim.setKeyValueAt(k, QPoint(base.x() + off, base.y()))
+    anim.setEasingCurve(QEasingCurve.Type.OutQuad)
+    _keep(widget, anim)
+    anim.start()
+
+
 def _keep(widget: QWidget, anim) -> None:
     """نگه‌داشتن مرجع انیمیشن تا GC نشود."""
     running = getattr(widget, "_fx_running", None)

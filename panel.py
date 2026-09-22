@@ -42,11 +42,14 @@ from src.engine import BotLoop, check_event_alerts, run_briefing, run_cycle
 from src.fa import fa_countdown
 from src.notify import telegram
 from src.ui import dwm, effects, icons
-from src.ui.backdrop import paint_glass, render_backdrop
+from src.ui.backdrop import paint_glass, render_aurora, render_backdrop
 from src.ui.splash import WelcomeSplash
+from src.ui.onboarding import OnboardingDialog
 from src.ui.theme import DARK, Space, build_qss
-from src.ui.widgets import (CandleChart, Card, DashedCard, InkCard, LineChart, NavRail,
-                            RingGauge, StatTile, StatusPill, Stepper, Toast, ToggleSwitch)
+from src.ui.widgets import (CandleChart, Card, Chip, ConsoleCard, DashedCard,
+                            IconChip, InkCard, KpiCard, LineChart, NavRail,
+                            RingGauge, SectionHeader, SegmentedControl, SignalCard,
+                            StatTile, Stars, StatusPill, Stepper, Toast, ToggleSwitch)
 from src.license import (check_and_enforce_license, activate_program,
                          get_device_id, get_device_code, is_activated,
                          deactivate_program, start_trial, trial_status)
@@ -201,6 +204,7 @@ def _clear_layout(lay) -> None:
         it = lay.takeAt(0)
         w = it.widget()
         if w is not None:
+            w.hide()            # بی‌درنگ پنهان شود؛ deleteLater در فرصت آزاد می‌کند
             w.deleteLater()
         elif it.layout() is not None:
             _clear_layout(it.layout())
@@ -210,7 +214,15 @@ def _clear_layout(lay) -> None:
 #  ریشهٔ شیشه‌ای
 # ══════════════════════════════════════════════════════════════
 class GlassRoot(QWidget):
-    """پس‌زمینهٔ محو + لایهٔ شیشه را خودش می‌کشد (بدون هیچ اثر گرافیکی)."""
+    """پس‌زمینهٔ شفق + لایهٔ شیشه را خودش می‌کشد (بدون هیچ اثر گرافیکی).
+
+    v0.20.0: شفق به‌آرامی «نفس می‌کشد» — یک تایمر کم‌فریم (≈۱۴fps) فازِ
+    موج‌ها را جلو می‌برد و پس‌زمینهٔ کم‌قطع را دوباره می‌سازد. چون رندر در
+    ۵۱۲px عرض انجام و نرم بزرگ می‌شود، هزینهٔ هر فریم ناچیز است. با
+    ui.animations=false یا پنهان‌شدن پنجره (tray) کاملاً متوقف می‌شود.
+    """
+
+    FPS_MS = 70
 
     def __init__(self, t=T, parent=None):
         super().__init__(parent)
@@ -218,13 +230,36 @@ class GlassRoot(QWidget):
         self._t = t
         self._pm: QPixmap | None = None
         self._pm_size = QSize()
+        self._phase = 0.0
+        self._anim_timer = QTimer(self)
+        self._anim_timer.setInterval(self.FPS_MS)
+        self._anim_timer.timeout.connect(self._advance)
+
+    def _advance(self) -> None:
+        if not self.isVisible() or not effects.animations_enabled():
+            return
+        self._phase += 0.045
+        self._pm = None          # رندر مجدد در paintEvent
+        self.update()
+
+    def start_aurora(self) -> None:
+        if effects.animations_enabled() and not self._anim_timer.isActive():
+            self._anim_timer.start()
+
+    def stop_aurora(self) -> None:
+        self._anim_timer.stop()
 
     def paintEvent(self, ev) -> None:      # noqa: N802
         p = QPainter(self)
+        p.setRenderHint(QPainter.SmoothPixmapTransform, True)
         if self._pm is None or self._pm_size != self.size():
-            self._pm = render_backdrop(self.size(), self._t)
+            # رندر کم‌قطع (۵۱۲px) — بزرگ‌سازی نرم اینجا هزینه‌ای ندارد
+            self._pm = render_aurora(self.size(), self._t,
+                                     phase=(self._phase
+                                            if effects.animations_enabled()
+                                            else None))
             self._pm_size = self.size()
-        p.drawPixmap(0, 0, self._pm)
+        p.drawPixmap(self.rect(), self._pm)
         paint_glass(p, self.rect().adjusted(10, 10, -10, -10), self._t, radius=30)
         p.end()
 
@@ -270,6 +305,7 @@ class MainWindow(QMainWindow):
         self._sig_signature = ""
         self._ev_signature = ""
         self._last_ranking = None
+        self._consoles: dict = {}        # view → ConsoleCard (برای مهر زمان)
         self._build_ui()
         self._load_tg_fields()
 
@@ -318,6 +354,10 @@ class MainWindow(QMainWindow):
     def _after_splash(self) -> None:
         self.show()
         self.raise_()
+        try:
+            self.root_widget.start_aurora()
+        except Exception:
+            pass
         effects.fade(self.centralWidget(), 0.0, 1.0, effects.DUR_SLOW)
         self._log(f"👋 خوش اومدی {self.user_name}! دکمهٔ «شروع ربات» را بزن.")
         self._log("💡 برای دریافت گزارش‌ها روی گوشی، از «تنظیمات» تلگرام را وصل کن.")
@@ -347,6 +387,7 @@ class MainWindow(QMainWindow):
         root.addLayout(body, 1)
 
         self.setCentralWidget(root_widget)
+        self.root_widget = root_widget
         self.toast = Toast(root_widget, t=T)
         self.toast.hide()
 
@@ -354,6 +395,9 @@ class MainWindow(QMainWindow):
         h = QHBoxLayout()
         h.setSpacing(Space.MD)
 
+        # نشان برند + سلام بزرگ (v0.20.0)
+        h.addWidget(IconChip("logo", 46, tint=T.ink_card, color=T.on_ink, radius=15),
+                    0, Qt.AlignVCenter)
         txt = QVBoxLayout()
         txt.setSpacing(2)
         self.greet_lbl = QLabel(f"سلام {self.user_name}!")
@@ -381,23 +425,31 @@ class MainWindow(QMainWindow):
         self.btn_chart = _circle("chart", "نمودار کندل‌استیک")
         self.btn_chart.clicked.connect(lambda: self._open_chart())
         self.avatar = QLabel()
-        self.avatar.setFixedSize(40, 40)
+        self.avatar.setFixedSize(42, 42)
         self.avatar.setStyleSheet(
-            f"background:{T.ink_card}; border-radius:20px; color:{T.on_ink}; "
-            f"font-weight:800; font-size:15px;")
+            f"background:{T.ink_card}; border-radius:21px; color:{T.on_ink}; "
+            f"border:2px solid {T.brand}; font-weight:800; font-size:15px;")
         self.avatar.setAlignment(Qt.AlignCenter)
         self.avatar.setText(self.user_name[:1] if self.user_name else "•")
         self.clock_lbl = QLabel("")
         self.clock_lbl.setObjectName("clock")
 
-        h.addWidget(self.btn_start)
-        h.addWidget(self.btn_stop)
-        h.addWidget(self.btn_once)
-        h.addWidget(self.btn_brief)
-        h.addWidget(self.btn_live)
-        h.addWidget(self.btn_alerts)
-        h.addWidget(self.btn_chart)
-        h.addWidget(self.clock_lbl)
+        # داک شیشه‌ای: همهٔ اقدام‌های هدر داخل یک کپسولِ واحد (v0.20.0)
+        dock = QFrame()
+        dock.setObjectName("dock")
+        dl = QHBoxLayout(dock)
+        dl.setContentsMargins(8, 6, 8, 6)
+        dl.setSpacing(6)
+        dl.addWidget(self.btn_start)
+        dl.addWidget(self.btn_stop)
+        dl.addWidget(self.btn_once)
+        dl.addWidget(self.btn_brief)
+        dl.addWidget(self.btn_live)
+        dl.addWidget(self.btn_alerts)
+        dl.addWidget(self.btn_chart)
+        dl.addSpacing(4)
+        dl.addWidget(self.clock_lbl)
+        h.addWidget(dock)
         h.addWidget(self.avatar)
         return h
 
@@ -429,25 +481,20 @@ class MainWindow(QMainWindow):
             self.pages.addWidget(w)
         return self.pages
 
-    def _page_frame(self, title: str, sub: str) -> tuple:
+    def _page_frame(self, title: str, sub: str, icon_name: str = "layers",
+                    trailing=None) -> tuple:
         w = QWidget()
         lay = QVBoxLayout(w)
         lay.setContentsMargins(Space.XS, 0, Space.XS, Space.XS)
         lay.setSpacing(Space.LG)
-        head = QVBoxLayout()
-        head.setSpacing(2)
-        ttl = QLabel(title)
-        ttl.setObjectName("pagetitle")
-        sb = QLabel(sub)
-        sb.setObjectName("pagesub")
-        head.addWidget(ttl)
-        head.addWidget(sb)
-        lay.addLayout(head)
+        lay.addWidget(SectionHeader(icon_name, title, sub, t=T, trailing=trailing))
         return w, lay
 
     # ── داشبورد ───────────────────────────────────────────────
     def _page_dash(self) -> QWidget:
-        w, lay = self._page_frame("داشبورد", "نمای کلی ربات، سیگنال‌ها و رویدادهای پیش‌رو")
+        w, lay = self._page_frame("داشبورد",
+                                  "نمای کلی ربات، سیگنال‌ها و رویدادهای پیش‌رو",
+                                  "dashboard")
 
         # ردیف ۱: کارت مشکی نمای کلی | نمودار خطی | حلقه
         row1 = QHBoxLayout()
@@ -460,17 +507,19 @@ class MainWindow(QMainWindow):
         htop.addStretch(1)
         self.last_run_lbl = QLabel("—")
         self.last_run_lbl.setObjectName("ink_cap")
+        self.last_run_lbl.setWordWrap(True)
         self.last_run_lbl.setStyleSheet(_INK_CAP)
         htop.addWidget(self.last_run_lbl)
         hero.add_layout(htop)
         nums = QHBoxLayout()
-        nums.setSpacing(Space.XL)
+        nums.setSpacing(Space.LG)
         n1 = QVBoxLayout()
         self.hero_signals = QLabel("۰")
         self.hero_signals.setObjectName("ink_num")
         self.hero_signals.setStyleSheet(_INK_TITLE)
         c1 = QLabel("سیگنال کل")
         c1.setObjectName("ink_cap")
+        c1.setWordWrap(True)
         c1.setStyleSheet(_INK_CAP)
         n1.addWidget(self.hero_signals)
         n1.addWidget(c1)
@@ -480,6 +529,7 @@ class MainWindow(QMainWindow):
         self.hero_veto.setStyleSheet(_INK_TITLE)
         c2 = QLabel("وتوی فعال")
         c2.setObjectName("ink_cap")
+        c2.setWordWrap(True)
         c2.setStyleSheet(_INK_CAP)
         n2.addWidget(self.hero_veto)
         n2.addWidget(c2)
@@ -552,9 +602,8 @@ class MainWindow(QMainWindow):
         lay.addLayout(row2)
 
         # ردیف ۳: رویدادهای پیش‌رو به‌شکل کارت‌های مشکی
-        ev_title = QLabel("رویدادهای پیش‌رو")
-        ev_title.setObjectName("sectiontitle")
-        lay.addWidget(ev_title)
+        lay.addWidget(SectionHeader("calendar", "رویدادهای پیش‌رو",
+                                    "پراثرها و متوسط‌های ۴۸ ساعت آینده", t=T))
         self.ev_cards_lay = QHBoxLayout()
         self.ev_cards_lay.setSpacing(Space.LG)
         self.ev_cards_lay.addStretch(1)
@@ -572,68 +621,181 @@ class MainWindow(QMainWindow):
         scroll.setWidget(w)
         return scroll
 
-    # ── سایر صفحه‌ها ──────────────────────────────────────────
+    # ── سایر صفحه‌ها (v0.20.0 — همه‌چیز کارتی، بدون متن برهنه) ──
+    def _console(self, title: str, sub: str, icon_name: str,
+                 placeholder: str) -> ConsoleCard:
+        c = ConsoleCard(title, sub, icon_name, t=T, placeholder=placeholder)
+        self._consoles[c.view] = c
+        return c
+
     def _page_signals(self) -> QWidget:
-        w, lay = self._page_frame("سیگنال‌ها", "سیگنال‌های صادرشده با دلایل کامل")
-        bar = QHBoxLayout()
-        self.btn_share_sig = _btn("اشتراک تصویر آخرین سیگنال", "", "send",
+        self.btn_share_sig = _btn("اشتراک تصویر آخرین سیگنال", "primary", "send",
                                   "کارت تصویری برند (۱۰۸۰×۱۳۵۰) — ذخیره در گالری + کلیپ‌بورد")
         self.btn_share_sig.clicked.connect(self._share_last_signal)
-        bar.addWidget(self.btn_share_sig)
-        bar.addStretch(1)
-        lay.addLayout(bar)
-        self.sig_view = _plain(None, "هنوز سیگنالی صادر نشده.\n"
-                               "داور فقط وقتی سیگنال می‌دهد که هیچ وتویی فعال نباشد "
-                               "و امتیاز ≥ ۷ از ۱۱ شود.")
-        lay.addWidget(self.sig_view, 1)
-        return w
+        w, lay = self._page_frame("سیگنال‌ها",
+                                  "کارت‌های سیگنال با دلایل کامل، کاشی‌های ورود/حد ضرر/هدف",
+                                  "target", trailing=self.btn_share_sig)
+
+        # کارت‌های ساختاریافتهٔ سیگنال (هم‌زبان با کارت اندروید/اشتراک)
+        self.sig_list = QVBoxLayout()
+        self.sig_list.setSpacing(Space.MD)
+        self.sig_empty = DashedCard("منتظر اولین سیگنال — داور فقط با پشتوانهٔ "
+                                    "امتیاز ≥ ۷ و بدون وتو سیگنال می‌دهد", t=T)
+        self.sig_list.addWidget(self.sig_empty)
+        lay.addLayout(self.sig_list)
+
+        console = self._console("متن کامل سیگنال‌ها", "قالب ارسالی به تلگرام — برای کپی/بایگانی",
+                                "send", "هنوز سیگنالی صادر نشده.")
+        console.view.setMinimumHeight(160)
+        self.sig_view = console.view
+        console.setVisible(False)      # با اولین سیگنال باز می‌شود
+        self.sig_console = console
+        lay.addWidget(console)
+        return self._scrolled(w)
+
+    def _render_signal_cards(self, sigs: list) -> None:
+        """کارت‌های سیگنال ساختاریافته را از dictهای موتور می‌سازد."""
+        _clear_layout(self.sig_list)
+        sigs = [s for s in (sigs or []) if isinstance(s, dict)]
+        if not sigs:
+            self.sig_list.addWidget(DashedCard(
+                "منتظر اولین سیگنال — داور فقط با پشتوانهٔ امتیاز ≥ ۷ "
+                "و بدون وتو سیگنال می‌دهد", t=T))
+            return
+        for i, s in enumerate(sigs):
+            c = SignalCard(s, t=T, on_chart=self._open_chart_for_signal,
+                           on_share=self._share_signal)
+            self.sig_list.addWidget(c)
+            try:
+                effects.fade(c, 0.0, 1.0, effects.DUR_MED)
+            except Exception:
+                pass
 
     def _page_report(self) -> QWidget:
-        w, lay = self._page_frame("گزارش کامل", "تحلیل تکنیکال + تاییدیه + تقویم + اخبار + داور")
-        self.report_view = _plain(None, "هنوز گزارشی نیست — «تحلیل یک‌بار» را بزن.")
-        lay.addWidget(self.report_view, 1)
-        return w
+        w, lay = self._page_frame("گزارش کامل",
+                                  "تحلیل تکنیکال + تاییدیه + تقویم + اخبار + داور",
+                                  "report")
+        console = self._console("گزارش چرخهٔ تحلیل", "هر چرخه تازه، جایگزین می‌شود",
+                                "report", "هنوز گزارشی نیست — «تحلیل یک‌بار» را بزن.")
+        self.report_view = console.view
+        lay.addWidget(console, 1)
+        return self._scrolled(w)
 
     def _page_fund(self) -> QWidget:
-        w, lay = self._page_frame("تقویم و اخبار", "موتور فاندامنتال و رصد اخبار")
-        self.fund_view = _plain(None, "هنوز داده‌ای نیست.")
-        lay.addWidget(self.fund_view, 1)
-        return w
+        w, lay = self._page_frame("تقویم و اخبار",
+                                  "رویدادهای پراثر و تیترهای خبری مؤثر بر جفت‌ارزها",
+                                  "calendar")
+        console = self._console("تقویم اقتصادی و اخبار", "ForexFactory + RSS فارکس",
+                                "calendar", "هنوز داده‌ای نیست.")
+        self.fund_view = console.view
+        lay.addWidget(console, 1)
+        return self._scrolled(w)
 
     def _page_brief(self) -> QWidget:
-        w, lay = self._page_frame("بریفینگ صبحگاهی", "خلاصهٔ روز قبل از باز شدن لندن")
-        self.brief_view = _plain(None, "بریفینگ هنوز ساخته نشده.")
-        lay.addWidget(self.brief_view, 1)
-        return w
+        w, lay = self._page_frame("بریفینگ صبحگاهی",
+                                  "خلاصهٔ روز قبل از باز شدن لندن", "sunrise")
+        console = self._console("بریفینگ روزانه", "هر روز در ساعت مقرر ساخته می‌شود",
+                                "sunrise", "بریفینگ هنوز ساخته نشده.")
+        self.brief_view = console.view
+        lay.addWidget(console, 1)
+        return self._scrolled(w)
 
     def _page_live(self) -> QWidget:
-        w, lay = self._page_frame("گزارش زنده", "رویدادها لحظه‌به‌لحظه")
-        self.log_view = _plain(4000, "رویدادی ثبت نشده.")
-        lay.addWidget(self.log_view, 1)
-        return w
+        w, lay = self._page_frame("گزارش زنده",
+                                  "رویدادها لحظه‌به‌لحظه — با مهر زمانی رنگی",
+                                  "live")
+        console = self._console("جریان رویدادها", "هر خط: زمان + رویداد",
+                                "live", "رویدادی ثبت نشده.")
+        self.log_view = console.view
+        self.log_view.document().setMaximumBlockCount(4000)
+        lay.addWidget(console, 1)
+        return self._scrolled(w)
 
     def _page_journal(self) -> QWidget:
-        w, lay = self._page_frame("کارنامه", "دقت واقعی سیستم — حلقهٔ صداقت")
-
-        bar = QHBoxLayout()
-        bar.addStretch(1)
         self.btn_journal = _btn("به‌روزرسانی کارنامه", "ghost", "refresh",
                                 "همین حالا کارنامه را بازسازی کن")
         self.btn_journal.clicked.connect(self._on_journal)
-        bar.addWidget(self.btn_journal)
-        lay.addLayout(bar)
+        w, lay = self._page_frame("کارنامه",
+                                  "دقت واقعی سیستم — حلقهٔ صداقت", "chart",
+                                  trailing=self.btn_journal)
 
-        self.journal_view = _plain(None,
-                                   "هنوز کارنامه‌ای نیست.\n"
-                                   "با اولین سیگنالِ بسته‌شده، آمار دقت اینجا ساخته می‌شود.")
-        lay.addWidget(self.journal_view, 1)
-        return w
+        # ردیف KPI (با پارس آمار کارنامه پر می‌شود؛ تا آن زمان پنهان است)
+        self.journal_kpi_row = QHBoxLayout()
+        self.journal_kpi_row.setSpacing(Space.MD)
+        self._journal_kpis: dict = {}
+        lay.addLayout(self.journal_kpi_row)
+
+        console = self._console("کارنامهٔ دقت", "آمار کامل — هفته/نماد/جهت/امتیاز/مدرک",
+                                "chart", "هنوز کارنامه‌ای نیست.\n"
+                                "با اولین سیگنالِ بسته‌شده، آمار دقت اینجا ساخته می‌شود.")
+        self.journal_view = console.view
+        lay.addWidget(console, 1)
+        return self._scrolled(w)
+
+    def _scrolled(self, w: QWidget) -> QScrollArea:
+        """ظرف اسکرول عمودی برای صفحه‌های کارتی (افقی هرگز)."""
+        w.setObjectName("page")
+        scroll = QScrollArea()
+        scroll.setObjectName("pagescroll")
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QFrame.NoFrame)
+        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        scroll.setWidget(w)
+        return scroll
+
+    def _update_journal_kpis(self, text: str) -> None:
+        """KPIهای کارنامه را از متن آمار بیرون می‌کشد (پارسر محافظه‌کار)."""
+        import re
+        try:
+            def en(s):
+                return str(s).translate(
+                    str.maketrans("۰۱۲۳۴۵۶۷۸۹", "0123456789"))
+            vals = {}
+            m = re.search(r"سیگنال ثبت‌شده:\s*([۰-۹0-9]+)", text)
+            if m:
+                vals["total"] = en(m.group(1))
+            m = re.search(r"بسته:\s*([۰-۹0-9]+)\s*\(برد\s*([۰-۹0-9]+)", text)
+            if m:
+                vals["closed"] = en(m.group(1))
+                vals["wins"] = en(m.group(2))
+            m = re.search(r"باز:\s*([۰-۹0-9]+)", text)
+            if m:
+                vals["open"] = en(m.group(1))
+            m = re.search(r"نرخ برد \(نتیجهٔ قطعی\):\s*([۰-۹0-9]+)٪", text)
+            if m:
+                vals["hit"] = en(m.group(1))
+            m = re.search(r"میانگین R هر معامله:\s*(-?[۰-۹0-9.]+)", text)
+            if m:
+                vals["avg_r"] = en(m.group(1))
+            if not vals:
+                return
+            specs = (("total", "سیگنال ثبت‌شده", "layers", ""),
+                     ("closed", "بسته‌شده", "check_circle", ""),
+                     ("hit", "نرخ برد قطعی", "gauge",
+                      "green" if float(vals.get("hit", 0) or 0) >= 50 else "red"),
+                     ("avg_r", "میانگین R", "trend_up", ""),
+                     ("open", "باز", "clock", ""))
+            if not self._journal_kpis:
+                for key, label, ic, tone in specs:
+                    k = KpiCard(label, "—", ic, tone, t=T)
+                    self._journal_kpis[key] = k
+                    self.journal_kpi_row.addWidget(k, 1)
+            for key, label, ic, tone in specs:
+                k = self._journal_kpis.get(key)
+                if k is None:
+                    continue
+                v = vals.get(key, "—")
+                if key == "hit" and v != "—":
+                    v = fa(v) + "٪"
+                k.set_value(fa(v), tone)
+        except Exception:
+            pass
 
     def _page_settings(self) -> QWidget:
         w, lay = self._page_frame(
             "تنظیمات",
             "نام نمایشی، داور، وتوها، موتورها، حلقه و ظاهر — تغییرها فوری ذخیره "
-            "می‌شوند و در تحلیل بعدی اثر می‌کنند")
+            "می‌شوند و در تحلیل بعدی اثر می‌کنند", "settings")
 
         self._set_guard = False
         self.set_switches: dict[str, ToggleSwitch] = {}
@@ -869,9 +1031,17 @@ class MainWindow(QMainWindow):
         effects.fade(page, 0.0, 1.0, effects.DUR_MED)
 
     # ── صف ────────────────────────────────────────────────────
-    def _fill(self, view: QPlainTextEdit, text: str, page_idx: int, label: str) -> None:
+    def _fill(self, view, text: str, page_idx: int, label: str) -> None:
         stamp = fa(time.strftime("%H:%M:%S"))
-        view.setPlainText(f"⟵ {label} — {stamp}\n\n{text}")
+        card = self._consoles.get(view)
+        if card is not None:
+            card.set_text(text, stamp)       # مهر زمان در قرصِ سربرگ، نه در متن
+        else:
+            view.setPlainText(f"⟵ {label} — {stamp}\n\n{text}")
+        if view is getattr(self, "journal_view", None):
+            self._update_journal_kpis(str(text))
+        if view is getattr(self, "sig_view", None):
+            self.sig_console.setVisible(True)
         self._flash_nav(page_idx)
 
     def _flash_nav(self, page_idx: int) -> None:
@@ -914,6 +1084,7 @@ class MainWindow(QMainWindow):
                 self._on_price_alerts(payload)
             elif kind == "signal_card":
                 self._last_signals = payload or []
+                self._render_signal_cards(self._last_signals)
                 self._show_signal_popup(self._last_signals)
             elif kind == "tg_msg":
                 # از thread ورکر تلگرام فقط به صف می‌آید؛ دست‌زدن به ویجت از
@@ -929,7 +1100,21 @@ class MainWindow(QMainWindow):
                                 "target")
 
     def _log(self, msg: str) -> None:
-        self.log_view.appendPlainText(msg)
+        """یک رویداد در کنسول زنده — مهر زمانی محو + رنگ معنایی (v0.20.0)."""
+        import html as _html
+        msg_s = str(msg)
+        esc = _html.escape(msg_s)
+        stamp = fa(time.strftime("%H:%M:%S"))
+        low = msg_s
+        if "❌" in low or "خطا" in low[:8] or "[!]" in low[:4]:
+            col = T.console_red
+        elif "سیگنال" in low or "✅" in low or "🎯" in low:
+            col = T.console_green
+        else:
+            col = T.console_text
+        self.log_view.append(
+            f"<span style='color:{T.console_dim};font-size:11px'>[{stamp}]</span>"
+            f"&nbsp;&nbsp;<span style='color:{col}'>{esc}</span>")
 
     # ── tray + پس‌زمینه (v0.19.0) ─────────────────────────────
     def _init_tray(self) -> None:
@@ -1081,8 +1266,9 @@ class MainWindow(QMainWindow):
             row1.addWidget(close_b)
             v.addLayout(row1)
 
-            pair_lbl = QLabel(pair)
-            pair_lbl.setStyleSheet("font-size:23px;font-weight:800;direction:ltr")
+            pair_lbl = QLabel("\u200E" + pair)
+            pair_lbl.setLayoutDirection(Qt.LeftToRight)
+            pair_lbl.setStyleSheet("font-size:23px;font-weight:800")
             v.addWidget(pair_lbl)
 
             meta = QLabel(f"{sig.get('fa_name', '')}  ·  امتیاز {fa_num(sig.get('score', 0))}"
@@ -1610,257 +1796,46 @@ class MainWindow(QMainWindow):
             pass
         super().closeEvent(event)
 
-    # ── دیالوگ فعال‌سازی لایسنس ───────────────────────────────
+    # ── صفحهٔ ورود / فعال‌سازی لایسنس (v0.20.0 — Onboarding جوهری) ──
     def _show_activation_dialog(self) -> bool:
-        """نمایش دیالوگ فعال‌سازی برنامه.
-        
+        """نمایش صفحهٔ ورود (OnboardingDialog): نام → فعال‌سازی/تریال → موفقیت.
+
         Returns:
-            True اگر کاربر با موفقیت فعال‌سازی کرد، False اگر انصراف داد یا شکست خورد
+            True اگر کاربر فعال‌سازی کرد (یا تریال گرفت)، False اگر انصراف داد.
         """
-        # والدِ None: دیالوگ مستقل و مدال است — وابسته به ساخت‌ویندوز نیست
-        dialog = QDialog()
-        dialog.setWindowTitle("فعال‌سازی ODIN Assistant")
-        dialog.setModal(True)
-        dialog.setFixedSize(520, 430)
-        dialog.setLayoutDirection(Qt.RightToLeft)
-        
-        layout = QVBoxLayout()
-        layout.setSpacing(20)
-        layout.setContentsMargins(30, 30, 30, 30)
-        
-        # عنوان
-        title_lbl = QLabel("فعال‌سازی برنامه")
-        title_lbl.setObjectName("ink_title")
-        title_lbl.setStyleSheet(f"color: {T.on_ink}; font-size: 18px; font-weight: bold;")
-        title_lbl.setAlignment(Qt.AlignCenter)
-        layout.addWidget(title_lbl)
-        
-        # توضیحات
-        desc_lbl = QLabel(
-            "۱) «کد دستگاه» زیر را کپی کرده و برای سازنده (Sushian Khoshkhani — تلگرام @Khode_Sushian) بفرستید.\n"
-            "۲) کلید لایسنس مخصوص همین دستگاه را دریافت و اینجا وارد کنید.\n"
-            "   کلیدهای زمان‌دار یک بخش تاریخ هم دارند — کل رشتهٔ دریافتی را وارد کنید.\n\n"
-            "یا «شروع دورهٔ آزمایشی» را بزنید: ۷ روز استفادهٔ کامل و رایگان."
-        )
-        desc_lbl.setWordWrap(True)
-        desc_lbl.setStyleSheet(f"color: {T.text_2}; font-size: 13px;")
-        layout.addWidget(desc_lbl)
-        
-        # فرم ورودی
-        form_layout = QFormLayout()
-        form_layout.setSpacing(12)
-        
-        # فیلد نام کاربر
-        self.name_input = QLineEdit()
-        self.name_input.setPlaceholderText("نام خود را وارد کنید")
-        self.name_input.setMinimumHeight(40)
-        self.name_input.setStyleSheet("""
-            QLineEdit {
-                padding: 10px;
-                border: 1px solid #E0E0E0;
-                border-radius: 8px;
-                font-size: 13px;
-                font-family: inherit;
-            }
-            QLineEdit:focus {
-                border-color: #1976D2;
-                outline: none;
-            }
-        """)
-        form_layout.addRow("نام:", self.name_input)
-        
-        # فیلد کلید لایسنس
-        self.license_input = QLineEdit()
-        self.license_input.setPlaceholderText("XXXX-XXXX-XXXX-XXXX[-YYMMDD]")
-        self.license_input.setMinimumHeight(40)
-        self.license_input.setStyleSheet("""
-            QLineEdit {
-                padding: 10px;
-                border: 1px solid #E0E0E0;
-                border-radius: 8px;
-                font-size: 13px;
-                font-family: inherit;
-                letter-spacing: 1px;
-            }
-            QLineEdit:focus {
-                border-color: #1976D2;
-                outline: none;
-            }
-        """)
-        form_layout.addRow("کلید لایسنس:", self.license_input)
-        
-        # نمایش کد دستگاه (کامل، انتخاب‌پذیر، با دکمهٔ کپی) — v0.14.0
-        device_code = get_device_code()
-        dev_row = QHBoxLayout()
-        dev_row.setSpacing(8)
-        self.device_code_input = QLineEdit(device_code)
-        self.device_code_input.setReadOnly(True)
-        self.device_code_input.setStyleSheet(f"""
-            QLineEdit {{
-                padding: 8px; border: 1px solid {T.divider}; border-radius: 8px;
-                font-size: 14px; font-weight: bold; letter-spacing: 2px;
-                color: {T.text}; background: {T.raised};
-                font-family: Consolas, monospace;
-            }}
-        """)
-        copy_btn = QPushButton("کپی")
-        copy_btn.setMinimumHeight(38)
-        copy_btn.setCursor(Qt.PointingHandCursor)
-        copy_btn.setStyleSheet(f"""
-            QPushButton {{
-                background-color: transparent; color: {T.text_2};
-                border: 1px solid {T.divider}; border-radius: 8px;
-                font-size: 12px; padding: 0 14px;
-            }}
-            QPushButton:hover {{ background-color: {T.rgba('#000000', 0.05)}; }}
-        """)
-
-        def _copy_code():
-            QApplication.clipboard().setText(device_code)
-            copy_btn.setText("کپی شد")
-
-        copy_btn.clicked.connect(_copy_code)
-        dev_row.addWidget(self.device_code_input, 1)
-        dev_row.addWidget(copy_btn)
-        form_layout.addRow("کد دستگاه:", dev_row)
-        
-        layout.addLayout(form_layout)
-        
-        # پیام وضعیت
-        self.status_lbl = QLabel("")
-        self.status_lbl.setWordWrap(True)
-        self.status_lbl.setStyleSheet("font-size: 12px; color: #FF5D5D;")
-        layout.addWidget(self.status_lbl)
-        
-        layout.addStretch(1)
-        
-        # دکمه‌ها
-        btn_layout = QHBoxLayout()
-        btn_layout.setSpacing(12)
-        
-        cancel_btn = QPushButton("انصراف")
-        cancel_btn.setMinimumHeight(40)
-        cancel_btn.setMinimumWidth(120)
-        cancel_btn.setCursor(Qt.PointingHandCursor)
-        cancel_btn.setStyleSheet(f"""
-            QPushButton {{
-                background-color: transparent;
-                color: {T.text_2};
-                border: 1px solid {T.divider};
-                border-radius: 8px;
-                font-size: 13px;
-            }}
-            QPushButton:hover {{
-                background-color: {T.rgba('#000000', 0.05)};
-            }}
-        """)
-        
-        activate_btn = QPushButton("فعال‌سازی")
-        activate_btn.setMinimumHeight(40)
-        activate_btn.setMinimumWidth(120)
-        activate_btn.setCursor(Qt.PointingHandCursor)
-        activate_btn.setObjectName("primary")
-        activate_btn.setStyleSheet(f"""
-            QPushButton {{
-                background-color: {T.accent_ink};
-                color: {T.on_ink};
-                border: none;
-                border-radius: 8px;
-                font-size: 13px;
-                font-weight: bold;
-            }}
-            QPushButton:hover {{
-                background-color: {T.rgba(T.accent_ink, 0.9)};
-            }}
-            QPushButton:pressed {{
-                background-color: {T.rgba(T.accent_ink, 0.8)};
-            }}
-        """)
-        
-        trial_btn = QPushButton("شروع دورهٔ آزمایشی ۷ روزه")
-        trial_btn.setMinimumHeight(40)
-        trial_btn.setCursor(Qt.PointingHandCursor)
-        trial_btn.setStyleSheet(f"""
-            QPushButton {{
-                background-color: {T.raised};
-                color: {T.text};
-                border: none;
-                border-radius: 8px;
-                font-size: 12px;
-                font-weight: bold;
-            }}
-            QPushButton:hover {{ background-color: {T.rgba('#000000', 0.08)}; }}
-        """)
-
-        btn_layout.addWidget(cancel_btn)
-        btn_layout.addWidget(trial_btn)
-        btn_layout.addWidget(activate_btn)
-        layout.addLayout(btn_layout)
-        
-        dialog.setLayout(layout)
-        
-        # اتصال دکمه‌ها
-        self.activation_result = False
-        
-        def on_activate():
-            name = self.name_input.text().strip()
-            license_key = self.license_input.text().strip()
-            
-            if not name:
-                self.status_lbl.setText("لطفاً نام خود را وارد کنید")
-                self.status_lbl.setStyleSheet("font-size: 12px; color: #FF9A9A;")
-                return
-            
-            if not license_key:
-                self.status_lbl.setText("لطفاً کلید لایسنس را وارد کنید")
-                self.status_lbl.setStyleSheet("font-size: 12px; color: #FF9A9A;")
-                return
-            
-            # تلاش برای فعال‌سازی
-            success, message = activate_program(license_key, name)
-            
-            if success:
-                self.status_lbl.setText(message)
-                self.status_lbl.setStyleSheet("font-size: 12px; color: #4CAF50;")
-                self.activation_result = True
-                dialog.accept()
-            else:
-                self.status_lbl.setText(message)
-                self.status_lbl.setStyleSheet("font-size: 12px; color: #FF5D5D;")
-        
-        def on_trial():
-            ok, msg = start_trial()
-            if ok:
-                self.status_lbl.setText(msg + " — همهٔ امکانات فعال است")
-                self.status_lbl.setStyleSheet("font-size: 12px; color: #4CAF50;")
-                self.activation_result = True
-                dialog.accept()
-            else:
-                self.status_lbl.setText(msg)
-                self.status_lbl.setStyleSheet("font-size: 12px; color: #FF5D5D;")
-
-        activate_btn.clicked.connect(on_activate)
-        trial_btn.clicked.connect(on_trial)
-        cancel_btn.clicked.connect(dialog.reject)
-        
-        # اجرای دیالوگ
+        dialog = OnboardingDialog(None, t=T, app_version=app_paths.APP_VERSION,
+                                  app_name=app_paths.APP_NAME)
         result = dialog.exec()
-        
-        return self.activation_result if hasattr(self, 'activation_result') else (result == QDialog.Accepted)
+        ok = bool(getattr(dialog, "activation_result", False)) and \
+            result == QDialog.Accepted
+        if ok:
+            # نامِ گرفته‌شده در صفحهٔ ورود، فوری به پروفایل برنامه می‌نشیند
+            name = str(getattr(dialog, "user_name", "") or "").strip()
+            if name:
+                try:
+                    save_local_config({"ui": {"user_name": name}})
+                except Exception:
+                    pass
+        return ok
 
 
 # ══════════════════════════════════════════════════════════════
 #  دیالوگ هشدارهای قیمت (v0.19.0)
 # ══════════════════════════════════════════════════════════════
 class AlertsDialog(QDialog):
-    """مدیریت هشدارهای سطح قیمت — همان مدل js/alerts.js (src/alerts.py)."""
+    """مدیریت هشدارهای سطح قیمت — همان مدل js/alerts.js (src/alerts.py).
+
+    v0.20.0: طراحی کاملاً کارتی — سربرگ با چیپ آیکون، فرم داخل کارت،
+    فهرست هشدارها به‌شکل ردیف‌کارت با چیپ نماد/جهت و دکمهٔ حذف در همان ردیف.
+    """
 
     def __init__(self, parent=None, t=DARK):
         super().__init__(parent)
         self._t = t
         self.setWindowTitle("هشدارهای قیمت — ODIN ASSISTANT")
         self.setLayoutDirection(Qt.RightToLeft)
-        self.setMinimumSize(540, 580)
+        self.setMinimumSize(560, 620)
+        self.resize(560, 660)
         self._pips = {}
         try:
             cfg = load_config()
@@ -1874,63 +1849,98 @@ class AlertsDialog(QDialog):
             self._pips["XAUUSD"] = 1.0
             self._pips["USDJPY"] = 0.01
 
-        from src.fa import fa_num  # noqa: F401  (برای سازگاری بصری)
         root = QVBoxLayout(self)
-        root.setContentsMargins(22, 20, 22, 20)
-        root.setSpacing(12)
+        root.setContentsMargins(18, 16, 18, 16)
+        root.setSpacing(Space.MD)
 
-        desc = QLabel("وقتی قیمت از سطح تعیین‌شده عبور کرد، اعلان می‌گیری — "
-                      "در پنل، در tray (حتی وقتی پنجره بسته است) و در تلگرامِ وصل. "
-                      "هشدار یک‌بارمصرف پس از فعال‌شدن حذف می‌شود.")
-        desc.setWordWrap(True)
-        desc.setStyleSheet(f"color:{t.text_2};font-size:12px")
-        root.addWidget(desc)
+        root.addWidget(SectionHeader(
+            "bell", "هشدارهای قیمت",
+            "وقتی قیمت از سطح عبور کرد اعلان می‌گیری — در پنل، در tray (حتی وقتی "
+            "پنجره بسته است) و در تلگرامِ وصل. هشدار یک‌بارمصرف پس از فعال‌شدن حذف می‌شود.",
+            t=t))
 
-        form = QFormLayout()
-        form.setSpacing(10)
+        # ── کارت فرم ──
+        form_card = Card("هشدار تازه", "", "zap", t=t)
+        grid = QHBoxLayout()
+        grid.setSpacing(Space.SM)
         self.cmb_sym = QComboBox()
         self.cmb_sym.addItems(list(self._pips.keys()))
         self.cmb_dir = QComboBox()
         self.cmb_dir.addItem("عبور به بالا", "above")
         self.cmb_dir.addItem("عبور به پایین", "below")
         self.txt_price = QLineEdit()
-        self.txt_price.setPlaceholderText("مثلاً 1.1800")
-        self.txt_price.setStyleSheet("text-align:center;font-weight:700;letter-spacing:1px")
+        self.txt_price.setPlaceholderText("قیمت — مثلاً 1.1800")
+        self.txt_price.setStyleSheet(
+            "text-align:center;font-weight:700;letter-spacing:1px")
+        grid.addWidget(self.cmb_sym, 2)
+        grid.addWidget(self.cmb_dir, 2)
+        grid.addWidget(self.txt_price, 3)
+        form_card.add_layout(grid)
         self.chk_sticky = QCheckBox("تکرارشونده (حداکثر ساعتی یک‌بار یادآوری شود)")
-        form.addRow("نماد:", self.cmb_sym)
-        form.addRow("جهت:", self.cmb_dir)
-        form.addRow("قیمت:", self.txt_price)
-        form.addRow("", self.chk_sticky)
-        root.addLayout(form)
-
+        form_card.add_widget(self.chk_sticky)
         self.btn_add = _btn("افزودن هشدار", "primary", "bell", "")
         self.btn_add.clicked.connect(self._on_add)
-        root.addWidget(self.btn_add)
-
+        form_card.add_widget(self.btn_add)
         self.status = QLabel("")
         self.status.setStyleSheet("font-size:11px")
         self.status.setWordWrap(True)
-        root.addWidget(self.status)
+        form_card.add_widget(self.status)
+        root.addWidget(form_card)
 
-        self.list = QListWidget()
-        self.list.setStyleSheet(f"background:{t.card};border:1px solid {t.border};"
-                                f"border-radius:12px;font-size:12px")
-        root.addWidget(self.list, 1)
-
-        self.btn_del = _btn("حذف هشدار انتخاب‌شده", "", "stop", "")
-        self.btn_del.clicked.connect(self._on_del)
-        root.addWidget(self.btn_del)
+        # ── فهرست کارتی ──
+        list_card = Card("هشدارهای فعال", "", "layers", t=t)
+        self.rows_lay = QVBoxLayout()
+        self.rows_lay.setSpacing(Space.SM)
+        list_card.add_layout(self.rows_lay)
+        root.addWidget(list_card, 1)
         self.refresh()
 
     def refresh(self) -> None:
         from src import alerts as alert_store
-        self.list.clear()
-        for a in alert_store.load_alerts():
-            d = "بالاتر از" if a.get("dir") == "above" else "پایین‌تر از"
-            kind = "تکرارشونده" if a.get("sticky") else "یک‌بارمصرف"
-            it = QListWidgetItem(f"{a['symbol']} — {d} {a['price']}   ({kind})")
-            it.setData(Qt.UserRole, a.get("id"))
-            self.list.addItem(it)
+        from src.fa import fa_num
+        _clear_layout(self.rows_lay)
+        items = list(alert_store.load_alerts())
+        if not items:
+            empty = DashedCard("هشداری فعال نیست — اولین سطح را بالا ثبت کن",
+                               t=self._t)
+            empty.setMinimumHeight(70)
+            self.rows_lay.addWidget(empty)
+            return
+        for a in items:
+            above = a.get("dir") == "above"
+            row = QFrame()
+            row.setObjectName("sigtile")
+            rl = QHBoxLayout(row)
+            rl.setContentsMargins(Space.MD, 10, Space.MD, 10)
+            rl.setSpacing(Space.SM)
+            rl.addWidget(IconChip("trend_up" if above else "trend_down", 30,
+                                  tint=(self._t.green_tint if above
+                                        else self._t.red_tint),
+                                  color=(self._t.green_text if above
+                                         else self._t.red_text), radius=10))
+            sym = Chip(str(a["symbol"]), "ink")
+            rl.addWidget(sym)
+            d = QLabel(("بالاتر از " if above else "پایین‌تر از ")
+                       + "\u200E" + str(a["price"]))
+            d.setObjectName("strong")
+            rl.addWidget(d)
+            rl.addWidget(Chip("تکرارشونده" if a.get("sticky") else "یک‌بارمصرف",
+                              "brand" if a.get("sticky") else ""))
+            rl.addStretch(1)
+            del_btn = QPushButton()
+            del_btn.setObjectName("circle")
+            del_btn.setFixedSize(30, 30)
+            del_btn.setIcon(icons.icon("x", 14, self._t.red_text))
+            del_btn.setCursor(Qt.PointingHandCursor)
+            del_btn.setToolTip("حذف این هشدار")
+            del_btn.clicked.connect(lambda _=False, i=a.get("id"): self._del_id(i))
+            rl.addWidget(del_btn)
+            self.rows_lay.addWidget(row)
+
+    def _del_id(self, aid) -> None:
+        from src import alerts as alert_store
+        alert_store.remove_alert(aid)
+        self.refresh()
 
     def _on_add(self) -> None:
         from src import alerts as alert_store
@@ -1940,6 +1950,7 @@ class AlertsDialog(QDialog):
         except ValueError:
             self.status.setText("قیمت نامعتبر — عدد لاتین وارد کن")
             self.status.setStyleSheet(f"color:{self._t.red_text};font-size:11px")
+            effects.shake(self.txt_price)
             return
         sym = self.cmb_sym.currentText()
         ok, why = alert_store.add_alert(
@@ -1959,12 +1970,11 @@ class AlertsDialog(QDialog):
             self.status.setStyleSheet(f"color:{self._t.red_text};font-size:11px")
 
     def _on_del(self) -> None:
+        """سازگاری با فراخوان‌های قدیمی — حذف اولین هشدار فهرست."""
         from src import alerts as alert_store
-        it = self.list.currentItem()
-        if it is None:
-            return
-        alert_store.remove_alert(it.data(Qt.UserRole))
-        self.refresh()
+        items = list(alert_store.load_alerts())
+        if items:
+            self._del_id(items[0].get("id"))
 
 
 # ══════════════════════════════════════════════════════════════
@@ -1996,48 +2006,46 @@ class ChartDialog(QDialog):
 
         self.setWindowTitle(f"نمودار کندل‌استیک — {self._sym} · ODIN ASSISTANT")
         self.setLayoutDirection(Qt.RightToLeft)
-        self.resize(920, 600)
+        self.resize(920, 620)
 
         root = QVBoxLayout(self)
         root.setContentsMargins(18, 16, 18, 16)
         root.setSpacing(10)
 
-        bar = QHBoxLayout()
+        # سربرگ کارتی (v0.20.0): چیپ آیکون + عنوان + انتخاب نماد + سگمنت تایم‌فریم
         self.cmb_sym = QComboBox()
         self.cmb_sym.addItems(syms)
         self.cmb_sym.setCurrentText(self._sym)
         self.cmb_sym.currentTextChanged.connect(self._on_sym)
-        self.btn_h1 = _btn("H1", "", "", "کندل‌های یک‌ساعته")
-        self.btn_h4 = _btn("H4", "", "", "کندل‌های چهارساعته")
-        self.btn_h1.setCheckable(True)
-        self.btn_h4.setCheckable(True)
-        self.btn_h1.setChecked(True)
-        self.btn_h1.clicked.connect(lambda: self._on_tf("h1"))
-        self.btn_h4.clicked.connect(lambda: self._on_tf("h4"))
+        self.seg_tf = SegmentedControl([("h1", "H1"), ("h4", "H4")], t=t)
+        self.seg_tf.changed.connect(self._on_tf)
+        trailing = QWidget()
+        tr = QHBoxLayout(trailing)
+        tr.setContentsMargins(0, 0, 0, 0)
+        tr.setSpacing(Space.SM)
+        tr.addWidget(self.cmb_sym)
+        tr.addWidget(self.seg_tf)
+        root.addWidget(SectionHeader("chart", "نمودار کندل‌استیک",
+                                     "H1/H4 از کش چرخه‌ها + سطوح سیگنال و حمایت/مقاومت",
+                                     t=t, trailing=trailing))
         self.lbl_info = QLabel("")
         self.lbl_info.setStyleSheet(f"color:{t.text_3};font-size:11px")
-        bar.addWidget(QLabel("نماد:"))
-        bar.addWidget(self.cmb_sym)
-        bar.addSpacing(10)
-        bar.addWidget(self.btn_h1)
-        bar.addWidget(self.btn_h4)
-        bar.addStretch(1)
-        bar.addWidget(self.lbl_info)
-        root.addLayout(bar)
+        root.addWidget(self.lbl_info)
 
+        chart_card = Card("", "", "", t=t, bordered=True)
         self.chart = CandleChart(t=t)
-        root.addWidget(self.chart, 1)
+        chart_card.add_widget(self.chart, 1)
+        root.addWidget(chart_card, 1)
+        self.load()
+
+    # سازگاری با کد قدیمی: _on_tf کلید سگمنت را می‌گیرد
+    def _on_tf(self, tf: str) -> None:
+        self._tf = tf
         self.load()
 
     def _on_sym(self, sym: str) -> None:
         self._sym = sym
         self.setWindowTitle(f"نمودار کندل‌استیک — {sym} · ODIN ASSISTANT")
-        self.load()
-
-    def _on_tf(self, tf: str) -> None:
-        self._tf = tf
-        self.btn_h1.setChecked(tf == "h1")
-        self.btn_h4.setChecked(tf == "h4")
         self.load()
 
     def load(self) -> None:
@@ -2273,9 +2281,76 @@ def _selftest_body() -> int:
     assert cfg3["telegram"]["bot_token"] == "TOKEN-BAYAD-BEMUNAD", \
         "بازنشانی نباید تلگرام را پاک کند"
 
+    # ── v0.20.0 — Aurora Glass 2.0 ──────────────────────────────
+    # صفحهٔ ورود (Onboarding) واقعاً ساخته می‌شود و گام‌ها کار می‌کنند
+    from src.ui.onboarding import OnboardingDialog
+    onb = OnboardingDialog(None, t=T, app_version=app_paths.APP_VERSION)
+    onb.name_input.setText("تست‌کاربر")
+    onb._on_next_from_welcome()           # noqa: SLF001
+    assert onb.stack.currentIndex() == 1, "گام فعال‌سازی باز نشد"
+    assert onb.user_name == "تست‌کاربر"
+    onb.license_input.setText("ab12cd34ef56")   # فرم خودکار باید خط‌تیره بگذارد
+    assert onb.license_input.text() == "AB12-CD34-EF56", \
+        f"قالب‌دهی خودکار کلید: {onb.license_input.text()!r}"
+    act_btns = [b for b in onb.findChildren(QPushButton) if "فعال" in b.text()]
+    assert len(act_btns) == 1 and DARK.on_ink.lower() in act_btns[0].styleSheet().lower() \
+        and DARK.accent_ink.lower() in act_btns[0].styleSheet().lower(), \
+        "دکمهٔ فعال‌سازی باید رنگ‌های تم را resolve‌شده داشته باشد"
+    onb.deleteLater()
+
+    # کارت سیگنال ساختاریافته + پارسر دلایل
+    from src.ui.widgets import SignalCard as _SC
+    _fake_text = "\n".join([
+        "═══════", "🟢 سیگنال خرید — EUR/USD", "چرا این سیگنال صادر شد؟",
+        "🧭 روند H4 هم‌جهت (+۲) — هر دو تایم‌فریم صعودی",
+        "📰 تأییدیه اخبار (+۱) — جهت خبر هم‌راستاست",
+        "   • فاصله تا رویداد پراثر کم است",
+    ])
+    _sig2 = dict(fake_sig)
+    _sig2["text"] = _fake_text
+    sc = _SC(_sig2, t=T)
+    _r, _w = sc._parse_reasons(_fake_text)   # noqa: SLF001
+    assert len(_r) == 2 and len(_w) == 1, f"پارس دلایل: {_r} / {_w}"
+    sc.deleteLater()
+
+    # کنسول کارت‌ها: مهر زمانی + رنگ‌آمیزی
+    _con = list(win._consoles.values())          # noqa: SLF001
+    assert len(_con) >= 5, "صفحه‌های متنی باید کنسول‌کارت داشته باشند"
+    win.report_view.setPlainText("نمونه")
+    win._fill(win.report_view, "══ گزارش ══\n─── بخش ───\nمتن", win.TAB_REPORT, "گزارش")  # noqa: SLF001
+    assert win._consoles[win.report_view].time_chip.text(), "مهر زمان در قرص سربرگ"  # noqa: SLF001
+    assert "گزارش" in win.report_view.toPlainText()
+
+    # KPIهای کارنامه از متن آمار
+    _jt = "سیگنال ثبت‌شده: ۱۲ | بسته: ۹ (برد ۶ · باخت ۳ · منقضی ۰) | باز: ۳\n" \
+          "نرخ برد (نتیجهٔ قطعی): ۶۷٪\nمیانگین R هر معامله: ۰.۵۲ | مجموع R: ۴.۷"
+    win._update_journal_kpis(_jt)               # noqa: SLF001
+    assert win._journal_kpis, "KPIهای کارنامه ساخته نشد"                  # noqa: SLF001
+    assert win._journal_kpis["hit"].value_lbl.text() == "۶۷٪"              # noqa: SLF001
+    assert win._journal_kpis["total"].value_lbl.text() == "۱۲"             # noqa: SLF001
+
+    # پس‌زمینهٔ شفق: فریم ایستا و فریم متحرک هر دو رندر می‌شوند
+    from src.ui.backdrop import render_aurora as _ra
+    from PySide6.QtCore import QSize as _QS
+    _pm1 = _ra(_QS(1280, 900), T, phase=None)
+    _pm2 = _ra(_QS(1280, 900), T, phase=1.3)
+    _pm3 = _ra(_QS(640, 400), T, phase=0.5, dark=True)
+    assert not _pm1.isNull() and not _pm2.isNull() and not _pm3.isNull()
+    assert _pm1.width() <= 640, "شفق باید کم‌قطع رندر شود (کش کارایی)"
+    _i1, _i2 = _pm1.toImage(), _pm2.toImage()
+    _diff = sum(1 for y in range(0, _i1.height(), 7) for x in range(0, _i1.width(), 7)
+                if _i1.pixel(x, y) != _i2.pixel(x, y))
+    assert _diff > 20, f"شفق متحرک واقعاً حرکت نمی‌کند ({_diff})"
+
+    # آیکون‌های تازه
+    for nm in ("star", "star_filled", "copy", "key", "monitor", "telegram",
+               "chevron_left", "check_circle", "sparkle", "flame", "gauge", "layers"):
+        pm = icons.icon(nm, 24, "#111111").pixmap(24, 24)
+        assert not pm.isNull(), f"آیکون جدید {nm} رندر نشد"
+
     win.close()
     print(f"SELFTEST OK — فونت: {fam} | صفحات: {win.pages.count()} | "
-          f"آیکون‌ها/داور/رندر/تنظیمات سالم | نسخه {app_paths.APP_VERSION}")
+          f"آیکون‌ها/داور/رندر/تنظیمات/اورورا سالم | نسخه {app_paths.APP_VERSION}")
     return 0
 
 

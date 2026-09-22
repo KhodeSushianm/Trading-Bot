@@ -62,6 +62,26 @@ class Theme:
     red: str = "#D64545"
     red_text: str = "#B23A3A"
     red_tint: str = "#FBEAEA"
+    amber: str = "#E0A83C"         # ستاره/امتیاز — سومین رنگ معنایی (رتبه)
+    amber_tint: str = "#FBF1DC"
+
+    # ── v0.20.0 — برند و شفق (Aurora) ─────────────────────────
+    # رنگ برند فقط در جاهای ظریف: حلقهٔ فوکوس، نشانگر فعال، چیپ برند.
+    brand: str = "#5B4BE8"
+    brand_tint: str = "#EBE9FD"
+    # توده‌های شفق در پس‌زمینه — همیشه با آلفای خیلی پایین (<۱۰٪)
+    aurora_indigo: str = "#7A6CF0"
+    aurora_cyan: str = "#46C8E8"
+    aurora_pink: str = "#EE7BC8"
+    # کنسول تیره داخل کارت‌ها (لاگ/گزارش/سیگنال) — «ترمینال پریمیوم»
+    console_bg: str = "#0E0E13"
+    console_text: str = "#D9D9E2"
+    console_dim: str = "#7C7C8A"
+    console_green: str = "#5FD39A"
+    console_red: str = "#FF8F8F"
+    # صفحهٔ ورود (Onboarding) — زمینهٔ جوهری با شفق
+    onb_bg: str = "#0B0B10"
+    onb_glass: str = "#FFFFFF"     # با آلفای ~۸٪ استفاده می‌شود
 
     # شعاع‌ها — بزرگ‌تر از قبل، مطابق رفرنس
     radius_card: int = 22
@@ -294,4 +314,84 @@ QWidget#splash {{ background: transparent; }}
 QLabel#splash_name {{ color: {t.on_ink}; font-size: {Type.DISPLAY}px; font-weight: 800; }}
 QLabel#splash_sub {{ color: {t.rgba("#FFFFFF", 0.6)}; font-size: {Type.BODY}px; }}
 QLabel#splash_ver {{ color: {t.rgba("#FFFFFF", 0.45)}; font-size: {Type.CAPTION}px; font-family: {mono}; }}
+
+/* ══ v0.20.0 — Aurora Glass 2.0 ══════════════════════════════ */
+
+/* داک شیشه‌ای هدر (ظرف دکمه‌های دایره‌ای) */
+QFrame#dock {{
+    background-color: {t.rgba("#FFFFFF", 0.62)};
+    border: 1px solid {t.rgba("#FFFFFF", 0.9)};
+    border-radius: {t.radius_pill}px;
+}}
+/* دکمه‌های دایره‌ای داخل داک شفاف می‌شوند تا کپسول یکپارچه بماند */
+QFrame#dock QPushButton#circle {{
+    background: transparent; border: none; color: {t.text_2};
+}}
+QFrame#dock QPushButton#circle:hover {{
+    background-color: {t.rgba("#0B0B0C", 0.07)}; color: {t.text};
+}}
+QFrame#dock QPushButton#circle:disabled {{
+    background: transparent; color: {t.text_3};
+}}
+
+/* کنسول تیره داخل کارت — لاگ/گزارش/سیگنال */
+QTextEdit#console, QPlainTextEdit#console {{
+    background-color: {t.console_bg};
+    border: 1px solid #1E1E26;
+    border-radius: 16px;
+    padding: 14px 16px;
+    color: {t.console_text};
+    font-size: {Type.MONO + 1}px;
+    selection-background-color: {t.brand};
+    selection-color: #FFFFFF;
+}}
+QScrollBar:vertical#noop {{ background: transparent; }}
+
+/* چیپ‌ها (برچسب‌های قرصی کوچک) */
+QLabel#chip {{
+    background-color: {t.raised}; color: {t.text_2};
+    border: none; border-radius: {t.radius_pill}px;
+    padding: 4px 12px; font-size: {Type.CAPTION}px; font-weight: 700;
+}}
+QLabel#chip[tone="ink"]    {{ background-color: {t.ink_card}; color: {t.on_ink}; }}
+QLabel#chip[tone="green"]  {{ background-color: {t.green_tint}; color: {t.green_text}; }}
+QLabel#chip[tone="red"]    {{ background-color: {t.red_tint}; color: {t.red_text}; }}
+QLabel#chip[tone="amber"]  {{ background-color: {t.amber_tint}; color: #9A7220; }}
+QLabel#chip[tone="brand"]  {{ background-color: {t.brand_tint}; color: {t.brand}; }}
+
+/* کارت KPI (عدد بزرگ + برچسب + چیپ آیکون) */
+QLabel#kpi_val {{ color: {t.text}; font-size: 26px; font-weight: 800; }}
+QLabel#kpi_val[tone="green"] {{ color: {t.green_text}; }}
+QLabel#kpi_val[tone="red"]   {{ color: {t.red_text}; }}
+QLabel#kpi_lab {{ color: {t.text_3}; font-size: {Type.CAPTION}px; font-weight: 600; }}
+
+/* کنترل سگمنتی (H1/H4 و مانند آن) */
+QFrame#seg {{
+    background-color: {t.raised}; border-radius: {t.radius_pill}px; border: none;
+}}
+QToolButton#segbtn {{
+    background: transparent; border: none; border-radius: {t.radius_pill}px;
+    padding: 6px 18px; font-size: {Type.CAPTION + 1}px; font-weight: 700;
+    color: {t.text_3};
+}}
+QToolButton#segbtn:checked {{ background-color: {t.ink_card}; color: {t.on_ink}; }}
+
+/* سربرگ بخش (SectionHeader) */
+QLabel#secttl {{ color: {t.text}; font-size: {Type.TITLE}px; font-weight: 800; }}
+QLabel#secsub {{ color: {t.text_3}; font-size: {Type.CAPTION}px; }}
+
+/* کارت سیگنال ساختاریافته */
+QLabel#sigpair {{ color: {t.text}; font-size: 22px; font-weight: 800; }}
+QLabel#sigmeta {{ color: {t.text_3}; font-size: {Type.CAPTION}px; }}
+QFrame#sigtile {{
+    background-color: {t.bg_alt}; border: 1px solid {t.divider}; border-radius: 14px;
+}}
+QLabel#sigtile_cap {{ color: {t.text_3}; font-size: {Type.CAPTION - 1}px; font-weight: 600; }}
+QLabel#sigtile_val {{ color: {t.text}; font-size: 15px; font-weight: 800; }}
+QLabel#sigtile_val[tone="green"] {{ color: {t.green_text}; }}
+QLabel#sigtile_val[tone="red"]   {{ color: {t.red_text}; }}
+QFrame#sigreason {{
+    background-color: {t.bg_alt}; border: none; border-radius: 12px;
+}}
+QLabel#sigreason_txt {{ color: {t.text_2}; font-size: {Type.CAPTION + 1}px; background: transparent; }}
 """
