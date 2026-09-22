@@ -17,10 +17,14 @@ name: Build Android APK
 
 on:
   push:
-    branches: [ "android", "main" ]
+    # «ANDROID» برنچ توسعهٔ اندروید از v0.23.0 است. «android» (کوچک) و «main»
+    # هم نگه داشته شده‌اند تا اگر تگی از آن‌ها رسید یا برنچ قدیمی هنوز push
+    # شد، CI بی‌صدا خاموش نماند. ⚠️ هم‌زمان داشتن android و ANDROID روی
+    # فایل‌سیستم case-insensitive (ویندوز/مک) خطر تداخل ref دارد.
+    branches: [ "ANDROID", "android", "main" ]
     tags: [ 'v*' ]
   pull_request:
-    branches: [ "android", "main" ]
+    branches: [ "ANDROID", "android", "main" ]
   workflow_dispatch:
 
 permissions:
@@ -41,7 +45,7 @@ jobs:
         with:
           fetch-depth: 0
       - id: chk
-        name: Is this ref reachable from the android or main branch?
+        name: Is this ref reachable from ANDROID, android or main?
         run: |
           if [[ "${{ github.ref }}" != refs/tags/* ]]; then
             echo "build=true" >> "$GITHUB_OUTPUT"
@@ -50,7 +54,7 @@ jobs:
           fi
           TAG_SHA=$(git rev-list -n 1 "${{ github.ref }}")
           echo "tag ${{ github.ref_name }} -> $TAG_SHA"
-          for BR in android main; do
+          for BR in ANDROID android main; do
             git fetch --no-tags origin "$BR" || true
             BR_SHA=$(git rev-parse FETCH_HEAD 2>/dev/null || echo "")
             if [[ -z "$BR_SHA" ]]; then

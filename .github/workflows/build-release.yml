@@ -16,7 +16,7 @@ name: Tests (Python + Android JS)
 #   installer/) سر جایش می‌ماند ولی بیلد نمی‌شود.
 on:
   push:
-    branches: [main, android]
+    branches: [main, ANDROID, android]
     tags: ["v*"]
   pull_request:
   workflow_dispatch:
