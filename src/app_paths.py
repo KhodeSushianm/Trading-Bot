@@ -14,7 +14,7 @@ from pathlib import Path
 
 APP_NAME = "ODIN Assistant"          # برند نمایشی (عنوان پنجره، Splash، پیام‌ها)
 PRODUCT = "ODINAssistant"            # نام فنی بدون فاصله (EXE، پوشهٔ نصب، کلیدها)
-APP_VERSION = "0.23.1"
+APP_VERSION = "0.24.0"
 
 # متغیر محیطی برای نشاندن اجباری پوشهٔ داده‌ها (تست‌ها و حالت‌های خاص)
 DATA_DIR_ENV = "ODIN_DATA_DIR"

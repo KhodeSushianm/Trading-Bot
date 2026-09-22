@@ -1,22 +1,31 @@
 /* ══════════════════════════════════════════════════════════════════════
-   smoke_onboarding.js — صفحهٔ ورود اندروید (پورت onboarding.py دسکتاپ)
+   smoke_onboarding.js — نگهبانِ جریان خوش‌آمدگویی و فیلد کلید لایسنس
 
-   چرا این تست وجود دارد:
-     در v0.23.0 جریان خوش‌آمدگویی اندروید از «۵ مودال زنجیره‌ای» به یک
-     صفحهٔ جوهری پیوسته تبدیل شد. حین همین پورت یک باگ بحرانی پیدا شد که
-     «هیچ» تستی نمی‌گرفتشان:
+   تاریخچهٔ صادقانهٔ این فایل (چون دو بار بازنویسی شد):
+     • v0.23.0 — برای «صفحهٔ ورود جوهری» نوشته شد (۱۱۷ بررسی روی
+       js/onboarding.js: گام‌ها، onbPlan، قالب‌دهی کلید، توکن‌های onb-*).
+     • v0.24.0 — آن صفحه به درخواست مالک حذف و جریان مودال‌محورِ قبلی
+       برگردانده شد. پس بخش بزرگی از این تست بی‌موضوع شد.
 
-       فیلد کلید لایسنس maxlength="24" داشت، ولی کلید «زمان‌دار» ۲۶ نویسه است
-       (XXXX-XXXX-XXXX-XXXX-YYMMDD). کاربر دو نویسهٔ آخرِ تاریخ را نمی‌توانست
-       تایپ کند → parseKeyInput هیچ‌وقت ۲۲ هگز نمی‌دید → null → «کلید نامعتبر».
+     ولی «دور ریخته نشد»، چون یک چیز در آن بود که به هیچ جریانِ خاصی
+     وابسته نیست و مهم‌ترین یافتهٔ v0.23.0 هم بود:
 
-       یعنی قابلیت «لایسنس زمان‌دار/اشتراکی» که در v0.15.0 اضافه شده بود،
-       روی اندروید از همان ابتدا کار نمی‌کرد. smoke_license.js هم نمی‌گرفتشان
-       چون منطق را «جدا» می‌سنجد (parseKeyInput با ورودی کامل) و هرگز نمی‌پرسد
-       «آیا رابط کاربری می‌تواند آن ورودی کامل را تولید کند؟».
+   🔴 باگ maxlength فیلد کلید لایسنس
+       کلید زمان‌دار = XXXX-XXXX-XXXX-XXXX-YYMMDD = ۲۶ نویسه.
+       فیلد maxlength="24" داشت، پس paste کردنِ همان کلیدی که سازنده
+       می‌دهد ۲ نویسه کم می‌آورد → parseKeyInput فقط ۲۰ هگز می‌دید →
+       null → «این کلید نامعتبر است».
+       یعنی قابلیت «لایسنس زمان‌دار / مدل اشتراکی» از v0.15.0 تا v0.22.0
+       روی اندروید کار نمی‌کرد — و اندروید حالا تنها پلتفرم فعال است.
 
-     گروه ۲ همین تست آن شکاف را می‌بندد: کلید را واقعاً تولید می‌کند،
-     قالب‌دهی می‌کند، به اندازهٔ maxlength می‌بُرد، و بعد اعتبارسنجی.
+       چرا ۸ نسخه هیچ تستی نگرفتشان؟ smoke_license.js منطق را «جدا»
+       می‌سنجید (parseKeyInput با ورودی کامل) و هرگز نمی‌پرسید «آیا رابط
+       کاربری می‌تواند آن ورودی کامل را تولید کند؟». این یک شکافِ دسته‌ای
+       است: هرجا موتور و رابط جدا تست شوند، ناسازگاریِ بینشان دیده نمی‌شود.
+
+   پس این فایل الان همان شکاف را می‌بندد — مستقل از اینکه خوش‌آمدگویی
+   مودال باشد یا صفحهٔ جدا. اگر روزی دوباره UI عوض شد، این تست باید
+   بدون تغییر سبز بماند (به‌شرط اینکه فیلد کلید سر جایش باشد).
 
    اجرا:  node tests/js/smoke_onboarding.js
    ══════════════════════════════════════════════════════════════════════ */
@@ -38,328 +47,240 @@ function ok(cond, msg) {
 }
 function group(t) { console.log('\n── ' + t + ' ' + '─'.repeat(Math.max(0, 56 - t.length))); }
 
-// ── بارگذاری ماژول‌ها در vm (بدون DOM — لایهٔ خالص را می‌سنجیم) ─────────
+const APP_JS = read('js/app.js');
+// کامنت‌ها را حذف کن: یک عدد یا نام داخل «توضیح» نباید به‌عنوان کد شمرده شود
+// (درسی که سه بار در این پروژه تکرار شد)
+const APP_CODE = APP_JS.replace(/\/\*[\s\S]*?\*\//g, ' ')
+  .replace(/(^|[^:'"`])\/\/[^\n]*/g, '$1 ');
+
 const ctx = { console, setTimeout };
 ctx.globalThis = ctx;
 vm.createContext(ctx);
-for (const f of ['md5.js', 'fa.js', 'icons.js', 'license.js', 'config.js', 'components.js',
-  'onboarding.js']) {
+for (const f of ['md5.js', 'fa.js', 'icons.js', 'license.js']) {
   vm.runInContext(read('js/' + f), ctx, { filename: f });
 }
 const O = ctx.ODIN;
-if (!O || !O.startOnboarding) {
-  console.error('✗ ماژول onboarding.js بار نشد یا O.startOnboarding تعریف نشده');
-  process.exit(2);
-}
 
-console.log('🚪 تست صفحهٔ ورود اندروید — js/onboarding.js');
+console.log('🔑 تست فیلد کلید لایسنس و جریان خوش‌آمدگویی');
 
 // ══════════════════════════════════════════════════════════════════════
-group('۱) قالب‌دهی کلید — برابری بایت‌به‌بایت با onboarding.py');
+group('۱) maxlength فیلد کلید باید ≥ طول کلید زمان‌دار باشد');
 // ══════════════════════════════════════════════════════════════════════
-// وکتورها با «اجرای واقعی» الگوریتمِ src/ui/onboarding.py::_fmt_license در
-// پایتون تولید شدند (نه حدس). JS باید دقیقاً همان خروجی را بدهد، چون
-// سازنده کلید را با src/license.py می‌سازد و کاربر اینجا تایپ می‌کند.
-const VECTORS = [
-  ['', ''],
-  [' ', ''],
-  ['abc', 'ABC'],
-  ['ABCD', 'ABCD'],
-  ['abcd1234', 'ABCD-1234'],
-  ['8d8d32c85c9ead32261231', '8D8D-32C8-5C9E-AD32-261231'],
-  ['8D8D-32C8-5C9E-AD32-261231', '8D8D-32C8-5C9E-AD32-261231'],
-  ['8d8d 32c8 5c9e ad32 261231', '8D8D-32C8-5C9E-AD32-261231'],
-  ['6006-693F-3945-F0C3', '6006-693F-3945-F0C3'],
-  ['6006693f3945f0c3', '6006-693F-3945-F0C3'],
-  ['abcdef0123456789extra', 'ABCD-EF01-2345-6789-EXTRA'],
-  ['abc۱۲۳def', 'ABCD-EF'],                 // رقم فارسی باید حذف شود (isascii)
-  ['ab-cd-ef-۰۱-۲۳', 'ABCD-EF'],
-  ['a', 'A'],
-  ['ab', 'AB'],
-  ['abcde', 'ABCD-E'],
-  ['A1B2C3D4E5F60718', 'A1B2-C3D4-E5F6-0718'],
-  ['A1B2C3D4E5F6071826', 'A1B2-C3D4-E5F6-0718-26'],
-  ['A1B2C3D4E5F60718261231', 'A1B2-C3D4-E5F6-0718-261231'],
-  ['!!!@@@###', ''],
-  ['0000-0000-0000-0000-000000', '0000-0000-0000-0000-000000'],
-];
+// طول ۲۶ از خودِ موتور «محاسبه» می‌شود، نه هاردکد — وگرنه اگر قالب کلید
+// عوض شد این تست کهنه و بی‌صدا پاس می‌ماند.
 {
-  let bad = 0;
-  for (const [inp, want] of VECTORS) {
-    const got = O.onbFormatLicense(inp);
-    if (got !== want) { bad++; console.log(`    ✗ «${inp}» → «${got}» (انتظار «${want}»)`); }
-  }
-  ok(bad === 0, `${bad} از ${VECTORS.length} وکتور قالب‌دهی با پایتون نمی‌خواند`);
-  if (!bad) console.log(`  ✓ هر ${VECTORS.length} وکتور با onboarding.py یکی است`);
-  // ورودی‌های پرت نباید استثنا بدهند
-  for (const v of [null, undefined, 123, {}, []]) {
-    let threw = null;
-    try { O.onbFormatLicense(v); } catch (e) { threw = e.message; }
-    ok(threw === null, `onbFormatLicense(${JSON.stringify(v)}) استثنا داد: ${threw}`);
-  }
-}
-
-// ══════════════════════════════════════════════════════════════════════
-group('۲) نگهبانِ باگِ maxlength — کلید زمان‌دار باید واقعاً قابل ورود باشد');
-// ══════════════════════════════════════════════════════════════════════
-// این گروه همان باگی را قفل می‌کند که v0.15.0 → v0.22.0 را شکسته بود.
-// به‌صورت سرتاسری: کلید واقعی تولید کن → قالب‌دهی کن → به اندازهٔ maxlength ببر →
-// parse/validate کن. اگر maxlength کوچک باشد، اینجا قرمز می‌شود.
-{
-  const MAXLEN = O.ONB_KEY_MAXLEN;
-  ok(typeof MAXLEN === 'number' && MAXLEN >= 26,
-    `ONB_KEY_MAXLEN باید ≥ ۲۶ باشد (طول کلید زمان‌دار) — یافته: ${MAXLEN}`);
-
-  // maxlength واقعی در HTML رندرشده
-  const html = O.onbStepHtml('activate', { deviceCode: 'ABCD-EF01-2345' });
-  const mAttr = /id="onb-key"[\s\S]{0,220}?maxlength="(\d+)"/.exec(html);
-  ok(!!mAttr, 'فیلد #onb-key با maxlength در HTML گام فعال‌سازی پیدا نشد');
-  const domMax = mAttr ? parseInt(mAttr[1], 10) : 0;
-  ok(domMax >= 26, `maxlength فیلد کلید = ${domMax} ولی کلید زمان‌دار ۲۶ نویسه است`);
-  ok(domMax === MAXLEN, `maxlength فیلد (${domMax}) با ONB_KEY_MAXLEN (${MAXLEN}) یکی نیست`);
-
-  // با کلیدهای «واقعیِ تولیدشده» توسط خودِ license.js بسنج
   const deviceId = 'deadbeefcafebabedeadbeefcafebabe';
   const code = O.deviceCodeFromId(deviceId);
-  const keys = [
-    ['دائمی', O.licenseKeyFor(code, null)],
-    ['زمان‌دار', O.licenseKeyFor(code, '20261231')],
-    ['زمان‌دار (انقضای دور)', O.licenseKeyFor(code, '20991231')],
+  const timed = O.licenseKeyFor(code, '20261231');
+  const perm = O.licenseKeyFor(code, null);
+  const needLen = Math.max(timed.length, perm.length);
+  console.log('    کلید زمان‌دار واقعی : «' + timed + '» (' + timed.length + ' نویسه)');
+  console.log('    کلید دائمی واقعی    : «' + perm + '» (' + perm.length + ' نویسه)');
+  ok(needLen === 26,
+    'طول کلید زمان‌دار تغییر کرده (یافته ' + needLen + ') — سقفِ انتظار این تست باید بازبینی شود');
+
+  // maxlength واقعیِ فیلد کلید در کد
+  const m = /id="onb-key"[\s\S]{0,240}?maxlength="(\d+)"/.exec(APP_CODE);
+  ok(!!m, 'فیلد #onb-key با maxlength در js/app.js پیدا نشد');
+  const domMax = m ? parseInt(m[1], 10) : 0;
+  ok(domMax >= needLen,
+    '🔴 maxlength فیلد کلید = ' + domMax + ' ولی کلید زمان‌دار ' + needLen +
+    ' نویسه است → کاربر نمی‌تواند کلید را کامل وارد کند و «نامعتبر» می‌گیرد ' +
+    '(همان باگی که v0.15.0→v0.22.0 را شکست)');
+  console.log('    ✓ maxlength = ' + domMax + ' ≥ ' + needLen);
+
+  // فیلد «نام» باید دست‌نخورده بماند (۲۴ مطابق setMaxLength دسکتاپ)
+  const mn = /id="onb-name"[\s\S]{0,160}?maxlength="(\d+)"/.exec(APP_CODE);
+  ok(!!mn && parseInt(mn[1], 10) === 24,
+    'maxlength فیلد نام باید ۲۴ بماند (مطابق name_input.setMaxLength(24) در onboarding.py) — یافته: ' +
+    (mn ? mn[1] : 'پیدا نشد'));
+
+  // placeholder باید بخش تاریخ را نشان دهد، وگرنه کاربر نمی‌داند کل رشته لازم است
+  const mp = /id="onb-key"[^>]*placeholder="([^"]*)"/.exec(APP_CODE) ||
+             /placeholder="([^"]*)"[^>]*id="onb-key"/.exec(APP_CODE);
+  ok(!!mp && /YYMMDD/.test(mp[1]),
+    'placeholder فیلد کلید باید قالب کامل با بخش تاریخ باشد (یافته: ' + (mp ? mp[1] : '—') + ')');
+}
+
+// ══════════════════════════════════════════════════════════════════════
+group('۲) سرتاسری: کلیدِ واقعیِ تولیدشده باید از راه رابط فعال شود');
+// ══════════════════════════════════════════════════════════════════════
+// این گروه «شکافِ موتور در برابر رابط» را می‌بندد: کلید را با خودِ موتور
+// می‌سازد، بعد هر سبکِ ورودیِ محتملِ کاربر را «به اندازهٔ maxlength» می‌بُرد
+// (دقیقاً کاری که مرورگر می‌کند) و parse/validate می‌کند.
+{
+  const deviceId = 'deadbeefcafebabedeadbeefcafebabe';
+  const code = O.deviceCodeFromId(deviceId);
+  const m = /id="onb-key"[\s\S]{0,240}?maxlength="(\d+)"/.exec(APP_CODE);
+  const domMax = m ? parseInt(m[1], 10) : 0;
+
+  const cases = [
+    ['دائمی — با خط‌تیره', O.licenseKeyFor(code, null)],
+    ['زمان‌دار — با خط‌تیره (paste همان چیزی که سازنده می‌دهد)', O.licenseKeyFor(code, '20261231')],
+    ['زمان‌دار — بدون خط‌تیره (تایپ دستی)', O.licenseKeyFor(code, '20261231').replace(/-/g, '')],
+    ['زمان‌دار — حروف کوچک', O.licenseKeyFor(code, '20261231').toLowerCase()],
+    ['زمان‌دار — فاصله به‌جای خط‌تیره', O.licenseKeyFor(code, '20261231').replace(/-/g, ' ')],
+    ['زمان‌دار — انقضای دور', O.licenseKeyFor(code, '20991231')],
   ];
-  for (const [label, raw] of keys) {
-    const shown = O.onbFormatLicense(raw);
-    ok(shown.length <= domMax,
-      `کلید ${label}: طول قالب‌دار ${shown.length} > maxlength ${domMax} — کاربر نمی‌تواند کامل تایپ کند`);
-    // شبیه‌سازی رفتار مرورگر: ورودی بیش از maxlength بُریده می‌شود
-    const typed = shown.slice(0, domMax);
+  let pass = 0;
+  for (const [label, raw] of cases) {
+    const typed = raw.slice(0, domMax);              // رفتار واقعی مرورگر
     const parsed = O.parseKeyInput(typed);
-    ok(!!parsed, `کلید ${label}: پس از برشِ maxlength، parseKeyInput → null (یعنی «کلید نامعتبر»)`);
     const valid = parsed ? O.validateKey(typed, code) : false;
-    ok(valid, `کلید ${label}: با کلید معتبرِ تولیدشده، validateKey شکست خورد`);
-    if (valid) console.log(`  ✓ کلید ${label}: «${shown}» (${shown.length} نویسه) → فعال می‌شود`);
+    ok(valid, '🔴 ' + label + ': با maxlength=' + domMax + ' فعال نشد (parse=' +
+      (parsed ? 'ok' : 'null') + ') — کلیدِ معتبرِ موتور از راه رابط رد نمی‌شود');
+    if (valid) pass++;
   }
+  if (pass === cases.length) console.log('    ✓ هر ' + pass + ' سبکِ ورود با maxlength=' + domMax + ' فعال می‌شود');
 
-  // placeholder هم باید قالب کامل را نشان دهد (وگرنه کاربر نمی‌داند تاریخ لازم است)
-  ok(/XXXX-XXXX-XXXX-XXXX-YYMMDD/.test(html),
-    'placeholder باید قالب کامل با بخش تاریخ باشد (کاربر باید بداند کلید زمان‌دار ۶ رقم تاریخ دارد)');
+  // کلید «نامعتبر» باید واقعاً رد شود (وگرنه تست بالا بی‌معناست)
+  const bogus = 'AAAA-BBBB-CCCC-DDDD-991231';
+  ok(!O.validateKey(bogus.slice(0, domMax), code),
+    'کلید ساختگی باید رد شود — اگر قبول شد یعنی اعتبارسنجی تشریفاتی است');
+  const otherDevice = O.licenseKeyFor(O.deviceCodeFromId('ffffffffffffffffffffffffffffffff'), '20261231');
+  ok(!O.validateKey(otherDevice.slice(0, domMax), code),
+    'کلیدِ دستگاهِ دیگر باید رد شود (قفل دستگاه)');
 }
 
 // ══════════════════════════════════════════════════════════════════════
-group('۳) onbPlan — کدام گام‌ها برای کدام کاربر');
+group('۳) جریان خوش‌آمدگویی: زنجیره کامل و قفلِ ردنشدنی');
 // ══════════════════════════════════════════════════════════════════════
 {
-  const plan = (o) => O.onbPlan(o).join(',');
-  const fresh = { disclaimerDone: false, nameDone: false, licensed: false, trial: null, bgDone: false };
-  ok(plan(fresh) === 'welcome,name,activate,background,done',
-    'کاربر تازه باید هر ۵ گام را ببیند — یافته: ' + plan(fresh));
-
-  ok(plan({ ...fresh, disclaimerDone: true }) === 'name,activate,background,done',
-    'کاربری که سلب‌مسئولیت را دیده نباید دوباره ببیند — یافته: ' + plan({ ...fresh, disclaimerDone: true }));
-
-  ok(plan({ ...fresh, nameDone: true, disclaimerDone: true }) === 'activate,background,done',
-    'کاربر قدیمی با نام ذخیره‌شده نباید گام نام را ببیند');
-
-  ok(plan({ ...fresh, licensed: true }) === 'welcome,name,background,done',
-    'کاربر دارای لایسنس نباید گام فعال‌سازی را ببیند — یافته: ' + plan({ ...fresh, licensed: true }));
-
-  ok(plan({ ...fresh, trial: { active: true } }) === 'welcome,name,background,done',
-    'کاربر با تریال فعال نباید گام فعال‌سازی را ببیند');
-
-  ok(plan({ ...fresh, trial: { active: false, exists: true } }) === 'welcome,name,activate,background,done',
-    'تریال «تمام‌شده» باید گام فعال‌سازی را نشان دهد');
-
-  const all = { disclaimerDone: true, nameDone: true, licensed: true, trial: { active: true }, bgDone: true };
-  ok(plan(all) === 'done', 'کاربری که همه‌چیز را تمام کرده باید فقط گام پایان را ببیند');
-
-  // ورودی‌های پرت
-  for (const v of [null, undefined, {}]) {
-    let p = null, threw = null;
-    try { p = O.onbPlan(v); } catch (e) { threw = e.message; }
-    ok(!threw && Array.isArray(p) && p[p.length - 1] === 'done',
-      `onbPlan(${JSON.stringify(v)}) باید آرایه‌ای با پایان «done» بدهد — یافت: ${JSON.stringify(p)} / ${threw}`);
+  // هر پنج تابعِ زنجیره باید وجود داشته باشند و به هم وصل باشند.
+  // چرا این مهم است: در v0.23.0 این زنجیره با یک صفحهٔ جدا جایگزین شد و
+  // بعد برگشت. اگر بازگشت ناقص باشد (مثلاً askBackground صدا زده نشود)،
+  // کاربر در میانهٔ خوش‌آمدگویی گیر می‌کند و هیچ تست دیگری نمی‌فهمد.
+  const FUNCS = ['showDisclaimer', 'trialGate', 'askName', 'askBackground', 'afterOnboard'];
+  for (const fn of FUNCS) {
+    ok(new RegExp('function\\s+' + fn + '\\s*\\(').test(APP_CODE),
+      'تابع «' + fn + '» در js/app.js وجود ندارد — زنجیرهٔ خوش‌آمدگویی ناقص است');
   }
-  console.log('  ✓ ۹ سناریوی plan + ۳ ورودی پرت');
+  // ترتیبِ صدا زدن‌ها
+  const CHAIN = [['showDisclaimer', 'trialGate'], ['trialGate', 'askName'],
+                 ['askName', 'askBackground'], ['askBackground', 'afterOnboard']];
+  for (const [from, to] of CHAIN) {
+    const body = (new RegExp('function\\s+' + from + '\\s*\\([\\s\\S]*?\\n  \\}')).exec(APP_CODE);
+    ok(!!body && body[0].includes(to),
+      '«' + from + '» باید به «' + to + '» برسد، وگرنه جریان خوش‌آمدگویی قطع می‌شود');
+  }
+  ok(/O\.showActivation\s*=\s*function/.test(APP_CODE),
+    'O.showActivation باید موجود باشد (دو صداکننده دارد: گیتِ پایان تریال و کارت لایسنس در تنظیمات)');
+  ok((APP_CODE.match(/O\.showActivation\s*\(/g) || []).length >= 2,
+    'صداکننده‌های O.showActivation باید وصل بمانند');
+
+  // قفل «خوش‌آمدگویی ردنشدنی»
+  ok(/if\s*\(\s*S\.onbStage\s*\)\s*return/.test(APP_CODE),
+    'قفل ناوبری «if (S.onbStage) return» حذف شده — خوش‌آمدگویی ردنشدنی نیست');
+  // هر مرحله باید onbStage را ست کند و در پایان پاک
+  for (const stg of ['trial', 'license', 'name', 'bg']) {
+    ok(new RegExp("S\\.onbStage\\s*=\\s*'" + stg + "'").test(APP_CODE),
+      "مرحلهٔ «" + stg + "» باید S.onbStage را ست کند");
+  }
+  ok((APP_CODE.match(/S\.onbStage\s*=\s*null/g) || []).length >= 3,
+    'S.onbStage باید در پایان هر مرحله null شود وگرنه اپ برای همیشه قفل می‌ماند');
+  console.log('    ✓ زنجیرهٔ ۵ مرحله‌ای + قفل ناوبری + پاک‌کردن onbStage');
 }
 
 // ══════════════════════════════════════════════════════════════════════
-group('۴) رندر هر ۵ گام — بدون ایموجی، با کلاس‌ها و کنش‌های درست');
+group('۴) متن‌های ایمنی/حقوقی و اطلاعات ضروریِ خوش‌آمدگویی');
 // ══════════════════════════════════════════════════════════════════════
+// ⚠️ این‌ها «راهنمای شلوغ‌کننده» نیستند که در v0.22.0 کوتاه شدند؛ محتوای
+//   عمدی‌اند. نگهبان لازم است چون آسان‌ترین راهِ سبک‌کردن یک دیالوگ،
+//   پاک‌کردن همین متن‌هاست.
 {
-  const EMOJI = O.EMOJI_RE || /[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}\u{FE0F}\u{2B00}-\u{2BFF}]/u;
-  const steps = O.ONB_STEPS;
-  ok(steps.length === 5, 'ONB_STEPS باید ۵ گام داشته باشد، دارد: ' + steps.length);
-
-  const ctxs = {
-    welcome: {},
-    name: { currentName: 'سوشیان' },
-    activate: { deviceCode: 'ABCD-EF01-2345', reason: '', gift: true },
-    background: {},
-    done: { doneMsg: 'لایسنس فعال شد' },
-  };
-  for (const s of steps) {
-    const h = O.onbStepHtml(s, ctxs[s]);
-    ok(h.length > 40, `گام «${s}» خروجی تقریباً خالی داد (${h.length} نویسه)`);
-    const em = EMOJI.exec(h);
-    ok(!em, `گام «${s}» در خروجی ایموجی دارد: ${JSON.stringify(em && em[0])}`);
-    ok(h.includes('<svg'), `گام «${s}» هیچ آیکون SVG ندارد (قرارداد v0.13.0: صفر ایموجی، آیکون SVG)`);
-    ok(h.includes(`data-step="${s}"`), `گام «${s}» باید data-step="${s}" داشته باشد`);
-    ok(h.includes('onb-title'), `گام «${s}» عنوان ندارد`);
-  }
-
-  // کنش‌ها (data-onb) — هر کنشی که لایهٔ DOM هندل می‌کند باید در HTML هم باشد
-  const act = O.onbStepHtml('activate', ctxs.activate);
-  for (const a of ['copy', 'share', 'trial', 'activate']) {
-    ok(act.includes(`data-onb="${a}"`), `گام فعال‌سازی کنش «${a}» ندارد`);
-  }
-  ok(O.onbFooterHtml('background').includes('data-onb="skip-bg"'),
-    'گام رصد پس‌زمینه باید دکمهٔ «فعلاً نه» داشته باشد (اختیاری‌بودن باید واقعی باشد)');
-  ok(O.onbFooterHtml('background').includes('data-onb="enable-bg"'),
-    'گام رصد پس‌زمینه باید دکمهٔ «شروع رصد» داشته باشد');
-  for (const s of ['welcome', 'name', 'done']) {
-    ok(O.onbFooterHtml(s).includes('onb-primary'), `گام «${s}» دکمهٔ اصلی ندارد`);
-  }
-  ok(O.onbPrimary('activate') === null,
-    'گام فعال‌سازی نباید دکمهٔ اصلیِ footer داشته باشد (دکمه‌هایش داخل گام‌اند: trial/activate)');
-  console.log('  ✓ ۵ گام رندر شد · ایموجی صفر · کنش‌ها کامل');
-}
-
-// ══════════════════════════════════════════════════════════════════════
-group('۵) متن‌های حقوقی/ایمنی و اطلاعات ضروری حفظ شده باشند');
-// ══════════════════════════════════════════════════════════════════════
-// ⚠️ کوتاه‌کردن متن در v0.22.0 انجام شد، ولی متن حقوقی و ایمنی «عمداً»
-//   مستثنا بود. این گروه قفل می‌کند که پورت صفحهٔ ورود هم آن‌ها را نبرده باشد.
-{
-  const wel = O.onbStepHtml('welcome', {});
-  for (const [needle, label] of [
+  const MUST = [
     ['معاملهٔ خودکار نمی‌کند', 'قول ۱: عدم اجرای خودکار معامله'],
     ['به هیچ بروکری وصل نیست', 'قول ۱: عدم اتصال به بروکر'],
     ['حلقهٔ صداقت', 'قول ۲: حلقهٔ صداقت'],
     ['هیچ امتیازی ساخته نمی‌شود', 'قول ۲: امتیاز ساختگی نمی‌دهد'],
     ['سود را تضمین نمی‌کند', 'هشدار تضمین‌نشدن سود'],
     ['پرریسک', 'هشدار پرریسک‌بودن فارکس'],
-  ]) {
-    ok(wel.includes(needle), `متن ایمنی «${label}» از گام خوش‌آمدگویی حذف شده`);
+    ['اعلان ماندگار', 'شفافیت دربارهٔ اعلان ماندگار رصد (الزام حریم خصوصی)'],
+    ['معامله همچنان هیچ‌وقت خودکار نیست', 'تأکید مجدد در گام رصد پس‌زمینه'],
+    ['@Khode_Sushian', 'راه ارتباطی سازنده برای گرفتن کلید'],
+    ['۷ روز', 'هدیهٔ تریال ۷ روزه'],
+    ['هر کلید فقط روی همان دستگاه کار می‌کند', 'قفل دستگاه باید به کاربر گفته شود'],
+  ];
+  for (const [needle, label] of MUST) {
+    ok(APP_CODE.includes(needle), 'متن «' + label + '» از جریان خوش‌آمدگویی حذف شده');
   }
-
-  const bg = O.onbStepHtml('background', {});
-  for (const [needle, label] of [
-    ['اعلان ماندگار', 'شفافیت دربارهٔ اعلان ماندگار (الزام حریم خصوصی)'],
-    ['خاموشش کن', 'راه خاموش‌کردن رصد'],
-    ['باتری', 'درخواست مجوز باتری'],
-    ['معامله همچنان خودکار نیست', 'تأکید مجدد بر غیرخودکار بودن'],
-  ]) {
-    ok(bg.includes(needle), `«${label}» از گام رصد پس‌زمینه حذف شده`);
-  }
-
-  const act = O.onbStepHtml('activate', { deviceCode: 'ABCD-EF01-2345' });
-  ok(act.includes('@Khode_Sushian'), 'راه ارتباطی سازنده باید در گام فعال‌سازی باشد');
-  ok(act.includes('ABCD-EF01-2345'), 'کد دستگاه باید نمایش داده شود');
-  ok(act.includes('آفلاین'), 'باید گفته شود فعال‌سازی آفلاین است (حریم خصوصی)');
-  ok(act.includes('۷ روز'), 'پیشنهاد تریال ۷ روزه باید باشد');
-
-  // هر سه «دلیل» بازگشت به فعال‌سازی باید بنر مخصوص خودش را بگیرد
+  // سه «دلیل» بازگشت به فعال‌سازی باید پیام روشن داشته باشند
   for (const [reason, needle] of [
     ['expired', 'دورهٔ آزمایشی به پایان رسیده'],
     ['tampered', 'ساعت دستگاه به عقب برگشته'],
     ['key-expired', 'لایسنس زمان‌دار منقضی شده'],
   ]) {
-    const h = O.onbStepHtml('activate', { deviceCode: 'X', reason });
-    ok(h.includes(needle), `بنر دلیل «${reason}» رندر نشد — کاربر نمی‌فهمد چرا قفل شده`);
-    ok(h.includes('onb-note bad'), `بنر «${reason}» باید استایل هشدار (bad) داشته باشد`);
+    ok(APP_CODE.includes(reason) && APP_CODE.includes(needle),
+      'بنر دلیل «' + reason + '» حضور ندارد — کاربر نمی‌فهمد چرا قفل شده');
   }
-  console.log('  ✓ متن‌های ایمنی/حقوقی + هر ۳ بنر دلیل حاضرند');
+  console.log('    ✓ ' + MUST.length + ' متن ایمنی/حقوقی + هر ۳ بنر دلیل');
 }
 
 // ══════════════════════════════════════════════════════════════════════
-group('۶) توکن‌های onb-* واقعاً مصرف می‌شوند (نه حاضرِ بلااستفاده)');
+group('۵) پسماندِ صفحهٔ ورودِ حذف‌شده نمانده باشد');
 // ══════════════════════════════════════════════════════════════════════
-// مشکل v0.21.0: توکن‌های onb-bg/onb-glass به style.css اضافه شدند ولی هیچ
-// سلکتوری مصرفشان نکرد — یعنی «پورت شد» ولی عملاً نیمه‌کاره بود.
+// چرا: در v0.23.0 یک ماژول + CSS + ریشهٔ HTML اضافه شد. اگر حذف ناقص باشد،
+// یا کد مرده می‌ماند یا بدتر — دو مسیر موازیِ خوش‌آمدگویی هم‌زمان فعال می‌شود.
 {
-  const css = fs.readFileSync(path.join(WWW, 'style.css'), 'utf8');
-  ok(/#onb-root\s*\{/.test(css), '#onb-root در style.css تعریف نشده');
-  ok(/var\(--onb-bg\)/.test(css), '--onb-bg تعریف شده ولی مصرف نمی‌شود (بلااستفاده)');
-
-  // --onb-glass یک «رنگ» است که با آلفا مصرف می‌شود؛ CSS نمی‌تواند
-  // rgba(var(--hex), .08) بنویسد، پس به‌صورت rgba(255,255,255,.0X) ظاهر
-  // می‌شود. نگهبان درست: آن مقدارِ روشن باید با مقدارِ توکن یکی باشد.
-  const glassTok = /--onb-glass\s*:\s*(#[0-9A-Fa-f]{6})/.exec(css);
-  ok(!!glassTok, '--onb-glass در :root پیدا نشد');
-  if (glassTok) {
-    const hex = glassTok[1].toLowerCase();
-    const rgb = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16));
-    const expect = rgb.join(',');
-    const uses = [...css.matchAll(/rgba\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*,\s*0?\.0[5-9]\d*\s*\)/g)]
-      .map((m) => [m[1], m[2], m[3]].join(','));
-    const inOnbBlock = css.slice(css.indexOf('#onb-root {'));
-    const onbUses = [...inOnbBlock.matchAll(/rgba\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*,\s*0?\.0[5-9]\d*\s*\)/g)]
-      .map((m) => [m[1], m[2], m[3]].join(','));
-    ok(onbUses.length >= 4,
-      `بلوک صفحهٔ ورود باید ≥۴ جا شیشهٔ سفیدِ کم‌آلفا مصرف کند (یافته: ${onbUses.length})`);
-    ok(onbUses.every((u) => u === expect),
-      `مقادیر rgba در بلوک صفحهٔ ورود با --onb-glass (${expect}) نمی‌خواند: ${[...new Set(onbUses)].join(' / ')}`);
-    console.log(`  ✓ ${onbUses.length} مصرفِ شیشه، همه با --onb-glass (${hex}) هم‌مقدار · ${uses.length} مورد در کل CSS`);
+  ok(!fs.existsSync(path.join(WWW, 'js/onboarding.js')),
+    'js/onboarding.js هنوز وجود دارد — باید حذف شده باشد (جریان مودال‌محور برگشته)');
+  const idx = read('index.html');
+  ok(!/id="onb-root"/.test(idx), 'index.html هنوز ریشهٔ #onb-root دارد');
+  ok(!/<script src="js\/onboarding\.js">/.test(idx), 'index.html هنوز js/onboarding.js را بار می‌کند');
+  // ارجاع مرده در هیچ ماژولی نماند
+  const jsFiles = fs.readdirSync(path.join(WWW, 'js')).filter((f) => f.endsWith('.js'));
+  for (const f of jsFiles) {
+    const src = read('js/' + f).replace(/\/\*[\s\S]*?\*\//g, ' ')
+      .replace(/(^|[^:'"`])\/\/[^\n]*/g, '$1 ');
+    ok(!/O\.startOnboarding|O\.onbStepHtml|O\.onbPlan|O\.onbFormatLicense/.test(src),
+      'js/' + f + ' هنوز به API صفحهٔ ورودِ حذف‌شده ارجاع می‌دهد → ReferenceError در زمان اجرا');
   }
-
-  // شفق صفحهٔ ورود باید از توکن‌های aurora بیاید، نه رنگ هاردکد
-  const onbCss = css.slice(css.indexOf('#onb-root {'));
-  for (const tok of ['--aurora-indigo', '--aurora-cyan', '--aurora-pink', '--brand', '--console-green', '--console-red']) {
-    ok(onbCss.includes(`var(${tok})`), `بلوک صفحهٔ ورود باید از var(${tok}) استفاده کند`);
-  }
-  // دسترسی‌پذیری: مثل #bg باید با no-anim و prefers-reduced-motion خاموش شود
-  ok(/body\.no-anim #onb-root::before/.test(css), 'شفق صفحهٔ ورود باید با body.no-anim خاموش شود');
-  ok(/prefers-reduced-motion[\s\S]{0,300}?#onb-root/.test(css), 'شفق صفحهٔ ورود باید به prefers-reduced-motion احترام بگذارد');
-  ok(/@keyframes onbShake/.test(css), 'انیمیشن لرزش خطا (onbShake) باید تعریف شده باشد');
-  ok(/body\.no-anim \.onb-shake/.test(css), 'لرزش هم باید با no-anim خاموش شود');
+  // CSS: توکن‌ها باید بمانند (پاریتی با theme.py) ولی سلکتورهای #onb-root نه
+  const css = read('style.css');
+  ok(/--onb-bg\s*:/.test(css) && /--onb-glass\s*:/.test(css),
+    'توکن‌های --onb-bg/--onb-glass باید در :root بمانند (قرارداد پاریتی با theme.py)');
+  const cssCode = css.replace(/\/\*[\s\S]*?\*\//g, ' ');
+  ok(!/^#onb-root\s*\{/m.test(cssCode) && !/^\.onb-step\s*\{/m.test(cssCode),
+    'CSS صفحهٔ ورود (سلکتورهای #onb-root/.onb-step) باید حذف شده باشد');
+  console.log('    ✓ ماژول/CSS/HTML حذف‌شده، بدون ارجاع مرده، توکن‌های پاریتی حفظ‌شده');
 }
 
 // ══════════════════════════════════════════════════════════════════════
-group('۷) سیم‌کشی — index.html و app.js');
+group('۶) پاریتی قالب کلید با پایتون (وکتورهای مشترک)');
 // ══════════════════════════════════════════════════════════════════════
+// این وکتورها با اجرای واقعی src/license.py تولید شده‌اند. جریان مودال‌محور
+// auto-format ندارد (parseKeyInput خودش جداکننده‌ها را حذف می‌کند)، پس اینجا
+// «نرمال‌سازی» سنجیده می‌شود نه قالب‌دهی نمایشی.
 {
-  const idx = fs.readFileSync(path.join(WWW, 'index.html'), 'utf8');
-  ok(/id="onb-root"/.test(idx), 'index.html باید ریشهٔ #onb-root را داشته باشد');
-  // ⚠️ ترتیب را از «تگ اسکریپت» بسنج، نه از نخستین اشاره به نام فایل.
-  //   نسخهٔ اول این تست indexOf('js/onboarding.js') را می‌گرفت و به «کامنتِ
-  //   توضیحی» بالای #onb-root می‌خورد — پس ترتیب را اشتباه گزارش می‌کرد.
-  //   (همان درسی که در smoke_theme_parity برای کامنت‌های JS گرفتیم.)
-  const scriptOrder = [...idx.matchAll(/<script src="js\/([\w.]+)\.js"><\/script>/g)].map((m) => m[1]);
-  ok(scriptOrder.length >= 15, 'فهرست تگ‌های اسکریپت از index.html خوانده نشد (یافته: ' + scriptOrder.length + ')');
-  ok(scriptOrder.includes('onboarding'), 'index.html باید js/onboarding.js را بار کند');
-  const pos = (n) => scriptOrder.indexOf(n);
-  ok(pos('onboarding') < pos('app'),
-    'onboarding.js باید «پیش از» app.js بار شود (app.js به O.startOnboarding نیاز دارد) — ' +
-    'ترتیب یافت: ' + scriptOrder.slice(-5).join(' → '));
-  ok(pos('components') < pos('onboarding'),
-    'components.js باید پیش از onboarding.js بار شود (به O.copyText نیاز دارد)');
-  ok(pos('license') < pos('onboarding'),
-    'license.js باید پیش از onboarding.js بار شود (به O.validateKey/O.licActivate نیاز دارد)');
-  ok(pos('icons') < pos('onboarding'),
-    'icons.js باید پیش از onboarding.js بار شود (به O.ico نیاز دارد)');
-  console.log('  ✓ ترتیب بارگذاری: ' + scriptOrder.slice(-4).join(' → '));
-
-  const app = fs.readFileSync(path.join(WWW, 'js/app.js'), 'utf8');
-  const code = app.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:'"`])\/\/[^\n]*/g, '$1');
-  ok(/O\.startOnboarding\s*\(/.test(code), 'app.js باید O.startOnboarding را صدا بزند');
-  ok(/startOnboardingFlow\s*\(/.test(code), 'app.js باید startOnboardingFlow را داشته باشد');
-  // زنجیرهٔ مودالِ قدیمی باید رفته باشد (وگرنه دو مسیر موازی وجود دارد)
-  for (const dead of ['function showDisclaimer', 'function trialGate', 'function askName', 'function askBackground']) {
-    ok(!code.includes(dead), `«${dead}» هنوز در app.js است — زنجیرهٔ مودال قدیمی باید حذف شده باشد`);
+  const VECTORS = [
+    ['', null],
+    ['   ', null],
+    ['not-a-key', null],                    // هیچ هگزِ کافی ندارد
+    ['ZZZZ-YYYY-XXXX-WWWW', null],          // حروف غیرhex (Z/Y/X/W) → حذف می‌شوند → null
+    ['AAAA-BBBB-CCCC-DDDD', 'AAAABBBBCCCCDDDD|'],   // ۱۶ هگزِ معتبرِ قالب (امضا جدا سنجیده می‌شود)
+    ['8D8D-32C8-5C9E-AD32-261231', '8D8D32C85C9EAD32|261231'],
+    ['8d8d32c85c9ead32261231', '8D8D32C85C9EAD32|261231'],
+    ['8d8d 32c8 5c9e ad32 261231', '8D8D32C85C9EAD32|261231'],
+    ['6006-693F-3945-F0C3', '6006693F3945F0C3|'],
+    ['۸D۸D-32C8-5C9E-AD32-261231', null],  // رقم فارسی → hex نیست → null
+  ];
+  let bad = 0;
+  for (const [inp, want] of VECTORS) {
+    const p = O.parseKeyInput(inp);
+    const got = p ? p.key + '|' + (p.expiry8 ? p.expiry8.slice(2) : '') : null;
+    if (got !== want) { bad++; console.log('    ✗ «' + inp + '» → ' + got + ' (انتظار ' + want + ')'); }
   }
-  // ولی امضای عمومی که صداکننده دارد باید بماند
-  ok(/O\.showActivation\s*=\s*function\s*\(onDone,\s*reason\)/.test(code),
-    'O.showActivation باید با همان امضای قدیمی (onDone, reason) باقی بماند — دو صداکننده دارد');
-  ok((code.match(/O\.showActivation\s*\(/g) || []).length >= 2,
-    'صداکننده‌های O.showActivation (پایان تریال و کارت لایسنس تنظیمات) باید وصل بمانند');
-  // قفل ناوبری باید حفظ شده باشد (خوش‌آمدگویی ردنشدنی است)
-  ok(/if \(S\.onbStage\) return/.test(code),
-    'قفل «خوش‌آمدگویی ردنشدنی» (if (S.onbStage) return) باید در ناوبری باقی بماند');
-  console.log('  ✓ ترتیب بارگذاری، حذف زنجیرهٔ قدیمی، حفظ امضای عمومی و قفل ناوبری');
+  ok(bad === 0, bad + ' وکتورِ parseKeyInput با پایتون نمی‌خواند');
+  if (!bad) console.log('    ✓ هر ' + VECTORS.length + ' وکتور (شامل جداکننده‌های مختلف و رقم فارسی)');
+  // انقضای نامعتبر باید رد شود (۳۱ فوریه، ماه ۱۳)
+  ok(O.parseKeyInput('8D8D32C85C9EAD32' + '260231') === null, '۳۱ فوریه باید رد شود');
+  ok(O.parseKeyInput('8D8D32C85C9EAD32' + '261331') === null, 'ماه ۱۳ باید رد شود');
 }
 
 console.log('\n' + '═'.repeat(56));
 if (failures) {
-  console.log(`✗ SMOKE ONBOARDING FAILED — ${failures} از ${checks} بررسی شکست خورد`);
+  console.log('✗ SMOKE ONBOARDING FAILED — ' + failures + ' از ' + checks + ' بررسی شکست خورد');
   process.exit(1);
 }
-console.log(`✅ SMOKE ONBOARDING OK — ${checks} بررسی پاس؛ صفحهٔ ورود با onboarding.py هم‌رفتار است و کلید زمان‌دار واقعاً قابل ورود است`);
+console.log('✅ SMOKE ONBOARDING OK — ' + checks +
+  ' بررسی پاس؛ کلید لایسنس (دائمی و زمان‌دار) از راه رابط واقعاً فعال می‌شود و زنجیرهٔ خوش‌آمدگویی کامل است');

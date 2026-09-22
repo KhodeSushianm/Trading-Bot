@@ -983,86 +983,126 @@
   }
 
   // ── خوش‌آمدگویی و راه‌اندازی ────────────────────────────────
-  /* ═══ صفحهٔ ورود (v0.23.0) ═══════════════════════════════════════════
-   * پیش‌تر این بخش «زنجیرهٔ ۵ مودال» بود: showDisclaimer → trialGate →
-   * showActivation → askName → askBackground. هرکدام یک O.modal جدا با
-   * callback خودش، و منطقِ «کدام گام بعدی است» بین آن‌ها پخش شده بود —
-   * یعنی هیچ‌جا یک‌جا قابل دیدن (و قابل تست) نبود.
+  /* ═══ خوش‌آمدگویی: جریان مودال‌محور ════════════════════════════════════
+   * تاریخچهٔ صادقانهٔ این بخش:
+   *   • تا v0.22.0 همین ۵ مودال زنجیره‌ای بود.
+   *   • در v0.23.0 به یک «صفحهٔ ورود جوهری» تمام‌صفحه تبدیل شد (پورت
+   *     onboarding.py دسکتاپ). از نظر فنی سالم بود ولی مالک ظاهرش را
+   *     نپسندید، پس در v0.24.0 به همین جریان مودال‌محور برگردانده شد.
+   *   • آنچه از v0.23.0 «عمداً» نگه داشته شد: رفع باگ maxlength فیلد کلید
+   *     (۲۴ → ۲۶). آن باگ باعث می‌شد کلید لایسنس زمان‌دار از v0.15.0 تا
+   *     v0.22.0 روی اندروید فعال نشود. بازگردانیِ ظاهر نباید آن را برگرداند؛
+   *     smoke_onboarding.js هم قفلش می‌کند.
    *
-   * حالا یک صفحهٔ جوهری پیوسته است (js/onboarding.js):
-   *   • O.onbPlan() تصمیم می‌گیرد کدام گام‌ها برای «این» کاربر لازم است
-   *     (کاربر قدیمی سلب‌مسئولیت و نام را دوباره نمی‌بیند)
-   *   • قالب‌دهی خودکار کلید، لرزش خطا، نقطه‌های گام — همان رفتار دسکتاپ
-   *
-   * ⚠️ این لایه «فقط» پل بین وضعیت اپ (S) و ماژول صفحهٔ ورود است. منطق
-   *   (لایسنس/تریال/ذخیرهٔ تنظیمات) همان callbackهای قبلی است، پس رفتار حفظ شده.
+   * ترتیب: showDisclaimer → trialGate → (showActivation | هدیهٔ تریال) →
+   *        askName → askBackground → afterOnboard
+   * S.onbStage در تمام این مدت غیر-null است تا ناوبری قفل بماند
+   * («خوش‌آمدگویی ردنشدنی»).
    * ═════════════════════════════════════════════════════════════════════ */
-  function startOnboardingFlow(reason) {
-    var tr = O.trialStatus(S.storage);
-    S.trial = tr;
-    var licensed = S.licensed || O.licIsActive(S.storage, S.deviceId);
-    S.licensed = licensed;
-    S.accessOK = licensed || !!tr.active;
-
-    // تا پایان خوش‌آمدگویی، ناوبری و چرخهٔ خودکار قفل است (همان قید قبلی:
-    // «خوش‌آمدگویی اجباری — رد نمی‌شود»)
-    S.onbStage = 'onboarding';
-
-    var userDone = null;
-    O.startOnboarding({
-      storage: S.storage,
-      deviceId: S.deviceId,
-      deviceCode: S.deviceCode,
-      version: S.version,
-      licensed: licensed,
-      trial: tr,
-      trialExists: tr.exists,
-      currentName: S.settings.user_name,
-      reason: reason || S._onbReason || '',
-      saveName: function (n) {
-        S.settings.user_name = n;
-        saveSettings();
-        applyUserName();
-      },
-      saveBackground: function (on) {
-        S.settings.background_enabled = on;
-        saveSettings();
-        if (on) O.toast('رصد پس‌زمینه فعال شد');
-      },
-      onTrial: function () {
-        S.trial = O.trialStatus(S.storage);
-        S.accessOK = S.trial.active;
-        O.toast('دورهٔ آزمایشی شروع شد — ۷ روز تمام‌امکانات');
-      },
-      onActivated: function () {
-        S.licensed = true;
-        S.accessOK = true;
-        S.licenseInfo = O.licLoad(S.storage);
-        O.toast('برنامه فعال شد');
-      },
-      onDone: function () {
-        S.onbStage = null;
-        S._onbReason = '';
-        var cb = userDone;
-        userDone = null;
-        S._onbDone = null;
-        afterOnboard();
-        if (cb) { try { cb(); } catch (e) { /* callback بیرونی نباید ما را بخواباند */ } }
-      }
-    });
-    // اگر صداکننده callback خواسته بود (O.showActivation)، بعد از پایان اجرا شود
-    userDone = S._onbDone || null;
+  function showDisclaimer() {
+    O.modal(O.ico('alert', 17, 'c-amber') + ' قبل از شروع — دو قول صادقانه',
+      '<b>۱) این اپ معاملهٔ خودکار نمی‌کند.</b> هیچ معامله‌ای انجام نمی‌دهد، به هیچ بروکری وصل نیست و فقط تحلیل و سیگنال <u>پیشنهادی</u> می‌دهد. تصمیم و مسئولیت هر معامله با خودت است. رصد بازار (پیش‌زمینه یا تازه‌سازی خودکار) فقط <u>تحلیل</u> را تکرار می‌کند.<br><br>' +
+      '<b>۲) حلقهٔ صداقت.</b> وقتی سیگنالی صادر نشود، دلیلش شفاف گفته می‌شود؛ دادهٔ در دسترس نباشد، آن مدرک «۰ امتیاز با علامت نامشخص» می‌گیرد — هیچ امتیازی ساخته نمی‌شود. نتایج سیگنال‌ها هم در ژورنال با قاعدهٔ محتاطانه ثبت می‌شود.<br><br>' +
+      '<span style="color:var(--text-3)">هیچ سیستمی سود را تضمین نمی‌کند. معامله در فارکس پرریسک است.</span>',
+      [{
+        label: 'متوجه شدم — بزن بریم', cls: 'primary', fn: function () {
+          S.storage.set('disclaimer.ok', '1');
+          trialGate();
+        }
+      }]);
   }
-  O.startOnboardingFlow = startOnboardingFlow;
 
-  /* همتای O.showActivation قدیمی — همان امضا، تا صداکننده‌های موجود
-   * (پایان تریال در گیت ناوبری، و کارت لایسنس در تنظیمات) نشکنند.
-   * تفاوت: دیگر مودالِ جدا باز نمی‌کند؛ صفحهٔ ورود را با «دلیل» مربوطه
-   * بالا می‌آورد تا بنر مناسب (انقضا/دستکاری ساعت/انقضای کلید) نشان دهد. */
+  // v0.15.0 — دروازهٔ دسترسی: لایسنس فعال یا دورهٔ آزمایشی یا «هدیهٔ خوش‌آمدگویی»
+  function trialGate() {
+    if (S.licensed) { askName(); return; }
+    var t = O.trialStatus(S.storage);
+    S.trial = t;
+    S.accessOK = t.active;
+    if (t.active) { askName(); return; }
+    if (t.exists) {                       // تمام‌شده یا دستکاری‌شده
+      O.showActivation(function () { askName(); }, t.tampered ? 'tampered' : 'expired');
+      return;
+    }
+    // تریال شروع نشده → مودال هدیه
+    S.onbStage = 'trial';
+    O.modal(O.ico('seal', 18) + ' هدیهٔ خوش‌آمدگویی — ۷ روز رایگان',
+      'همهٔ امکانات ODIN ASSISTANT — تحلیل، سیگنال، <b>رصد پس‌زمینه</b> و کارنامهٔ دقت — به مدت <b>۷ روز</b> رایگان و بدون محدودیت.<br><br>' +
+      'بعد از پایان، کلید لایسنس مخصوص دستگاهت را از تلگرام سازنده بگیر (<span dir="ltr">@Khode_Sushian</span> — در صفحهٔ «دربارهٔ ما» هم هست).<br><br>' +
+      '<span style="color:var(--text-3)">اگر همین حالا کلید داری، می‌توانی فعال‌سازی کنی.</span>',
+      [
+        {
+          label: 'شروع ۷ روز رایگان', cls: 'primary', fn: function () {
+            O.trialStart(S.storage);
+            S.trial = O.trialStatus(S.storage);
+            S.accessOK = S.trial.active;
+            S.onbStage = null;
+            O.toast('دورهٔ آزمایشی شروع شد — ۷ روز تمام‌امکانات');
+            askName();
+          }
+        },
+        {
+          label: 'کلید لایسنس دارم', cls: 'ghost', fn: function () {
+            S.onbStage = null;
+            O.showActivation(function () { askName(); });
+          }
+        }
+      ]);
+  }
+
   O.showActivation = function (onDone, reason) {
-    S._onbDone = onDone || null;
-    S._onbReason = reason || '';
-    startOnboardingFlow(reason);
+    S.onbStage = 'license';
+    var note = '';
+    if (reason === 'expired') {
+      note = '<div class="hint" style="color:var(--red-text);margin-bottom:8px">دورهٔ آزمایشی به پایان رسیده — برای ادامه، کلید لایسنس را وارد کن.</div>';
+    } else if (reason === 'tampered') {
+      note = '<div class="hint" style="color:var(--red-text);margin-bottom:8px">ساعت دستگاه به عقب برگشته — دورهٔ آزمایشی نامعتبر شد. با کلید لایسنس فعال‌سازی کن.</div>';
+    } else if (reason === 'key-expired') {
+      note = '<div class="hint" style="color:var(--red-text);margin-bottom:8px">لایسنس زمان‌دار منقضی شده — کلید تمدید را از سازنده بگیر.</div>';
+    }
+    O.modal(O.ico('seal', 18) + ' فعال‌سازی برنامه',
+      note +
+      '<div class="set-sub" style="margin-bottom:10px">«کد دستگاه» زیر را برای سازنده (Sushian Khoshkhani — تلگرام <span dir="ltr">@Khode_Sushian</span>) بفرست و کلید اختصاصی‌ات را دریافت کن. هر کلید فقط روی همان دستگاه کار می‌کند. کلیدهای زمان‌دار یک بخش تاریخ هم دارند — <b>کل رشتهٔ دریافتی</b> را وارد کن.</div>' +
+      '<input id="onb-code" class="text-input" readonly value="' + O.esc(S.deviceCode || '') + '" style="letter-spacing:2px;text-align:center;font-weight:700;direction:ltr">' +
+      // ⚠️ maxlength=26 عمدی است و «باید» بماند (باگ v0.15.0→v0.22.0):
+      //   کلید زمان‌دار = XXXX-XXXX-XXXX-XXXX-YYMMDD = ۲۶ نویسه. با ۲۴ کاربر
+      //   نمی‌توانست همان کلیدی را که سازنده می‌دهد paste کند (۲ نویسهٔ آخرِ
+      //   تاریخ می‌افتاد) → parseKeyInput فقط ۲۰ هگز می‌دید → null →
+      //   «این کلید نامعتبر است». یعنی مدل اشتراکی ۸ نسخه روی اندروید شکسته بود.
+      //   placeholder هم عمداً بخش تاریخ را نشان می‌دهد تا کاربر بداند کل
+      //   رشته لازم است. parseKeyInput جداکننده‌ها را خودش حذف می‌کند، پس
+      //   تایپِ بدون خط‌تیره هم کار می‌کند (auto-format لازم نیست).
+      '<input id="onb-key" class="text-input" placeholder="XXXX-XXXX-XXXX-XXXX-YYMMDD" maxlength="26" autocomplete="off" autocorrect="off" spellcheck="false" style="margin-top:8px;text-align:center;letter-spacing:1px;direction:ltr">' +
+      '<div id="onb-err" class="hint" style="color:var(--red-text);min-height:20px;margin-top:6px"></div>',
+      [
+        { label: 'کپی کد', cls: 'ghost', keepOpen: true, fn: function () { copyDeviceCode(); } },
+        {
+          label: 'ارسال', cls: 'ghost', keepOpen: true, fn: function () {
+            if (!O.native.share('کد دستگاه — ODIN ASSISTANT',
+              'کد دستگاه برای فعال‌سازی ODIN ASSISTANT:\n' + S.deviceCode)) copyDeviceCode();
+          }
+        },
+        {
+          label: 'فعال‌سازی', cls: 'primary', keepOpen: true, fn: function () {
+            var keyEl = document.getElementById('onb-key');
+            var errEl = document.getElementById('onb-err');
+            var key = keyEl ? String(keyEl.value || '') : '';
+            if (S.deviceId && O.validateKey(key, S.deviceCode) &&
+                O.licActivate(S.storage, key, S.deviceId, S.settings.user_name)) {
+              S.licensed = true;
+              S.accessOK = true;
+              S.licenseInfo = O.licLoad(S.storage);
+              S.onbStage = null;
+              closeModal();
+              O.toast('برنامه فعال شد');
+              if (onDone) onDone();
+            } else if (errEl) {
+              errEl.textContent = !S.deviceId
+                ? 'شناسهٔ دستگاه در دسترس نیست — اپ را دوباره باز کن'
+                : 'این کلید نامعتبر است یا برای دستگاه دیگری ساخته شده';
+            }
+          }
+        }
+      ]);
   };
 
   function copyDeviceCode() {
@@ -1071,6 +1111,65 @@
     O.copyText(S.deviceCode, 'کد دستگاه کپی شد', {
       onFail: function () { O.toast('کد دستگاه (نگه‌دار): ' + S.deviceCode); }
     });
+  }
+
+  // v0.13.0 — پرسیدن نام در اولین اجرا (هدر «سلام {نام}!» می‌شود)
+  function askName() {
+    if (S.storage.get('onboarded.name') === '1') { askBackground(); return; }
+    S.onbStage = 'name';
+    O.modal(O.ico('user', 18) + ' اسمت چیه؟',
+      '<div class="set-sub" style="margin-bottom:10px">هدر برنامه و خوش‌آمدگویی با اسم خودت شخصی می‌شود.</div>' +
+      '<input id="onb-name" class="text-input" placeholder="مثلاً: سوشیان" maxlength="24" autocomplete="off" autocorrect="off" spellcheck="false">',
+      [{
+        label: 'ذخیره و ادامه', cls: 'primary', fn: function () {
+          var el = document.getElementById('onb-name');
+          var n = el ? String(el.value || '').trim() : '';
+          S.settings.user_name = n || 'تریدر';
+          saveSettings();
+          applyUserName();
+          S.storage.set('onboarded.name', '1');
+          S.onbStage = null;
+          askBackground();
+        }
+      }]);
+    setTimeout(function () {
+      var el = document.getElementById('onb-name');
+      if (el && el.focus) el.focus();
+    }, 350);
+  }
+
+  // v0.13.0 — پیشنهاد رصد پس‌زمینه (سیگنال بدون باز کردن اپ)
+  function askBackground() {
+    if (S.storage.get('onboarded.bg') === '1') { afterOnboard(); return; }
+    S.onbStage = 'bg';
+    O.modal(O.ico('activity', 18) + ' سیگنال بدون باز کردن اپ؟',
+      'رصد پس‌زمینه هر چند دقیقه یک‌بار بازار را تحلیل می‌کند و <b>سیگنال تازه یا خبر فوری</b> را با اعلان اندروید می‌فرستد — حتی وقتی اپ بسته است.<br><br>' +
+      '· یک اعلان ماندگار «در حال رصد» در نوار اعلان‌ها دیده می‌شود (طبیعی است و با یک لمس خاموش نمی‌شود — از تنظیمات اپ خاموشش کن).<br>' +
+      '· برای پایداری روی گوشی‌های سخت‌گیر، اجازهٔ «نادیده‌گرفتن بهینه‌سازی باتری» خواسته می‌شود.<br>' +
+      '· معامله همچنان هیچ‌وقت خودکار نیست — تصمیم با توست.',
+      [
+        {
+          label: 'شروع رصد', cls: 'primary', fn: function () {
+            S.settings.background_enabled = true;
+            saveSettings();
+            S.storage.set('onboarded.bg', '1');
+            S.onbStage = null;
+            O.native.startBackground();
+            if (!O.native.isIgnoringBattery()) O.native.requestIgnoreBattery();
+            O.toast('رصد پس‌زمینه فعال شد');
+            afterOnboard();
+          }
+        },
+        {
+          label: 'فعلاً نه', cls: 'ghost', fn: function () {
+            S.settings.background_enabled = false;
+            saveSettings();
+            S.storage.set('onboarded.bg', '1');
+            S.onbStage = null;
+            afterOnboard();
+          }
+        }
+      ]);
   }
 
   function afterOnboard() {
@@ -1132,7 +1231,8 @@
       splash.classList.add('fade-out');
       document.getElementById('app').classList.remove('hidden');
       setTimeout(function () { splash.style.display = 'none'; }, 500);
-      startOnboardingFlow();
+      if (S.storage.get('disclaimer.ok') !== '1') showDisclaimer();
+      else trialGate();
     }, 1500);
   }
 

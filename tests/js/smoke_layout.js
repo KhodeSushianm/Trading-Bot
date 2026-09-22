@@ -193,16 +193,19 @@ group('۲) کنتراست: متن روشن فقط روی ظرف تیره');
     '.tab.active', '.tab .badge', '#toast-root', '.status-pill', '.tg-pill',
     '.progress', '#progress', '.modal-card', '.sig-head', '.r-chip.win',
     '.r-chip.loss', '.dir-chip', '.toast', '.on-ink',
-    // صفحهٔ ورود جوهری (v0.23.0): یک overlay تمام‌صفحه با زمینهٔ --onb-bg
-    // (#0B0B10). همهٔ .onb-* ها «فقط» داخل #onb-root ظاهر می‌شوند، پس متن
-    // روشن در آن‌ها درست است. فرضِ «تیره‌بودن» در پایین راستی‌آزمایی می‌شود.
-    '#onb-root', '.onb-',
+    // ⚠️ در v0.23.0 «#onb-root» و «.onb-» اینجا بودند (صفحهٔ ورود جوهریِ
+    //   تمام‌صفحه با زمینهٔ تیره). در v0.24.0 آن صفحه حذف و جریان مودال‌محور
+    //   برگردانده شد، پس آن دو مورد هم رفتند. نگه‌داشتنِ allowlistِ بی‌مصرف
+    //   خطرناک است: اگر روزی سلکتوری با همان نام و زمینهٔ «روشن» بیاید،
+    //   بی‌صدا مجاز شمرده می‌شد.
   ];
 
-  // ⚠️ allowlist به‌تنهایی خطرناک است: اگر روزی #onb-root زمینهٔ روشن بگیرد،
-  //   این فهرست بی‌صدا متنِ نامرئی را «مجاز» می‌شمارد — یعنی نگهبان به
-  //   ضدِ خودش تبدیل می‌شود. پس فرضِ هر ظرفِ allowlist‌شدهٔ کلیدی را هم
-  //   می‌سنجیم: واقعاً باید تیره باشد.
+  // ⚠️ allowlist به‌تنهایی خطرناک است: اگر ظرفی که «تیره» فرض شده روزی
+  //   زمینهٔ روشن بگیرد، این فهرست بی‌صدا متنِ نامرئی را مجاز می‌شمارد و
+  //   نگهبان به ضدِّ خودش تبدیل می‌شود. پس فرضِ هر ظرفِ کلیدی راستی‌آزمایی
+  //   می‌شود: واقعاً باید تیره باشد.
+  //   (در v0.23.0 این بررسی برای #onb-root هم بود؛ آن عنصر در v0.24.0 حذف شد
+  //    و assertion مربوطه هم با آن رفت — نگهبانِ عنصرِ ناموجود، پاسِ کاذب است.)
   function lumOf(hex) {
     const h = hex.replace('#', '');
     const f = (i) => {
@@ -212,25 +215,21 @@ group('۲) کنتراست: متن روشن فقط روی ظرف تیره');
     return 0.2126 * f(0) + 0.7152 * f(2) + 0.0722 * f(4);
   }
   {
-    const onbBg = (/--onb-bg\s*:\s*(#[0-9A-Fa-f]{6})/.exec(css) || [])[1];
-    ok(!!onbBg, '--onb-bg در :root پیدا نشد (صفحهٔ ورود به آن تکیه دارد)');
-    if (onbBg) {
-      const L = lumOf(onbBg);
-      ok(L < 0.12,
-        '#onb-root در allowlist کنتراست است چون «تیره» فرض شده، ولی --onb-bg = ' + onbBg +
-        ' با روشنایی ' + L.toFixed(3) + ' تیره نیست — allowlist باید بازبینی شود');
-      const rootBg = cssProp('#onb-root', 'background');
-      ok(/var\(--onb-bg\)/.test(rootBg || ''),
-        '#onb-root باید background: var(--onb-bg) داشته باشد — یافته: ' + rootBg);
-      console.log('    ✓ فرضِ تیره‌بودنِ #onb-root راستی‌آزمایی شد (--onb-bg=' + onbBg +
-        '، روشنایی ' + L.toFixed(3) + ')');
+    // کارت مشکیِ اصلی (.card.ink) باید از توکن تیره بیاید، نه رنگ هاردکد
+    const inkTok = (/--ink-card\s*:\s*(#[0-9A-Fa-f]{6})/.exec(css) || [])[1];
+    ok(!!inkTok, '--ink-card در :root پیدا نشد');
+    if (inkTok) {
+      ok(lumOf(inkTok) < 0.12,
+        '.card.ink در allowlist کنتراست است چون «تیره» فرض شده، ولی --ink-card = ' +
+        inkTok + ' با روشنایی ' + lumOf(inkTok).toFixed(3) + ' تیره نیست');
+      console.log('    ✓ فرضِ تیره‌بودنِ .card.ink راستی‌آزمایی شد (--ink-card=' + inkTok +
+        '، روشنایی ' + lumOf(inkTok).toFixed(3) + ')');
     }
-    // بدنهٔ کنسول‌کارت هم باید از توکن تیره بیاید، نه رنگ هاردکد
     const ccBg = cssProp('.console-card .cc-body', 'background');
     ok(ccBg != null && /var\(--console-bg\)/.test(ccBg),
       '.cc-body باید background: var(--console-bg) داشته باشد — یافته: ' + ccBg);
   }
-
+  // ── اسکن اصلی: هر قاعده‌ای که رنگ متنِ روشن می‌دهد باید داخل ظرف تیره باشد
   const lightRe = /(?:^|[{;])\s*color\s*:\s*(rgba?\(\s*255\s*,\s*255\s*,\s*255[^)]*\)|#fff\b|#ffffff\b|var\(--on-ink\)|var\(--console-text\))/gi;
   const offenders = [];
   const ruleRe = /([^{}@]+)\{([^{}]*)\}/g;
@@ -239,18 +238,22 @@ group('۲) کنتراست: متن روشن فقط روی ظرف تیره');
     const selRaw = m[1].trim().split('\n').pop().trim();
     const body = m[2];
     if (!selRaw || selRaw.startsWith('/*')) continue;
-    if (!lightRe.test(body)) continue;
     lightRe.lastIndex = 0;
-    // هر سلکتور مرکب را جدا بسنج
+    if (!lightRe.test(body)) continue;
     for (const sel of selRaw.split(',')) {
       const s = sel.trim();
       if (!s || s.startsWith(':root')) continue;
-      const inDark = DARK_CONTEXTS.some((d) => s === d || s.startsWith(d + ' ') || s.startsWith(d + '.') ||
-        s.includes(' ' + d + ' ') || s.endsWith(' ' + d) || s.includes(d));
-      if (!inDark) offenders.push(s + ' → ' + (lightRe.exec(body) || body.match(lightRe) || ['?'])[0]);
-      lightRe.lastIndex = 0;
+      const inDark = DARK_CONTEXTS.some((d) => s === d || s.startsWith(d + ' ') ||
+        s.startsWith(d + '.') || s.includes(' ' + d + ' ') || s.endsWith(' ' + d) || s.includes(d));
+      if (!inDark) {
+        lightRe.lastIndex = 0;
+        const mm = lightRe.exec(body);
+        offenders.push(s + ' → ' + (mm ? mm[1] : '?'));
+      }
     }
+    lightRe.lastIndex = 0;
   }
+
   // .stat-defs به‌طور خاص: باید رنگ خوانا روی زمینهٔ روشن داشته باشد
   const sd = cssProp('.stat-defs', 'color');
   ok(sd != null && !/255\s*,\s*255\s*,\s*255|#fff/i.test(sd),
