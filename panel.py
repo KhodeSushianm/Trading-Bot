@@ -1762,18 +1762,18 @@ class MainWindow(QMainWindow):
         activate_btn.setObjectName("primary")
         activate_btn.setStyleSheet(f"""
             QPushButton {{
-                background-color: {T.primary};
-                color: {T.on_primary};
+                background-color: {T.accent_ink};
+                color: {T.on_ink};
                 border: none;
                 border-radius: 8px;
                 font-size: 13px;
                 font-weight: bold;
             }}
             QPushButton:hover {{
-                background-color: {T.rgba(T.primary, 0.9)};
+                background-color: {T.rgba(T.accent_ink, 0.9)};
             }}
             QPushButton:pressed {{
-                background-color: {T.rgba(T.primary, 0.8)};
+                background-color: {T.rgba(T.accent_ink, 0.8)};
             }}
         """)
         
