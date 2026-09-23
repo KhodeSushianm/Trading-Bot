@@ -7,8 +7,8 @@
 مستقیم همان تابع/کلاس موجود باشد (ورودی دست‌سازِ ثابت). adapterها فقط
 delegation‌اند؛ هر اختلاف = تغییر رفتار = شکست.
 
-توابع شبکه‌ای (fetch_calendar/fetch_tv_snapshot/_send_telegram) با mock
-sentinel تست می‌شوند: هم «چه تابعی» و هم «با چه آرگومان‌هایی» صدا زده شد.
+توابع شبکه‌ای (fetch_calendar/fetch_tv_snapshot/telegram.send_message) با
+mock sentinel تست می‌شوند: هم «چه تابعی» و هم «با چه آرگومان‌هایی» صدا زده شد.
 منابع داده (Yahoo/TD/Auto) فقط اگر yfinance نصب باشد تا سطح «نوع کلاس»
 تست می‌شوند؛ در CI (بدون yfinance) فقط نگاشت انتخاب و پیام‌های خطا سنجیده
 می‌شوند — که همان‌ها فاز ۳ مصرف می‌کند.
@@ -133,7 +133,8 @@ def test_registration() -> None:
 
     # وضعیت فعال‌بودن == کلیدهای موجود config (بدون کلید جدید)
     A(reg.by_id("fundamental-news").enabled is True, "news.enabled=true → فعال")
-    A(reg.by_id("notify-telegram").enabled is True, "telegram.send_reports=true → فعال")
+    A(reg.by_id("notify-telegram").enabled is True,
+      "notify همیشه فعال است (guard «تنظیم نشده» داخل بدنهٔ send است — فاز ۳)")
     A(reg.by_id("fundamental-calendar").manifest.config["section"] == "fundamental",
       "تقویم باید به کلید fundamental.enabled متصل باشد")
 
@@ -282,14 +283,26 @@ def test_delegation_network() -> None:
         m.assert_called_once_with(syms, timeframe="1h", timeout=4)
         A(True, "fetch_tv_snapshot با همان آرگومان‌ها صدا زده شد")
 
-    # notify — delegation موقت به engine._send_telegram (فاز ۳ معکوس می‌شود)
+    # notify — از فاز ۳ بدنهٔ واقعی *داخل پلاگین* است (وارونِ delegation موقت
+    # فاز ۲، همان‌طور که در Preview وعده داده شد)؛ engine._send_telegram
+    # wrapper نازک شده و باید به پلاگین delegate کند.
+    from src import engine
     from src.plugins.notify import TelegramNotifier
+    cfg_on = {"telegram": {"send_reports": True, "bot_token": "123:fake",
+                           "chat_id": "42"}}
     log_lines = []
-    with mock.patch("src.engine._send_telegram", return_value=(True, "sent")) as m:
-        out = TelegramNotifier().send(CFG, "متن", log_lines.append, "🎯 سیگنال EURUSD")
-        A(out == (True, "sent"), "send باید tuple مستقیم را برگرداند")
-        m.assert_called_once_with(CFG, "متن", log_lines.append, label="🎯 سیگنال EURUSD")
-        A(True, "_send_telegram با همان آرگومان‌ها صدا زده شد")
+    with mock.patch("src.notify.telegram.send_message", return_value=(True, "OK")) as m:
+        out = TelegramNotifier().send(cfg_on, "متن", log_lines.append,
+                                      "🎯 سیگنال EURUSD")
+        A(out == (True, "OK"), "send پلاگین باید نتیجهٔ send_message را برگرداند")
+        m.assert_called_once_with("123:fake", "42", "متن")
+        A(log_lines[0] == "📱 ارسال 🎯 سیگنال EURUSD به تلگرام...",
+          "لاگ ارسال پلاگین باید دقیق باشد")
+
+    logs2 = []
+    with mock.patch("src.notify.telegram.send_message", return_value=(True, "OK2")):
+        A(engine._send_telegram(cfg_on, "x", logs2.append) == (True, "OK2"),
+          "wrapper در engine باید به پلاگین notify delegate کند")
 
 
 def test_golden_journal_alerts() -> None:

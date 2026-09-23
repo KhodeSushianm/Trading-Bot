@@ -50,7 +50,11 @@ def plugins() -> List[Tuple[PluginManifest, Any]]:
         (PluginManifest(
             id="judge-core", version="1.0.0",
             provides=["odin.judge.engine@1", "odin.judge.risk@1"],
-            config={"section": "judge", "enabled_key": "enabled", "default": True},
+            # عمداً config=None: engine پیش از چکِ judge.enabled هم از
+            # judge_config استفاده می‌کند (ادغام پیش‌فرض‌ها) — پس پلاگین باید
+            # همیشه در دسترس باشد؛ کلید enabled همان guard فعلی engine است.
+            # bind شدن در فاز ۷ با معناشناسی دقیق بازبینی می‌شود.
+            config=None,
             platforms=["desktop", "android"],
             stage="judge", priority=50, optional=True),
          lambda _ctx: JudgePlugin()),

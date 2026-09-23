@@ -34,7 +34,11 @@ def plugins() -> List[Tuple[PluginManifest, Any]]:
         (PluginManifest(
             id="journal", version="1.0.0",
             provides=["odin.journal@1"],
-            config={"section": "journal", "enabled_key": "enabled", "default": True},
+            # عمداً config=None: run_journal_report و journal_signal بدون چکِ
+            # journal.enabled هم ژورنال را می‌خوانند/می‌نویسند (سند صداقت نباید
+            # با یک کلید از دسترس خارج شود) — guard فعلی engine حفظ می‌شود.
+            # bind شدن در فاز ۷ بازبینی می‌شود.
+            config=None,
             platforms=["desktop", "android"],
             stage="journal_pre", priority=10, optional=True),
          lambda _ctx: JournalPlugin()),
