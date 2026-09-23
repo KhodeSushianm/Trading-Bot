@@ -23,10 +23,14 @@ from .bus import EventBus, Events
 from .lifecycle import PluginFailure
 from .registry import PluginRegistry
 
-# مراحل چرخهٔ تحلیل — نام‌ها در مانیفست‌ها (manifest.stage) استفاده می‌شوند
+# مراحل چرخهٔ تحلیل — نام‌ها در مانیفست‌ها (manifest.stage) استفاده می‌شوند.
+# ترتیب، رونویسِ مو‌به‌موی run_cycle فعلی است — از جمله اینکه تقویم/خبر
+# *بعد* از journal_pre و امکان خروج زودهنگام دریافت می‌شوند (اگر داده قطع
+# باشد، فاندامنتال هرگز واکشی نمی‌شود — همان رفتار امروز).
 STAGES: tuple = (
-    "collect_market",       # دادهٔ کندل + تحلیل + قدرت ارز + TV + تقویم + اخبار
+    "collect_market",       # دادهٔ کندل + تحلیل + قدرت ارز + تاییدیهٔ TV
     "journal_pre",          # بستن سیگنال‌های باز + آمار — عمداً قبل از بررسی داده
+    "collect_fundamental",  # تقویم اقتصادی + اخبار — بعد از early-exit
     "compute_vetoes",       # وتوهای نماد-محور تقویم
     "judge",                # داور: ۷ وتو + ۸ شاهد + ریسک
     "render",               # رندر گزارش‌ها (console/signal/summary)

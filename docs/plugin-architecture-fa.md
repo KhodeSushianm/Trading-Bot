@@ -237,9 +237,13 @@ REGISTERED → RESOLVED → INITIALIZED → STARTED → STOPPED → DISPOSED
 مراحل چرخه (ترتیب = §۱.۲ فعلی، فقط نام‌گذاری شده):
 
 ```
-collect_market → journal_pre → compute_vetoes → judge → render →
-dispatch_signals → price_alerts → chart_cache → dashboard → archive_notify
+collect_market → journal_pre → [early-exit] → collect_fundamental →
+compute_vetoes → judge → render → dispatch_signals → price_alerts →
+chart_cache → dashboard → archive_notify
 ```
+
+⚠️ `collect_fundamental` عمداً **بعد** از early-exit است: اگر منبع داده قطع
+باشد (هیچ analysis)، تقویم/خبر هرگز واکشی نمی‌شوند — دقیقاً رفتار امروز.
 
 - `StageResult{ok, value, unavailable, error, stop}` — `stop=True` همان
   early-exit امروز است (هیچ analysis → خروج)
@@ -313,5 +317,5 @@ false`) → config-bridge پلاگین را خاموش می‌کند → resolve
 
 | فاز | تاریخ | کامیت | نتیجه |
 |---|---|---|---|
-| ۱ — هستهٔ پایتون | ۲۰۲۶-۰۹-۲۳ | *(این کامیت)* | ✅ ۱۱ فایل جدید + ۱ step در CI؛ ۸۲ بررسی تست core سبز؛ selftest/check_config/compileall/smokeها بدون تغییر سبز؛ صفر تغییر در کد موجود |
+| ۱ — هستهٔ پایتون | ۲۰۲۶-۰۹-۲۳ | `8074d44` + اصلاحیهٔ stages | ✅ ۱۱ فایل جدید + ۱ step در CI؛ ۸۲ بررسی تست core سبز؛ selftest/check_config/compileall/هر ۹ smoke JS بدون تغییر سبز؛ صفر تغییر در کد موجود. اصلاحیه: افزودن مرحلهٔ `collect_fundamental` بعد از early-exit (وفاداری مو‌به‌مو به ترتیب run_cycle) |
 | ۲–۸ | — | — | در انتظار Preview + تأیید مالک (قانون اجرا) |

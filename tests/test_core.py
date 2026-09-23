@@ -351,7 +351,8 @@ def test_pipeline() -> None:
 
     # ترتیب STAGES == ترتیب چرخهٔ فعلی (مرجع: run_cycle در src/engine.py)
     A(STAGES[0] == "collect_market" and STAGES[1] == "journal_pre"
-      and STAGES[-1] == "archive_notify", "ترتیب مراحل باید با چرخهٔ فعلی یکی باشد")
+      and STAGES[2] == "collect_fundamental" and STAGES[-1] == "archive_notify",
+      "ترتیب مراحل باید با چرخهٔ فعلی یکی باشد (فاندامنتال بعد از early-exit)")
 
 
 # ══════════════════════════════════════════════════════════════
