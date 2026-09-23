@@ -1,0 +1,1391 @@
+{
+ "svc_cycle_signals": {
+  "logs": [
+   "[odin-svc] سرویس رصد آماده شد — اولین چرخه شروع می‌شود",
+   "[odin-svc] دریافت EURUSD...",
+   "[odin-svc] دریافت GBPUSD...",
+   "[odin-svc] دریافت USDJPY...",
+   "[odin-svc] دریافت USDCAD...",
+   "[odin-svc] دریافت AUDUSD...",
+   "[odin-svc] دریافت USDCHF...",
+   "[odin-svc] دریافت XAUUSD...",
+   "[odin-svc] (۱/۷) EURUSD",
+   "[odin-svc] (۲/۷) GBPUSD",
+   "[odin-svc] (۳/۷) USDJPY",
+   "[odin-svc] (۴/۷) USDCAD",
+   "[odin-svc] (۵/۷) AUDUSD",
+   "[odin-svc] (۶/۷) USDCHF",
+   "[odin-svc] (۷/۷) XAUUSD",
+   "[odin-svc] تحلیل ۷ نماد انجام شد",
+   "[odin-svc] دریافت تاییدیه تریدینگ‌ویو...",
+   "[odin-svc] تاییدیه تریدینگ‌ویو برای ۱ نماد دریافت شد",
+   "[odin-svc] تقویم اقتصادی: ۲ رویداد",
+   "[odin-svc] موتور اخبار: ۱ خبر (۱ فید موفق، ۰ نامفق)",
+   "[odin-svc] داور: ۱ سیگنال صادر شد",
+   "[odin-svc] سیگنال EURUSD (خرید) در ژورنال ثبت شد"
+  ],
+  "consoleErrors": [],
+  "notify": [
+   [
+    "سیگنال جدید — EURUSD (خرید)",
+    "EURUSD · امتیاز ۸/۱۱ · ورود 1.19247 · حد ضرر 1.18858 · هدف 1.20025\n۱۷:۳۰ به وقت تهران — پیشنهاد است، نه دستور معامله"
+   ]
+  ],
+  "ongoing": [
+   [
+    "رصد بازار — ODIN ASSISTANT",
+    "آخرین تحلیل ۱۷:۳۰ تهران · ۱ سیگنال تازه صادر شد · چرخهٔ بعدی تا ۱۵ دقیقه"
+   ]
+  ],
+  "cycleDone": [
+   15
+  ],
+  "stopBg": 0,
+  "trial": {
+   "exists": true,
+   "active": true,
+   "tampered": false
+  },
+  "storage": {
+   "chart.AUDUSD": {
+    "bars": 260
+   },
+   "chart.EURUSD": {
+    "bars": 260
+   },
+   "chart.GBPUSD": {
+    "bars": 260
+   },
+   "chart.USDCAD": {
+    "bars": 260
+   },
+   "chart.USDCHF": {
+    "bars": 260
+   },
+   "chart.USDJPY": {
+    "bars": 260
+   },
+   "chart.XAUUSD": {
+    "bars": 260
+   },
+   "journal.jsonl": [
+    {
+     "kind": "signal",
+     "id": "EURUSD-BUY-20260923140000-1.192466",
+     "symbol": "EURUSD",
+     "direction": "BUY",
+     "sent": true,
+     "score": 8,
+     "outcome": null
+    }
+   ],
+   "sent_signals.json": {
+    "EURUSD|BUY": {
+     "ts": "2026-09-23T14:00:00.000Z",
+     "score": 8
+    }
+   },
+   "state.last": {
+    "ranAt": 1790172000000,
+    "errors": 0,
+    "sourceName": "yahoo",
+    "nAnalyses": 7,
+    "verdicts": [
+     "EURUSD=BUY_SETUP",
+     "GBPUSD=WAIT",
+     "USDJPY=WAIT",
+     "USDCAD=WAIT",
+     "AUDUSD=WAIT",
+     "USDCHF=WAIT",
+     "XAUUSD=WAIT"
+    ],
+    "ranking": [
+     [
+      "GBP",
+      0.22376634083147717
+     ],
+     [
+      "AUD",
+      0.22376634083147717
+     ],
+     [
+      "XAU",
+      0.22376634083147717
+     ],
+     [
+      "USD",
+      0.09113359189432758
+     ],
+     [
+      "CAD",
+      -0.22376634083145497
+     ],
+     [
+      "CHF",
+      -0.22376634083145497
+     ],
+     [
+      "JPY",
+      -0.22376634083147717
+     ],
+     [
+      "EUR",
+      -0.6379351432603375
+     ]
+    ],
+    "tvCount": 1,
+    "tvTf": "4h",
+    "calOk": true,
+    "newsOk": true,
+    "nJudgments": 7,
+    "judgments": [
+     {
+      "symbol": "EURUSD",
+      "direction": "BUY",
+      "score": 8,
+      "max_score": 11,
+      "reject_reason": "",
+      "hasSignal": true,
+      "signal": {
+       "symbol": "EURUSD",
+       "direction": "BUY",
+       "score": 8,
+       "stars": 4,
+       "entry": 1.1924659999999945,
+       "sl": 1.188575073876567,
+       "tp": 1.2002478522468494,
+       "risk_pips": 38.90926123427452,
+       "reward_pips": 77.81852246854903,
+       "rr": 2,
+       "sl_capped": true,
+       "evidences": [
+        "trend:2/2",
+        "level:0/2",
+        "fundamental:2/2",
+        "momentum:1/1",
+        "strength:0/1",
+        "news:1/1",
+        "tv:1/1",
+        "session:1/1"
+       ],
+       "warnings": [
+        "حد ضرر از سطح کلیدی دور بود و به سقف ۳.۰×ATR محدود شد"
+       ]
+      }
+     },
+     {
+      "symbol": "GBPUSD",
+      "direction": null,
+      "score": 0,
+      "max_score": 11,
+      "reject_reason": "NO_SETUP",
+      "hasSignal": false,
+      "signal": null
+     },
+     {
+      "symbol": "USDJPY",
+      "direction": null,
+      "score": 0,
+      "max_score": 11,
+      "reject_reason": "NO_SETUP",
+      "hasSignal": false,
+      "signal": null
+     },
+     {
+      "symbol": "USDCAD",
+      "direction": null,
+      "score": 0,
+      "max_score": 11,
+      "reject_reason": "NO_SETUP",
+      "hasSignal": false,
+      "signal": null
+     },
+     {
+      "symbol": "AUDUSD",
+      "direction": null,
+      "score": 0,
+      "max_score": 11,
+      "reject_reason": "NO_SETUP",
+      "hasSignal": false,
+      "signal": null
+     },
+     {
+      "symbol": "USDCHF",
+      "direction": null,
+      "score": 0,
+      "max_score": 11,
+      "reject_reason": "NO_SETUP",
+      "hasSignal": false,
+      "signal": null
+     },
+     {
+      "symbol": "XAUUSD",
+      "direction": null,
+      "score": 0,
+      "max_score": 11,
+      "reject_reason": "NO_SETUP",
+      "hasSignal": false,
+      "signal": null
+     }
+    ],
+    "resolvedCount": 0,
+    "sparkKeys": [
+     "AUDUSD",
+     "EURUSD",
+     "GBPUSD",
+     "USDCAD",
+     "USDCHF",
+     "USDJPY",
+     "XAUUSD"
+    ]
+   },
+   "trial.dat": {
+    "hasKey": true,
+    "keys": [
+     "days",
+     "last_seen",
+     "started_at"
+    ]
+   }
+  }
+ },
+ "data_outage": {
+  "logs": [
+   "[odin-svc] سرویس رصد آماده شد — اولین چرخه شروع می‌شود",
+   "[odin-svc] دریافت EURUSD...",
+   "[odin-svc] دریافت GBPUSD...",
+   "[odin-svc] دریافت USDJPY...",
+   "[odin-svc] دریافت USDCAD...",
+   "[odin-svc] دریافت AUDUSD...",
+   "[odin-svc] دریافت USDCHF...",
+   "[odin-svc] دریافت XAUUSD...",
+   "[odin-svc] [!] دادهٔ EURUSD ناقص است — رد شد",
+   "[odin-svc] (۱/۷) EURUSD",
+   "[odin-svc] [!] دادهٔ GBPUSD ناقص است — رد شد",
+   "[odin-svc] (۲/۷) GBPUSD",
+   "[odin-svc] [!] دادهٔ USDJPY ناقص است — رد شد",
+   "[odin-svc] (۳/۷) USDJPY",
+   "[odin-svc] [!] دادهٔ USDCAD ناقص است — رد شد",
+   "[odin-svc] (۴/۷) USDCAD",
+   "[odin-svc] [!] دادهٔ AUDUSD ناقص است — رد شد",
+   "[odin-svc] (۵/۷) AUDUSD",
+   "[odin-svc] [!] دادهٔ USDCHF ناقص است — رد شد",
+   "[odin-svc] (۶/۷) USDCHF",
+   "[odin-svc] [!] دادهٔ XAUUSD ناقص است — رد شد",
+   "[odin-svc] (۷/۷) XAUUSD",
+   "[odin-svc] هیچ نمادی تحلیل نشد — اینترنت را بررسی کنید",
+   "[odin-svc] داور: هیچ سیگنالی صادر نشد (دلیل هر نماد در صفحهٔ سیگنال‌ها هست)"
+  ],
+  "consoleErrors": [],
+  "notify": [],
+  "ongoing": [
+   [
+    "رصد بازار — ODIN ASSISTANT",
+    "آخرین تحلیل ۱۷:۳۰ تهران · سیگنال تازه‌ای صادر نشد · چرخهٔ بعدی تا ۱۵ دقیقه"
+   ]
+  ],
+  "cycleDone": [
+   15
+  ],
+  "stopBg": 0,
+  "trial": {
+   "exists": true,
+   "active": true,
+   "tampered": false
+  },
+  "storage": {
+   "sent_signals.json": {},
+   "state.last": {
+    "ranAt": 1790172000000,
+    "errors": 7,
+    "sourceName": "yahoo",
+    "nAnalyses": 0,
+    "verdicts": [],
+    "ranking": [],
+    "tvCount": 0,
+    "tvTf": "4h",
+    "calOk": false,
+    "newsOk": false,
+    "nJudgments": 0,
+    "judgments": [],
+    "resolvedCount": 0,
+    "sparkKeys": []
+   },
+   "trial.dat": {
+    "hasKey": true,
+    "keys": [
+     "days",
+     "last_seen",
+     "started_at"
+    ]
+   }
+  }
+ },
+ "duplicate_cooldown": {
+  "logs": [
+   "[odin-svc] سرویس رصد آماده شد — اولین چرخه شروع می‌شود",
+   "[odin-svc] دریافت EURUSD...",
+   "[odin-svc] دریافت GBPUSD...",
+   "[odin-svc] دریافت USDJPY...",
+   "[odin-svc] دریافت USDCAD...",
+   "[odin-svc] دریافت AUDUSD...",
+   "[odin-svc] دریافت USDCHF...",
+   "[odin-svc] دریافت XAUUSD...",
+   "[odin-svc] (۱/۷) EURUSD",
+   "[odin-svc] (۲/۷) GBPUSD",
+   "[odin-svc] (۳/۷) USDJPY",
+   "[odin-svc] (۴/۷) USDCAD",
+   "[odin-svc] (۵/۷) AUDUSD",
+   "[odin-svc] (۶/۷) USDCHF",
+   "[odin-svc] (۷/۷) XAUUSD",
+   "[odin-svc] تحلیل ۷ نماد انجام شد",
+   "[odin-svc] دریافت تاییدیه تریدینگ‌ویو...",
+   "[odin-svc] تاییدیه تریدینگ‌ویو برای ۱ نماد دریافت شد",
+   "[odin-svc] تقویم اقتصادی: ۲ رویداد",
+   "[odin-svc] موتور اخبار: ۱ خبر (۱ فید موفق، ۰ نامفق)",
+   "[odin-svc] داور: ۱ سیگنال صادر شد",
+   "[odin-svc] سیگنال EURUSD (خرید) در ژورنال ثبت شد",
+   "[odin-svc] دریافت EURUSD...",
+   "[odin-svc] دریافت GBPUSD...",
+   "[odin-svc] دریافت USDJPY...",
+   "[odin-svc] دریافت USDCAD...",
+   "[odin-svc] دریافت AUDUSD...",
+   "[odin-svc] دریافت USDCHF...",
+   "[odin-svc] دریافت XAUUSD...",
+   "[odin-svc] (۱/۷) EURUSD",
+   "[odin-svc] (۲/۷) GBPUSD",
+   "[odin-svc] (۳/۷) USDJPY",
+   "[odin-svc] (۴/۷) USDCAD",
+   "[odin-svc] (۵/۷) AUDUSD",
+   "[odin-svc] (۶/۷) USDCHF",
+   "[odin-svc] (۷/۷) XAUUSD",
+   "[odin-svc] تحلیل ۷ نماد انجام شد",
+   "[odin-svc] دریافت تاییدیه تریدینگ‌ویو...",
+   "[odin-svc] تاییدیه تریدینگ‌ویو برای ۱ نماد دریافت شد",
+   "[odin-svc] تقویم اقتصادی: ۲ رویداد",
+   "[odin-svc] موتور اخبار: ۱ خبر (۱ فید موفق، ۰ نامفق)",
+   "[odin-svc] داور: ۱ سیگنال صادر شد",
+   "[odin-svc] [i] سیگنال EURUSD تکراری است — همین سیگنال ۰ دقیقه پیش ثبت شد — تا ۱۸۰ دقیقهٔ دیگر تکرارش نمی‌کنیم"
+  ],
+  "consoleErrors": [],
+  "notify": [
+   [
+    "سیگنال جدید — EURUSD (خرید)",
+    "EURUSD · امتیاز ۸/۱۱ · ورود 1.19247 · حد ضرر 1.18858 · هدف 1.20025\n۱۷:۳۰ به وقت تهران — پیشنهاد است، نه دستور معامله"
+   ]
+  ],
+  "ongoing": [
+   [
+    "رصد بازار — ODIN ASSISTANT",
+    "آخرین تحلیل ۱۷:۳۰ تهران · ۱ سیگنال تازه صادر شد · چرخهٔ بعدی تا ۱۵ دقیقه"
+   ],
+   [
+    "رصد بازار — ODIN ASSISTANT",
+    "آخرین تحلیل ۱۷:۳۰ تهران · سیگنال تازه‌ای صادر نشد · چرخهٔ بعدی تا ۱۵ دقیقه"
+   ]
+  ],
+  "cycleDone": [
+   15,
+   15
+  ],
+  "stopBg": 0,
+  "trial": {
+   "exists": true,
+   "active": true,
+   "tampered": false
+  },
+  "storage": {
+   "chart.AUDUSD": {
+    "bars": 260
+   },
+   "chart.EURUSD": {
+    "bars": 260
+   },
+   "chart.GBPUSD": {
+    "bars": 260
+   },
+   "chart.USDCAD": {
+    "bars": 260
+   },
+   "chart.USDCHF": {
+    "bars": 260
+   },
+   "chart.USDJPY": {
+    "bars": 260
+   },
+   "chart.XAUUSD": {
+    "bars": 260
+   },
+   "journal.jsonl": [
+    {
+     "kind": "signal",
+     "id": "EURUSD-BUY-20260923140000-1.192466",
+     "symbol": "EURUSD",
+     "direction": "BUY",
+     "sent": true,
+     "score": 8,
+     "outcome": null
+    },
+    {
+     "kind": "signal",
+     "id": "EURUSD-BUY-20260923140000-1.192466",
+     "symbol": "EURUSD",
+     "direction": "BUY",
+     "sent": false,
+     "score": 8,
+     "outcome": null
+    }
+   ],
+   "sent_signals.json": {
+    "EURUSD|BUY": {
+     "ts": "2026-09-23T14:00:00.000Z",
+     "score": 8
+    }
+   },
+   "state.last": {
+    "ranAt": 1790172000000,
+    "errors": 0,
+    "sourceName": "yahoo",
+    "nAnalyses": 7,
+    "verdicts": [
+     "EURUSD=BUY_SETUP",
+     "GBPUSD=WAIT",
+     "USDJPY=WAIT",
+     "USDCAD=WAIT",
+     "AUDUSD=WAIT",
+     "USDCHF=WAIT",
+     "XAUUSD=WAIT"
+    ],
+    "ranking": [
+     [
+      "GBP",
+      0.22376634083147717
+     ],
+     [
+      "AUD",
+      0.22376634083147717
+     ],
+     [
+      "XAU",
+      0.22376634083147717
+     ],
+     [
+      "USD",
+      0.09113359189432758
+     ],
+     [
+      "CAD",
+      -0.22376634083145497
+     ],
+     [
+      "CHF",
+      -0.22376634083145497
+     ],
+     [
+      "JPY",
+      -0.22376634083147717
+     ],
+     [
+      "EUR",
+      -0.6379351432603375
+     ]
+    ],
+    "tvCount": 1,
+    "tvTf": "4h",
+    "calOk": true,
+    "newsOk": true,
+    "nJudgments": 7,
+    "judgments": [
+     {
+      "symbol": "EURUSD",
+      "direction": "BUY",
+      "score": 8,
+      "max_score": 11,
+      "reject_reason": "",
+      "hasSignal": true,
+      "signal": {
+       "symbol": "EURUSD",
+       "direction": "BUY",
+       "score": 8,
+       "stars": 4,
+       "entry": 1.1924659999999945,
+       "sl": 1.188575073876567,
+       "tp": 1.2002478522468494,
+       "risk_pips": 38.90926123427452,
+       "reward_pips": 77.81852246854903,
+       "rr": 2,
+       "sl_capped": true,
+       "evidences": [
+        "trend:2/2",
+        "level:0/2",
+        "fundamental:2/2",
+        "momentum:1/1",
+        "strength:0/1",
+        "news:1/1",
+        "tv:1/1",
+        "session:1/1"
+       ],
+       "warnings": [
+        "حد ضرر از سطح کلیدی دور بود و به سقف ۳.۰×ATR محدود شد"
+       ]
+      }
+     },
+     {
+      "symbol": "GBPUSD",
+      "direction": null,
+      "score": 0,
+      "max_score": 11,
+      "reject_reason": "NO_SETUP",
+      "hasSignal": false,
+      "signal": null
+     },
+     {
+      "symbol": "USDJPY",
+      "direction": null,
+      "score": 0,
+      "max_score": 11,
+      "reject_reason": "NO_SETUP",
+      "hasSignal": false,
+      "signal": null
+     },
+     {
+      "symbol": "USDCAD",
+      "direction": null,
+      "score": 0,
+      "max_score": 11,
+      "reject_reason": "NO_SETUP",
+      "hasSignal": false,
+      "signal": null
+     },
+     {
+      "symbol": "AUDUSD",
+      "direction": null,
+      "score": 0,
+      "max_score": 11,
+      "reject_reason": "NO_SETUP",
+      "hasSignal": false,
+      "signal": null
+     },
+     {
+      "symbol": "USDCHF",
+      "direction": null,
+      "score": 0,
+      "max_score": 11,
+      "reject_reason": "NO_SETUP",
+      "hasSignal": false,
+      "signal": null
+     },
+     {
+      "symbol": "XAUUSD",
+      "direction": null,
+      "score": 0,
+      "max_score": 11,
+      "reject_reason": "NO_SETUP",
+      "hasSignal": false,
+      "signal": null
+     }
+    ],
+    "resolvedCount": 0,
+    "sparkKeys": [
+     "AUDUSD",
+     "EURUSD",
+     "GBPUSD",
+     "USDCAD",
+     "USDCHF",
+     "USDJPY",
+     "XAUUSD"
+    ]
+   },
+   "trial.dat": {
+    "hasKey": true,
+    "keys": [
+     "days",
+     "last_seen",
+     "started_at"
+    ]
+   }
+  }
+ },
+ "alerts_fired": {
+  "logs": [
+   "[odin-svc] سرویس رصد آماده شد — اولین چرخه شروع می‌شود",
+   "[odin-svc] دریافت EURUSD...",
+   "[odin-svc] دریافت GBPUSD...",
+   "[odin-svc] دریافت USDJPY...",
+   "[odin-svc] دریافت USDCAD...",
+   "[odin-svc] دریافت AUDUSD...",
+   "[odin-svc] دریافت USDCHF...",
+   "[odin-svc] دریافت XAUUSD...",
+   "[odin-svc] (۱/۷) EURUSD",
+   "[odin-svc] (۲/۷) GBPUSD",
+   "[odin-svc] (۳/۷) USDJPY",
+   "[odin-svc] (۴/۷) USDCAD",
+   "[odin-svc] (۵/۷) AUDUSD",
+   "[odin-svc] (۶/۷) USDCHF",
+   "[odin-svc] (۷/۷) XAUUSD",
+   "[odin-svc] تحلیل ۷ نماد انجام شد",
+   "[odin-svc] دریافت تاییدیه تریدینگ‌ویو...",
+   "[odin-svc] تاییدیه تریدینگ‌ویو برای ۱ نماد دریافت شد",
+   "[odin-svc] تقویم اقتصادی: ۲ رویداد",
+   "[odin-svc] موتور اخبار: ۱ خبر (۱ فید موفق، ۰ نامفق)",
+   "[odin-svc] داور: ۱ سیگنال صادر شد",
+   "[odin-svc] سیگنال EURUSD (خرید) در ژورنال ثبت شد"
+  ],
+  "consoleErrors": [],
+  "notify": [
+   [
+    "سیگنال جدید — EURUSD (خرید)",
+    "EURUSD · امتیاز ۸/۱۱ · ورود 1.19247 · حد ضرر 1.18858 · هدف 1.20025\n۱۷:۳۰ به وقت تهران — پیشنهاد است، نه دستور معامله"
+   ],
+   [
+    "هشدار قیمت — EURUSD",
+    "EURUSD به سطح 1.25000 رسید (عبور به پایین) — قیمت فعلی 1.19247\n۱۷:۳۰ به وقت تهران"
+   ]
+  ],
+  "ongoing": [
+   [
+    "رصد بازار — ODIN ASSISTANT",
+    "آخرین تحلیل ۱۷:۳۰ تهران · ۱ سیگنال تازه صادر شد · ۱ هشدار قیمت فعال شد · چرخهٔ بعدی تا ۱۵ دقیقه"
+   ]
+  ],
+  "cycleDone": [
+   15
+  ],
+  "stopBg": 0,
+  "trial": {
+   "exists": true,
+   "active": true,
+   "tampered": false
+  },
+  "storage": {
+   "alerts.json": [],
+   "chart.AUDUSD": {
+    "bars": 260
+   },
+   "chart.EURUSD": {
+    "bars": 260
+   },
+   "chart.GBPUSD": {
+    "bars": 260
+   },
+   "chart.USDCAD": {
+    "bars": 260
+   },
+   "chart.USDCHF": {
+    "bars": 260
+   },
+   "chart.USDJPY": {
+    "bars": 260
+   },
+   "chart.XAUUSD": {
+    "bars": 260
+   },
+   "journal.jsonl": [
+    {
+     "kind": "signal",
+     "id": "EURUSD-BUY-20260923140000-1.192466",
+     "symbol": "EURUSD",
+     "direction": "BUY",
+     "sent": true,
+     "score": 8,
+     "outcome": null
+    }
+   ],
+   "sent_signals.json": {
+    "EURUSD|BUY": {
+     "ts": "2026-09-23T14:00:00.000Z",
+     "score": 8
+    }
+   },
+   "state.last": {
+    "ranAt": 1790172000000,
+    "errors": 0,
+    "sourceName": "yahoo",
+    "nAnalyses": 7,
+    "verdicts": [
+     "EURUSD=BUY_SETUP",
+     "GBPUSD=WAIT",
+     "USDJPY=WAIT",
+     "USDCAD=WAIT",
+     "AUDUSD=WAIT",
+     "USDCHF=WAIT",
+     "XAUUSD=WAIT"
+    ],
+    "ranking": [
+     [
+      "GBP",
+      0.22376634083147717
+     ],
+     [
+      "AUD",
+      0.22376634083147717
+     ],
+     [
+      "XAU",
+      0.22376634083147717
+     ],
+     [
+      "USD",
+      0.09113359189432758
+     ],
+     [
+      "CAD",
+      -0.22376634083145497
+     ],
+     [
+      "CHF",
+      -0.22376634083145497
+     ],
+     [
+      "JPY",
+      -0.22376634083147717
+     ],
+     [
+      "EUR",
+      -0.6379351432603375
+     ]
+    ],
+    "tvCount": 1,
+    "tvTf": "4h",
+    "calOk": true,
+    "newsOk": true,
+    "nJudgments": 7,
+    "judgments": [
+     {
+      "symbol": "EURUSD",
+      "direction": "BUY",
+      "score": 8,
+      "max_score": 11,
+      "reject_reason": "",
+      "hasSignal": true,
+      "signal": {
+       "symbol": "EURUSD",
+       "direction": "BUY",
+       "score": 8,
+       "stars": 4,
+       "entry": 1.1924659999999945,
+       "sl": 1.188575073876567,
+       "tp": 1.2002478522468494,
+       "risk_pips": 38.90926123427452,
+       "reward_pips": 77.81852246854903,
+       "rr": 2,
+       "sl_capped": true,
+       "evidences": [
+        "trend:2/2",
+        "level:0/2",
+        "fundamental:2/2",
+        "momentum:1/1",
+        "strength:0/1",
+        "news:1/1",
+        "tv:1/1",
+        "session:1/1"
+       ],
+       "warnings": [
+        "حد ضرر از سطح کلیدی دور بود و به سقف ۳.۰×ATR محدود شد"
+       ]
+      }
+     },
+     {
+      "symbol": "GBPUSD",
+      "direction": null,
+      "score": 0,
+      "max_score": 11,
+      "reject_reason": "NO_SETUP",
+      "hasSignal": false,
+      "signal": null
+     },
+     {
+      "symbol": "USDJPY",
+      "direction": null,
+      "score": 0,
+      "max_score": 11,
+      "reject_reason": "NO_SETUP",
+      "hasSignal": false,
+      "signal": null
+     },
+     {
+      "symbol": "USDCAD",
+      "direction": null,
+      "score": 0,
+      "max_score": 11,
+      "reject_reason": "NO_SETUP",
+      "hasSignal": false,
+      "signal": null
+     },
+     {
+      "symbol": "AUDUSD",
+      "direction": null,
+      "score": 0,
+      "max_score": 11,
+      "reject_reason": "NO_SETUP",
+      "hasSignal": false,
+      "signal": null
+     },
+     {
+      "symbol": "USDCHF",
+      "direction": null,
+      "score": 0,
+      "max_score": 11,
+      "reject_reason": "NO_SETUP",
+      "hasSignal": false,
+      "signal": null
+     },
+     {
+      "symbol": "XAUUSD",
+      "direction": null,
+      "score": 0,
+      "max_score": 11,
+      "reject_reason": "NO_SETUP",
+      "hasSignal": false,
+      "signal": null
+     }
+    ],
+    "resolvedCount": 0,
+    "sparkKeys": [
+     "AUDUSD",
+     "EURUSD",
+     "GBPUSD",
+     "USDCAD",
+     "USDCHF",
+     "USDJPY",
+     "XAUUSD"
+    ]
+   },
+   "trial.dat": {
+    "hasKey": true,
+    "keys": [
+     "days",
+     "last_seen",
+     "started_at"
+    ]
+   }
+  }
+ },
+ "breaking_news": {
+  "logs": [
+   "[odin-svc] سرویس رصد آماده شد — اولین چرخه شروع می‌شود",
+   "[odin-svc] دریافت EURUSD...",
+   "[odin-svc] دریافت GBPUSD...",
+   "[odin-svc] دریافت USDJPY...",
+   "[odin-svc] دریافت USDCAD...",
+   "[odin-svc] دریافت AUDUSD...",
+   "[odin-svc] دریافت USDCHF...",
+   "[odin-svc] دریافت XAUUSD...",
+   "[odin-svc] (۱/۷) EURUSD",
+   "[odin-svc] (۲/۷) GBPUSD",
+   "[odin-svc] (۳/۷) USDJPY",
+   "[odin-svc] (۴/۷) USDCAD",
+   "[odin-svc] (۵/۷) AUDUSD",
+   "[odin-svc] (۶/۷) USDCHF",
+   "[odin-svc] (۷/۷) XAUUSD",
+   "[odin-svc] تحلیل ۷ نماد انجام شد",
+   "[odin-svc] دریافت تاییدیه تریدینگ‌ویو...",
+   "[odin-svc] تاییدیه تریدینگ‌ویو برای ۱ نماد دریافت شد",
+   "[odin-svc] تقویم اقتصادی: ۲ رویداد",
+   "[odin-svc] موتور اخبار: ۱ خبر (۱ فید موفق، ۰ نامفق)",
+   "[odin-svc] داور: ۱ سیگنال صادر شد",
+   "[odin-svc] سیگنال EURUSD (خرید) در ژورنال ثبت شد",
+   "[odin-svc] دریافت EURUSD...",
+   "[odin-svc] دریافت GBPUSD...",
+   "[odin-svc] دریافت USDJPY...",
+   "[odin-svc] دریافت USDCAD...",
+   "[odin-svc] دریافت AUDUSD...",
+   "[odin-svc] دریافت USDCHF...",
+   "[odin-svc] دریافت XAUUSD...",
+   "[odin-svc] (۱/۷) EURUSD",
+   "[odin-svc] (۲/۷) GBPUSD",
+   "[odin-svc] (۳/۷) USDJPY",
+   "[odin-svc] (۴/۷) USDCAD",
+   "[odin-svc] (۵/۷) AUDUSD",
+   "[odin-svc] (۶/۷) USDCHF",
+   "[odin-svc] (۷/۷) XAUUSD",
+   "[odin-svc] تحلیل ۷ نماد انجام شد",
+   "[odin-svc] دریافت تاییدیه تریدینگ‌ویو...",
+   "[odin-svc] تاییدیه تریدینگ‌ویو برای ۱ نماد دریافت شد",
+   "[odin-svc] تقویم اقتصادی: ۲ رویداد",
+   "[odin-svc] موتور اخبار: ۲ خبر (۱ فید موفق، ۰ نامفق، ۱ فوری)",
+   "[odin-svc] داور: هیچ سیگنالی صادر نشد (دلیل هر نماد در صفحهٔ سیگنال‌ها هست)"
+  ],
+  "consoleErrors": [],
+  "notify": [
+   [
+    "سیگنال جدید — EURUSD (خرید)",
+    "EURUSD · امتیاز ۸/۱۱ · ورود 1.19247 · حد ضرر 1.18858 · هدف 1.20025\n۱۷:۳۰ به وقت تهران — پیشنهاد است، نه دستور معامله"
+   ],
+   [
+    "خبر فوری — GoldenBrk",
+    "🚨 BREAKING: ECB surprise decision"
+   ]
+  ],
+  "ongoing": [
+   [
+    "رصد بازار — ODIN ASSISTANT",
+    "آخرین تحلیل ۱۷:۳۰ تهران · ۱ سیگنال تازه صادر شد · چرخهٔ بعدی تا ۱۵ دقیقه"
+   ],
+   [
+    "رصد بازار — ODIN ASSISTANT",
+    "آخرین تحلیل ۱۷:۳۰ تهران · سیگنال تازه‌ای صادر نشد · چرخهٔ بعدی تا ۱۵ دقیقه"
+   ]
+  ],
+  "cycleDone": [
+   15,
+   15
+  ],
+  "stopBg": 0,
+  "trial": {
+   "exists": true,
+   "active": true,
+   "tampered": false
+  },
+  "storage": {
+   "chart.AUDUSD": {
+    "bars": 260
+   },
+   "chart.EURUSD": {
+    "bars": 260
+   },
+   "chart.GBPUSD": {
+    "bars": 260
+   },
+   "chart.USDCAD": {
+    "bars": 260
+   },
+   "chart.USDCHF": {
+    "bars": 260
+   },
+   "chart.USDJPY": {
+    "bars": 260
+   },
+   "chart.XAUUSD": {
+    "bars": 260
+   },
+   "journal.jsonl": [
+    {
+     "kind": "signal",
+     "id": "EURUSD-BUY-20260923140000-1.192466",
+     "symbol": "EURUSD",
+     "direction": "BUY",
+     "sent": true,
+     "score": 8,
+     "outcome": null
+    }
+   ],
+   "sent_signals.json": {
+    "EURUSD|BUY": {
+     "ts": "2026-09-23T14:00:00.000Z",
+     "score": 8
+    }
+   },
+   "state.last": {
+    "ranAt": 1790172000000,
+    "errors": 0,
+    "sourceName": "yahoo",
+    "nAnalyses": 7,
+    "verdicts": [
+     "EURUSD=BUY_SETUP",
+     "GBPUSD=WAIT",
+     "USDJPY=WAIT",
+     "USDCAD=WAIT",
+     "AUDUSD=WAIT",
+     "USDCHF=WAIT",
+     "XAUUSD=WAIT"
+    ],
+    "ranking": [
+     [
+      "GBP",
+      0.22376634083147717
+     ],
+     [
+      "AUD",
+      0.22376634083147717
+     ],
+     [
+      "XAU",
+      0.22376634083147717
+     ],
+     [
+      "USD",
+      0.09113359189432758
+     ],
+     [
+      "CAD",
+      -0.22376634083145497
+     ],
+     [
+      "CHF",
+      -0.22376634083145497
+     ],
+     [
+      "JPY",
+      -0.22376634083147717
+     ],
+     [
+      "EUR",
+      -0.6379351432603375
+     ]
+    ],
+    "tvCount": 1,
+    "tvTf": "4h",
+    "calOk": true,
+    "newsOk": true,
+    "nJudgments": 7,
+    "judgments": [
+     {
+      "symbol": "EURUSD",
+      "direction": "BUY",
+      "score": 0,
+      "max_score": 11,
+      "reject_reason": "VETO",
+      "hasSignal": false,
+      "signal": null
+     },
+     {
+      "symbol": "GBPUSD",
+      "direction": null,
+      "score": 0,
+      "max_score": 11,
+      "reject_reason": "NO_SETUP",
+      "hasSignal": false,
+      "signal": null
+     },
+     {
+      "symbol": "USDJPY",
+      "direction": null,
+      "score": 0,
+      "max_score": 11,
+      "reject_reason": "NO_SETUP",
+      "hasSignal": false,
+      "signal": null
+     },
+     {
+      "symbol": "USDCAD",
+      "direction": null,
+      "score": 0,
+      "max_score": 11,
+      "reject_reason": "NO_SETUP",
+      "hasSignal": false,
+      "signal": null
+     },
+     {
+      "symbol": "AUDUSD",
+      "direction": null,
+      "score": 0,
+      "max_score": 11,
+      "reject_reason": "NO_SETUP",
+      "hasSignal": false,
+      "signal": null
+     },
+     {
+      "symbol": "USDCHF",
+      "direction": null,
+      "score": 0,
+      "max_score": 11,
+      "reject_reason": "NO_SETUP",
+      "hasSignal": false,
+      "signal": null
+     },
+     {
+      "symbol": "XAUUSD",
+      "direction": null,
+      "score": 0,
+      "max_score": 11,
+      "reject_reason": "NO_SETUP",
+      "hasSignal": false,
+      "signal": null
+     }
+    ],
+    "resolvedCount": 0,
+    "sparkKeys": [
+     "AUDUSD",
+     "EURUSD",
+     "GBPUSD",
+     "USDCAD",
+     "USDCHF",
+     "USDJPY",
+     "XAUUSD"
+    ]
+   },
+   "trial.dat": {
+    "hasKey": true,
+    "keys": [
+     "days",
+     "last_seen",
+     "started_at"
+    ]
+   }
+  }
+ },
+ "judge_disabled": {
+  "logs": [
+   "[odin-svc] سرویس رصد آماده شد — اولین چرخه شروع می‌شود"
+  ],
+  "consoleErrors": [],
+  "notify": [],
+  "ongoing": [
+   [
+    "رصد بازار — ODIN ASSISTANT",
+    "داور در تنظیمات خاموش است — سیگنالی صادر نمی‌شود"
+   ]
+  ],
+  "cycleDone": [
+   15
+  ],
+  "stopBg": 0,
+  "trial": {
+   "exists": true,
+   "active": true,
+   "tampered": false
+  },
+  "storage": {
+   "settings": {
+    "judge_enabled": false
+   },
+   "trial.dat": {
+    "hasKey": true,
+    "keys": [
+     "days",
+     "last_seen",
+     "started_at"
+    ]
+   }
+  }
+ },
+ "features_disabled": {
+  "logs": [
+   "[odin-svc] سرویس رصد آماده شد — اولین چرخه شروع می‌شود",
+   "[odin-svc] دریافت EURUSD...",
+   "[odin-svc] دریافت GBPUSD...",
+   "[odin-svc] دریافت USDJPY...",
+   "[odin-svc] دریافت USDCAD...",
+   "[odin-svc] دریافت AUDUSD...",
+   "[odin-svc] دریافت USDCHF...",
+   "[odin-svc] دریافت XAUUSD...",
+   "[odin-svc] (۱/۷) EURUSD",
+   "[odin-svc] (۲/۷) GBPUSD",
+   "[odin-svc] (۳/۷) USDJPY",
+   "[odin-svc] (۴/۷) USDCAD",
+   "[odin-svc] (۵/۷) AUDUSD",
+   "[odin-svc] (۶/۷) USDCHF",
+   "[odin-svc] (۷/۷) XAUUSD",
+   "[odin-svc] تحلیل ۷ نماد انجام شد",
+   "[odin-svc] [!] تقویم اقتصادی در دسترس نیست: غیرفعال در تنظیمات",
+   "[odin-svc] [!] موتور اخبار: غیرفعال در تنظیمات",
+   "[odin-svc] داور: هیچ سیگنالی صادر نشد (دلیل هر نماد در صفحهٔ سیگنال‌ها هست)"
+  ],
+  "consoleErrors": [],
+  "notify": [],
+  "ongoing": [
+   [
+    "رصد بازار — ODIN ASSISTANT",
+    "آخرین تحلیل ۱۷:۳۰ تهران · سیگنال تازه‌ای صادر نشد · چرخهٔ بعدی تا ۱۵ دقیقه"
+   ]
+  ],
+  "cycleDone": [
+   15
+  ],
+  "stopBg": 0,
+  "trial": {
+   "exists": true,
+   "active": true,
+   "tampered": false
+  },
+  "storage": {
+   "chart.AUDUSD": {
+    "bars": 260
+   },
+   "chart.EURUSD": {
+    "bars": 260
+   },
+   "chart.GBPUSD": {
+    "bars": 260
+   },
+   "chart.USDCAD": {
+    "bars": 260
+   },
+   "chart.USDCHF": {
+    "bars": 260
+   },
+   "chart.USDJPY": {
+    "bars": 260
+   },
+   "chart.XAUUSD": {
+    "bars": 260
+   },
+   "sent_signals.json": {},
+   "settings": {
+    "fund_enabled": false,
+    "news_enabled": false,
+    "tv_enabled": false
+   },
+   "state.last": {
+    "ranAt": 1790172000000,
+    "errors": 0,
+    "sourceName": "yahoo",
+    "nAnalyses": 7,
+    "verdicts": [
+     "EURUSD=BUY_SETUP",
+     "GBPUSD=WAIT",
+     "USDJPY=WAIT",
+     "USDCAD=WAIT",
+     "AUDUSD=WAIT",
+     "USDCHF=WAIT",
+     "XAUUSD=WAIT"
+    ],
+    "ranking": [
+     [
+      "GBP",
+      0.22376634083147717
+     ],
+     [
+      "AUD",
+      0.22376634083147717
+     ],
+     [
+      "XAU",
+      0.22376634083147717
+     ],
+     [
+      "USD",
+      0.09113359189432758
+     ],
+     [
+      "CAD",
+      -0.22376634083145497
+     ],
+     [
+      "CHF",
+      -0.22376634083145497
+     ],
+     [
+      "JPY",
+      -0.22376634083147717
+     ],
+     [
+      "EUR",
+      -0.6379351432603375
+     ]
+    ],
+    "tvCount": 0,
+    "tvTf": "4h",
+    "calOk": false,
+    "newsOk": false,
+    "nJudgments": 7,
+    "judgments": [
+     {
+      "symbol": "EURUSD",
+      "direction": "BUY",
+      "score": 4,
+      "max_score": 11,
+      "reject_reason": "LOW_SCORE",
+      "hasSignal": false,
+      "signal": null
+     },
+     {
+      "symbol": "GBPUSD",
+      "direction": null,
+      "score": 0,
+      "max_score": 11,
+      "reject_reason": "NO_SETUP",
+      "hasSignal": false,
+      "signal": null
+     },
+     {
+      "symbol": "USDJPY",
+      "direction": null,
+      "score": 0,
+      "max_score": 11,
+      "reject_reason": "NO_SETUP",
+      "hasSignal": false,
+      "signal": null
+     },
+     {
+      "symbol": "USDCAD",
+      "direction": null,
+      "score": 0,
+      "max_score": 11,
+      "reject_reason": "NO_SETUP",
+      "hasSignal": false,
+      "signal": null
+     },
+     {
+      "symbol": "AUDUSD",
+      "direction": null,
+      "score": 0,
+      "max_score": 11,
+      "reject_reason": "NO_SETUP",
+      "hasSignal": false,
+      "signal": null
+     },
+     {
+      "symbol": "USDCHF",
+      "direction": null,
+      "score": 0,
+      "max_score": 11,
+      "reject_reason": "NO_SETUP",
+      "hasSignal": false,
+      "signal": null
+     },
+     {
+      "symbol": "XAUUSD",
+      "direction": null,
+      "score": 0,
+      "max_score": 11,
+      "reject_reason": "NO_SETUP",
+      "hasSignal": false,
+      "signal": null
+     }
+    ],
+    "resolvedCount": 0,
+    "sparkKeys": [
+     "AUDUSD",
+     "EURUSD",
+     "GBPUSD",
+     "USDCAD",
+     "USDCHF",
+     "USDJPY",
+     "XAUUSD"
+    ]
+   },
+   "trial.dat": {
+    "hasKey": true,
+    "keys": [
+     "days",
+     "last_seen",
+     "started_at"
+    ]
+   }
+  }
+ },
+ "market_closed": {
+  "logs": [
+   "[odin-svc] سرویس رصد آماده شد — اولین چرخه شروع می‌شود"
+  ],
+  "consoleErrors": [],
+  "notify": [],
+  "ongoing": [
+   [
+    "رصد بازار — ODIN ASSISTANT",
+    "بازار بسته است (شنبه — بازار فارکس بسته است) — بررسی هر ۳۰ دقیقه"
+   ]
+  ],
+  "cycleDone": [
+   30
+  ],
+  "stopBg": 0,
+  "trial": {
+   "exists": true,
+   "active": true,
+   "tampered": false
+  },
+  "storage": {
+   "trial.dat": {
+    "hasKey": true,
+    "keys": [
+     "days",
+     "last_seen",
+     "started_at"
+    ]
+   }
+  }
+ }
+}

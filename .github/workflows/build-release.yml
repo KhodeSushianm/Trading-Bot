@@ -120,6 +120,13 @@ jobs:
           node tests/js/smoke_onboarding.js
           node tests/js/smoke_core.js
 
+      # فاز ۶ معماری پلاگین: میخ‌های رفتاری موتور JS (svcTick/cycleCore/
+      # runPipeline) — قبل از سوییچ به پلاگین‌ها نوشته و سبز شده‌اند؛ بعد از
+      # سوییچ باید بدون تغییر سبز بمانند. شامل ۸ سناریوی طلایی آفلاین
+      # (tests/js/golden/cycle_core_golden.json — FakeDate ثابت، بدون شبکه).
+      - name: JS engine behavior pins + golden cycle (آفلاین)
+        run: node tests/js/test_cycle_switch.js
+
       - name: Data-dir logic test (پرتابل vs نصب‌شده)
         run: python tests/manual/test_paths_install.py
 
