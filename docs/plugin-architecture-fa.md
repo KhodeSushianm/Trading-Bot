@@ -1,6 +1,6 @@
 # 🏗️ معماری پلاگین ODIN — Contract-Based + Plugin-Driven
 
-> **وضعیت:** فازهای ۱، ۲، ۳a و ۴ اجرا شدند (هستهٔ پایتون + adapterها + سوییچ engine + rule-pluginهای داور)؛ ۳b و ۵–۸ در انتظار Preview + تأیید مالک
+> **وضعیت:** فازهای ۱، ۲، ۳a، ۴ و ۵ اجرا شدند (هستهٔ پایتون + adapterها + سوییچ engine + rule-pluginهای داور + هستهٔ JS)؛ ۳b و ۶–۸ در انتظار Preview + تأیید مالک
 > **نسخهٔ پایهٔ سند:** v0.24.0 — کامیت `07b17d4`
 > **اصل حاکم:** Behavior Preservation + Incremental Refactoring
 > **مخاطب:** توسعه‌دهنده (انسان) و هوش مصنوعی — همراه با `ODIN-AI-Context-Pack-fa.md`
@@ -321,4 +321,5 @@ false`) → config-bridge پلاگین را خاموش می‌کند → resolve
 | ۲ — adapterهای پایتون | ۲۰۲۶-۰۹-۲۳ | `b6f0099` | ✅ `src/plugins/` (۱۴ پلاگین، ۱۳ قرارداد با فراهم‌کننده) + ۷۷ بررسی طلایی (adapter == فراخوانی مستقیم)؛ veto@1/evidence@1 عمداً تا فاز ۴ خالی |
 | ۳a — سوییچ engine | ۲۰۲۶-۰۹-۲۳ | `84b9de1` (میخ‌ها) + `f4df691` | ✅ importهای فیچر engine: ۱۸ → ۴ (core/plugins + JudgeContext + fa/config/app_paths)؛ BUS با ۱۲ نقطهٔ رویداد؛ بدنهٔ _send_telegram به پلاگین notify منتقل شد؛ میخ‌ها (۴۷ بررسی، شامل طلاییِ چرخهٔ کامل با ۱ سیگنال BUY 8/11) **بدون تغییر** سبز؛ سربار _caps ≈ ۰٫۱۵ms |
 | ۴ — rule-pluginهای داور | ۲۰۲۶-۰۹-۲۳ | `96ee821` (میخ‌ها) + `5633cdf` | ✅ ۷ وتو به توابع مستقل استخراج شد (بایت‌به‌بایت) + ۱۵ rule-plugin (`veto-*`×۷ + `ev-*`×۸) و تفکیک `judge-risk`؛ judge-core registry-aware با fallback صادقانه؛ ترتیب با priority پین شد؛ میخ‌ها: ۱۸۸ بررسی + طلاییِ باتری سناریوها **بدون تغییر** سبز؛ test_plugins: ۷۸ → ۱۵۴ بررسی (adapter==مستقیم ×۱۵ + باتریِ مسیر registry == طلایی بایت‌به‌بایت)؛ parity زنده: judge live/sim ✅. تنها قرمز (۲۳/۲۴): باگ از‌قبل‌موجودِ `\w` ASCII در PUNCT_RE خبر JS (عنوانِ دارای «é») — بی‌ربط به فاز ۴؛ به تصمیم مالک در کامیتی جدا **رفع شد**: `PUNCT_RE` یونیکد (\p{L}\p{N}_ با u + fallback امن برای WebView قدیمی) + پین قطعیِ «news dedupeKey» در run_parity (۲۴ → ۲۵ تست، سبز). اثر جانبیِ مهم: dedupe کاذبِ خبرهای فارسی در اندروید هم برطرف شد |
-| ۳b · ۵–۸ | — | — | در انتظار Preview + تأیید مالک (قانون اجرا) |
+| ۵ — هستهٔ JS | ۲۰۲۶-۰۹-۲۳ | *(این کامیت)* | ✅ `js/core.js` (ES5 خالص، خودبسنده، inert — آینهٔ `src/core/`: ۱۵ قرارداد + اعتبارسنج ساختاری · manifest با پیام‌های فارسی همسان · registry · resolveOrder (Kahn + آبشار + حلقهٔ پرسروصدا) · lifecycle + قرنطینه · config-bridge چهارسطحی (pyBool برای truthiness پایتون) · bus همگام ایزوله · pipeline با StageResult و ترتیب «صریح پیش از پلاگین») + `smoke_core.js` (۱۳۱ بررسی: آینهٔ رفتاریِ ۸ بخش test_core.py + پینِ پاریتیِ STAGES/EVENTS/CONTRACTS/STATES/ALLOWED **با استخراج مستقیم از سورس پایتون** + نگهبان‌های ES5/inert/اولین-اسکریپت). تنها تغییر فایل فعلی: `index.html` یک تگ اسکریپت (core.js اول). هر ۱۰ اسموک موجود + parity ۲۵/۲۵ **بدون تغییر** سبز. CORE_VERSION عمداً در JS نیست (نگهبانِ شمارهٔ نسخهٔ هاردکد، بررسی ۷ smoke_theme_parity) |
+| ۳b · ۶–۸ | — | — | در انتظار Preview + تأیید مالک (قانون اجرا) |

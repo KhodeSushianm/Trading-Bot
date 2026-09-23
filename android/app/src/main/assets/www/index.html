@@ -119,6 +119,10 @@
 <!-- تست -->
 <div id="toast-root" class="hidden"></div>
 
+<!-- هستهٔ معماری پلاگین (فاز ۵) — باید *پیش از همه* بار شود: ثبتِ پلاگین‌ها
+     (فاز ۶) به بودنِ O.core در زمان اجرای ماژول‌ها نیاز دارد. تا فاز ۶ هیچ
+     مصرف‌کننده‌ای ندارد (inert — نگهبانش smoke_core.js است). -->
+<script src="js/core.js"></script>
 <script src="js/md5.js"></script>
 <script src="js/fa.js"></script>
 <script src="js/icons.js"></script>

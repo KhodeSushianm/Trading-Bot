@@ -118,6 +118,7 @@ jobs:
           node tests/js/smoke_theme_parity.js
           node tests/js/smoke_layout.js
           node tests/js/smoke_onboarding.js
+          node tests/js/smoke_core.js
 
       - name: Data-dir logic test (پرتابل vs نصب‌شده)
         run: python tests/manual/test_paths_install.py
