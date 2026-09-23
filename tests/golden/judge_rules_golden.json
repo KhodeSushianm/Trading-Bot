@@ -1,0 +1,2081 @@
+{
+ "evidence_branches": {
+  "fund_cal_failed": {
+   "detail_fa": "تقویم در دسترس نبود — نمی‌توانیم تاییدش کنیم، پس امتیازی نمی‌گیرد",
+   "icon": "❔",
+   "key": "fundamental",
+   "label_fa": "پنجرهٔ فاندامنتال پاک",
+   "max_points": 2,
+   "ok": false,
+   "points": 0,
+   "unavailable": true
+  },
+  "fund_cal_off": {
+   "detail_fa": "موتور فاندامنتال خاموش است — نمی‌توانیم تاییدش کنیم، پس امتیازی نمی‌گیرد",
+   "icon": "❔",
+   "key": "fundamental",
+   "label_fa": "پنجرهٔ فاندامنتال پاک",
+   "max_points": 2,
+   "ok": false,
+   "points": 0,
+   "unavailable": true
+  },
+  "fund_clean": {
+   "detail_fa": "هیچ رویداد پراثری تا ۶ ساعت آینده روی EUR/USD نیست — مسیر برای معامله باز است",
+   "icon": "✅",
+   "key": "fundamental",
+   "label_fa": "پنجرهٔ فاندامنتال پاک",
+   "max_points": 2,
+   "ok": true,
+   "points": 2,
+   "unavailable": false
+  },
+  "fund_high_soon": {
+   "detail_fa": "رویداد پراثر «تورم سالانه» (آمریکا) تا ۲.۰ ساعت دیگر — ورود به معامله قبل از آن ریسک دارد",
+   "icon": "➖",
+   "key": "fundamental",
+   "label_fa": "پنجرهٔ فاندامنتال پاک",
+   "max_points": 2,
+   "ok": false,
+   "points": 0,
+   "unavailable": false
+  },
+  "fund_med_soon": {
+   "detail_fa": "رویداد پراثری تا ۶ ساعت آینده نیست؛ فقط «خرده‌فروشی هسته» (اثر متوسط) تا ۱.۰ ساعت دیگر",
+   "icon": "✅",
+   "key": "fundamental",
+   "label_fa": "پنجرهٔ فاندامنتال پاک",
+   "max_points": 2,
+   "ok": true,
+   "points": 1,
+   "unavailable": false
+  },
+  "level_buy_close": {
+   "detail_fa": "حمایت 1.1486 در فاصلهٔ ۰.۴ برابر ATR — قیمت چسبیده به سطح است (واکنش تازه)",
+   "icon": "✅",
+   "key": "level",
+   "label_fa": "واکنش به سطح کلیدی (حمایت)",
+   "max_points": 2,
+   "ok": true,
+   "points": 2,
+   "unavailable": false
+  },
+  "level_buy_far": {
+   "detail_fa": "حمایت 1.14 در فاصلهٔ ۹.۰ برابر ATR — قیمت از سطح فاصله گرفته (دیر رسیده‌ایم)",
+   "icon": "➖",
+   "key": "level",
+   "label_fa": "واکنش به سطح کلیدی (حمایت)",
+   "max_points": 2,
+   "ok": false,
+   "points": 0,
+   "unavailable": false
+  },
+  "level_buy_near": {
+   "detail_fa": "حمایت 1.148 در فاصلهٔ ۱.۰ برابر ATR — قیمت نزدیک سطح است",
+   "icon": "✅",
+   "key": "level",
+   "label_fa": "واکنش به سطح کلیدی (حمایت)",
+   "max_points": 2,
+   "ok": true,
+   "points": 1,
+   "unavailable": false
+  },
+  "level_buy_unavailable": {
+   "detail_fa": "سطح حمایت نزدیکی پیدا نشد — این مدرک قابل بررسی نیست",
+   "icon": "❔",
+   "key": "level",
+   "label_fa": "واکنش به سطح کلیدی (حمایت)",
+   "max_points": 2,
+   "ok": false,
+   "points": 0,
+   "unavailable": true
+  },
+  "level_sell_close": {
+   "detail_fa": "مقاومت 1.1494 در فاصلهٔ ۰.۴ برابر ATR — قیمت چسبیده به سطح است (واکنش تازه)",
+   "icon": "✅",
+   "key": "level",
+   "label_fa": "واکنش به سطح کلیدی (مقاومت)",
+   "max_points": 2,
+   "ok": true,
+   "points": 2,
+   "unavailable": false
+  },
+  "mom_buy_confirm": {
+   "detail_fa": "RSI=38 و رو به بالا ↗️ — پولبک در حال برگشت است (بهترین نقطهٔ ورود)",
+   "icon": "✅",
+   "key": "momentum",
+   "label_fa": "تایید مومنتوم (RSI)",
+   "max_points": 1,
+   "ok": true,
+   "points": 1,
+   "unavailable": false
+  },
+  "mom_buy_high": {
+   "detail_fa": "RSI=55 بالای ۵۰ است — مومنتوم، ورود را تایید نمی‌کند",
+   "icon": "➖",
+   "key": "momentum",
+   "label_fa": "تایید مومنتوم (RSI)",
+   "max_points": 1,
+   "ok": false,
+   "points": 0,
+   "unavailable": false
+  },
+  "mom_buy_not_rising": {
+   "detail_fa": "RSI=38 رو به بالا نیست — مومنتوم، ورود را تایید نمی‌کند",
+   "icon": "➖",
+   "key": "momentum",
+   "label_fa": "تایید مومنتوم (RSI)",
+   "max_points": 1,
+   "ok": false,
+   "points": 0,
+   "unavailable": false
+  },
+  "mom_buy_oversold": {
+   "detail_fa": "RSI=25 در اشباع فروش است — هنوز تایید برگشت نیامده؛ ممکن است «کف‌گیری» ادامه داشته باشد",
+   "icon": "➖",
+   "key": "momentum",
+   "label_fa": "تایید مومنتوم (RSI)",
+   "max_points": 1,
+   "ok": false,
+   "points": 0,
+   "unavailable": false
+  },
+  "mom_sell_confirm": {
+   "detail_fa": "RSI=62 و رو به پایین ↘️ — اصلاح رو به بالا در روند نزولی (بهترین نقطهٔ ورود فروش)",
+   "icon": "✅",
+   "key": "momentum",
+   "label_fa": "تایید مومنتوم (RSI)",
+   "max_points": 1,
+   "ok": true,
+   "points": 1,
+   "unavailable": false
+  },
+  "mom_sell_low": {
+   "detail_fa": "RSI=45 — مومنتوم، ورود فروش را تایید نمی‌کند",
+   "icon": "➖",
+   "key": "momentum",
+   "label_fa": "تایید مومنتوم (RSI)",
+   "max_points": 1,
+   "ok": false,
+   "points": 0,
+   "unavailable": false
+  },
+  "mom_sell_overbought": {
+   "detail_fa": "RSI=75 در اشباع خرید است — هنوز تایید برگشت نیامده",
+   "icon": "➖",
+   "key": "momentum",
+   "label_fa": "تایید مومنتوم (RSI)",
+   "max_points": 1,
+   "ok": false,
+   "points": 0,
+   "unavailable": false
+  },
+  "news_contra": {
+   "detail_fa": "⚠️ اخبار خلاف جهت است (-۱ رأی): «Euro falls as ECB signals rate cuts»",
+   "icon": "➖",
+   "key": "news",
+   "label_fa": "تایید خبری",
+   "max_points": 1,
+   "ok": false,
+   "points": 0,
+   "unavailable": false
+  },
+  "news_neutral": {
+   "detail_fa": "اخبار سیگنال روشنی برای این نماد ندارد (خنثی)",
+   "icon": "➖",
+   "key": "news",
+   "label_fa": "تایید خبری",
+   "max_points": 1,
+   "ok": false,
+   "points": 0,
+   "unavailable": false
+  },
+  "news_supports": {
+   "detail_fa": "اخبار جهت خرید را تایید می‌کند (+۲ رأی): «Euro rallies as ECB turns hawkish»؛ «Dollar slides on soft US data»",
+   "icon": "✅",
+   "key": "news",
+   "label_fa": "تایید خبری",
+   "max_points": 1,
+   "ok": true,
+   "points": 1,
+   "unavailable": false
+  },
+  "news_supports_sell": {
+   "detail_fa": "اخبار جهت فروش را تایید می‌کند (+۱ رأی): «Dollar rallies as Fed turns hawkish»",
+   "icon": "✅",
+   "key": "news",
+   "label_fa": "تایید خبری",
+   "max_points": 1,
+   "ok": true,
+   "points": 1,
+   "unavailable": false
+  },
+  "news_unavailable": {
+   "detail_fa": "موتور اخبار در دسترس نبود — این مدرک بررسی نشد",
+   "icon": "❔",
+   "key": "news",
+   "label_fa": "تایید خبری",
+   "max_points": 1,
+   "ok": false,
+   "points": 0,
+   "unavailable": true
+  },
+  "sess_closed": {
+   "detail_fa": "شنبه — بازار فارکس بسته است 🔒",
+   "icon": "➖",
+   "key": "session",
+   "label_fa": "زمان‌بندی مناسب (سشن)",
+   "max_points": 1,
+   "ok": false,
+   "points": 0,
+   "unavailable": false
+  },
+  "sess_liquid": {
+   "detail_fa": "سشن توکیو + لندن — نقدینگی خوب برای جفت‌ارزهای ما",
+   "icon": "✅",
+   "key": "session",
+   "label_fa": "زمان‌بندی مناسب (سشن)",
+   "max_points": 1,
+   "ok": true,
+   "points": 1,
+   "unavailable": false
+  },
+  "sess_overlap": {
+   "detail_fa": "سشن لندن + نیویورک (هم‌پوشانی — بهترین نقدینگی ⭐) — بیشترین نقدینگی و کمترین اسپرد هفته",
+   "icon": "✅",
+   "key": "session",
+   "label_fa": "زمان‌بندی مناسب (سشن)",
+   "max_points": 1,
+   "ok": true,
+   "points": 1,
+   "unavailable": false
+  },
+  "sess_thin": {
+   "detail_fa": "سشن سیدنی + توکیو — نقدینگی کمتر، حرکت‌ها کم‌جان‌تر و اسپرد نسبتاً بیشتر",
+   "icon": "➖",
+   "key": "session",
+   "label_fa": "زمان‌بندی مناسب (سشن)",
+   "max_points": 1,
+   "ok": false,
+   "points": 0,
+   "unavailable": false
+  },
+  "str_buy_aligned": {
+   "detail_fa": "رتبهٔ EUR: ۱ از ۴ | رتبهٔ USD: ۳ از ۴ → جریان قدرت به نفع خرید است ✅",
+   "icon": "✅",
+   "key": "strength",
+   "label_fa": "هم‌جهتی جریان قدرت ارزها",
+   "max_points": 1,
+   "ok": true,
+   "points": 1,
+   "unavailable": false
+  },
+  "str_buy_contra": {
+   "detail_fa": "رتبهٔ EUR: ۳ از ۴ | رتبهٔ USD: ۱ از ۴ → جریان قدرت خلاف جهت است (برای EUR قوی‌تر از USD باید برعکس می‌بود)",
+   "icon": "➖",
+   "key": "strength",
+   "label_fa": "هم‌جهتی جریان قدرت ارزها",
+   "max_points": 1,
+   "ok": false,
+   "points": 0,
+   "unavailable": false
+  },
+  "str_empty": {
+   "detail_fa": "رتبه‌بندی قدرت ارزها محاسبه نشد",
+   "icon": "❔",
+   "key": "strength",
+   "label_fa": "هم‌جهتی جریان قدرت ارزها",
+   "max_points": 1,
+   "ok": false,
+   "points": 0,
+   "unavailable": true
+  },
+  "str_missing": {
+   "detail_fa": "EUR یا USD در جدول قدرت ارزها نیست",
+   "icon": "❔",
+   "key": "strength",
+   "label_fa": "هم‌جهتی جریان قدرت ارزها",
+   "max_points": 1,
+   "ok": false,
+   "points": 0,
+   "unavailable": true
+  },
+  "str_sell_aligned": {
+   "detail_fa": "رتبهٔ EUR: ۳ از ۴ | رتبهٔ USD: ۱ از ۴ → جریان قدرت به نفع فروش است ✅",
+   "icon": "✅",
+   "key": "strength",
+   "label_fa": "هم‌جهتی جریان قدرت ارزها",
+   "max_points": 1,
+   "ok": true,
+   "points": 1,
+   "unavailable": false
+  },
+  "trend_medium": {
+   "detail_fa": "روند صعودی 📈 و تایم‌فریم ۱ ساعته هم تایید می‌کند؛ ADX=22 → روند متوسط",
+   "icon": "✅",
+   "key": "trend",
+   "label_fa": "هم‌راستایی روند ۴ ساعته و ۱ ساعته",
+   "max_points": 2,
+   "ok": true,
+   "points": 1,
+   "unavailable": false
+  },
+  "trend_strong": {
+   "detail_fa": "روند صعودی 📈 و تایم‌فریم ۱ ساعته هم تایید می‌کند؛ ADX=32 → روند قوی",
+   "icon": "✅",
+   "key": "trend",
+   "label_fa": "هم‌راستایی روند ۴ ساعته و ۱ ساعته",
+   "max_points": 2,
+   "ok": true,
+   "points": 2,
+   "unavailable": false
+  },
+  "tv_match_buy": {
+   "detail_fa": "امتیاز تکنیکال رسمی تریدینگ‌ویو «BUY» است (۱۳ خرید/۴ فروش/۹ خنثی) — هم‌جهت با ما ✅",
+   "icon": "✅",
+   "key": "tv",
+   "label_fa": "هم‌جهتی با تریدینگ‌ویو",
+   "max_points": 1,
+   "ok": true,
+   "points": 1,
+   "unavailable": false
+  },
+  "tv_match_sell": {
+   "detail_fa": "امتیاز تکنیکال رسمی تریدینگ‌ویو «SELL» است (۴ خرید/۱۳ فروش/۹ خنثی) — هم‌جهت با ما ✅",
+   "icon": "✅",
+   "key": "tv",
+   "label_fa": "هم‌جهتی با تریدینگ‌ویو",
+   "max_points": 1,
+   "ok": true,
+   "points": 1,
+   "unavailable": false
+  },
+  "tv_neutral": {
+   "detail_fa": "تریدینگ‌ویو خنثی است (۶ خرید/۶ فروش/۱۳ خنثی) — کمکی به تایید نمی‌کند",
+   "icon": "➖",
+   "key": "tv",
+   "label_fa": "هم‌جهتی با تریدینگ‌ویو",
+   "max_points": 1,
+   "ok": false,
+   "points": 0,
+   "unavailable": false
+  },
+  "tv_opposite": {
+   "detail_fa": "⚠️ تریدینگ‌ویو «SELL» می‌گوید — خلاف جهت تحلیل ما",
+   "icon": "➖",
+   "key": "tv",
+   "label_fa": "هم‌جهتی با تریدینگ‌ویو",
+   "max_points": 1,
+   "ok": false,
+   "points": 0,
+   "unavailable": false
+  },
+  "tv_unavailable": {
+   "detail_fa": "تاییدیهٔ تریدینگ‌ویو در دسترس نبود",
+   "icon": "❔",
+   "key": "tv",
+   "label_fa": "هم‌جهتی با تریدینگ‌ویو",
+   "max_points": 1,
+   "ok": false,
+   "points": 0,
+   "unavailable": true
+  }
+ },
+ "judge_all_mixed": [
+  {
+   "direction": "BUY",
+   "evidences": [
+    {
+     "detail_fa": "روند صعودی 📈 و تایم‌فریم ۱ ساعته هم تایید می‌کند؛ ADX=32 → روند قوی",
+     "icon": "✅",
+     "key": "trend",
+     "label_fa": "هم‌راستایی روند ۴ ساعته و ۱ ساعته",
+     "max_points": 2,
+     "ok": true,
+     "points": 2,
+     "unavailable": false
+    },
+    {
+     "detail_fa": "حمایت 1.1486 در فاصلهٔ ۰.۴ برابر ATR — قیمت چسبیده به سطح است (واکنش تازه)",
+     "icon": "✅",
+     "key": "level",
+     "label_fa": "واکنش به سطح کلیدی (حمایت)",
+     "max_points": 2,
+     "ok": true,
+     "points": 2,
+     "unavailable": false
+    },
+    {
+     "detail_fa": "هیچ رویداد پراثری تا ۶ ساعت آینده روی EUR/USD نیست — مسیر برای معامله باز است",
+     "icon": "✅",
+     "key": "fundamental",
+     "label_fa": "پنجرهٔ فاندامنتال پاک",
+     "max_points": 2,
+     "ok": true,
+     "points": 2,
+     "unavailable": false
+    },
+    {
+     "detail_fa": "RSI=38 و رو به بالا ↗️ — پولبک در حال برگشت است (بهترین نقطهٔ ورود)",
+     "icon": "✅",
+     "key": "momentum",
+     "label_fa": "تایید مومنتوم (RSI)",
+     "max_points": 1,
+     "ok": true,
+     "points": 1,
+     "unavailable": false
+    },
+    {
+     "detail_fa": "رتبهٔ EUR: ۱ از ۴ | رتبهٔ USD: ۳ از ۴ → جریان قدرت به نفع خرید است ✅",
+     "icon": "✅",
+     "key": "strength",
+     "label_fa": "هم‌جهتی جریان قدرت ارزها",
+     "max_points": 1,
+     "ok": true,
+     "points": 1,
+     "unavailable": false
+    },
+    {
+     "detail_fa": "موتور اخبار در دسترس نبود — این مدرک بررسی نشد",
+     "icon": "❔",
+     "key": "news",
+     "label_fa": "تایید خبری",
+     "max_points": 1,
+     "ok": false,
+     "points": 0,
+     "unavailable": true
+    },
+    {
+     "detail_fa": "امتیاز تکنیکال رسمی تریدینگ‌ویو «BUY» است (۱۳ خرید/۴ فروش/۹ خنثی) — هم‌جهت با ما ✅",
+     "icon": "✅",
+     "key": "tv",
+     "label_fa": "هم‌جهتی با تریدینگ‌ویو",
+     "max_points": 1,
+     "ok": true,
+     "points": 1,
+     "unavailable": false
+    },
+    {
+     "detail_fa": "سشن لندن + نیویورک (هم‌پوشانی — بهترین نقدینگی ⭐) — بیشترین نقدینگی و کمترین اسپرد هفته",
+     "icon": "✅",
+     "key": "session",
+     "label_fa": "زمان‌بندی مناسب (سشن)",
+     "max_points": 1,
+     "ok": true,
+     "points": 1,
+     "unavailable": false
+    }
+   ],
+   "fa_name": "یورو به دلار آمریکا",
+   "max_score": 11,
+   "pip": 0.0001,
+   "price": 1.149,
+   "reject_detail": "",
+   "reject_reason": "",
+   "score": 10,
+   "signal": {
+    "atr": 0.001,
+    "direction": "BUY",
+    "direction_fa": "خرید 🟢",
+    "entry": 1.149,
+    "fa_name": "یورو به دلار آمریکا",
+    "is_gold": false,
+    "journal": {
+     "atr": 0.001,
+     "direction": "BUY",
+     "entry": 1.149,
+     "evidences": [
+      "trend:2/2",
+      "level:2/2",
+      "fundamental:2/2",
+      "momentum:1/1",
+      "strength:1/1",
+      "news:0/1",
+      "tv:1/1",
+      "session:1/1"
+     ],
+     "id": "EURUSD-BUY-20260923140000-1.149",
+     "kind": "signal",
+     "max_score": 11,
+     "pip": 0.0001,
+     "reward_pips": 14.0,
+     "risk_pips": 7.0,
+     "rr": 2.0,
+     "score": 10,
+     "sent": true,
+     "session": "لندن + نیویورک (هم‌پوشانی — بهترین نقدینگی ⭐)",
+     "sl": 1.1483,
+     "symbol": "EURUSD",
+     "tp": 1.1504,
+     "ts": "2026-09-23T14:00:00+00:00"
+    },
+    "max_score": 11,
+    "now": "2026-09-23T14:00:00+00:00",
+    "pip": 0.0001,
+    "reward_pips": 13.999999999998458,
+    "risk_pips": 6.999999999999229,
+    "rr": 2.0,
+    "score": 10,
+    "session_fa": "لندن + نیویورک (هم‌پوشانی — بهترین نقدینگی ⭐)",
+    "sid": "EURUSD-BUY-20260923140000-1.149",
+    "sl": 1.1483,
+    "sl_capped": false,
+    "stars": 5,
+    "symbol": "EURUSD",
+    "tp": 1.1503999999999999,
+    "warnings": []
+   },
+   "status_fa": "✅ سیگنال صادر شد",
+   "symbol": "EURUSD",
+   "vetoes": [],
+   "warnings": []
+  },
+  {
+   "direction": "BUY",
+   "evidences": [],
+   "fa_name": "پوند به دلار آمریکا",
+   "max_score": 11,
+   "pip": 0.0001,
+   "price": 1.35,
+   "reject_detail": "😴 بازار بی‌روند (رنج)",
+   "reject_reason": "VETO",
+   "score": 0,
+   "signal": null,
+   "status_fa": "🚫 وتو شد",
+   "symbol": "GBPUSD",
+   "vetoes": [
+    {
+     "detail_fa": "ADX=14 زیر آستانهٔ 20 است — استراتژی روندی در بازار رنج کار نمی‌کند",
+     "key": "RANGE",
+     "title_fa": "😴 بازار بی‌روند (رنج)"
+    }
+   ],
+   "warnings": []
+  },
+  {
+   "direction": null,
+   "evidences": [],
+   "fa_name": "دلار به ین ژاپن",
+   "max_score": 11,
+   "pip": 0.01,
+   "price": 150.0,
+   "reject_detail": "جهت روند نامشخص است",
+   "reject_reason": "NO_SETUP",
+   "score": 0,
+   "signal": null,
+   "status_fa": "❔ ستاپی شکل نگرفته",
+   "symbol": "USDJPY",
+   "vetoes": [],
+   "warnings": []
+  },
+  {
+   "direction": "BUY",
+   "evidences": [
+    {
+     "detail_fa": "روند صعودی 📈 و تایم‌فریم ۱ ساعته هم تایید می‌کند؛ ADX=32 → روند قوی",
+     "icon": "✅",
+     "key": "trend",
+     "label_fa": "هم‌راستایی روند ۴ ساعته و ۱ ساعته",
+     "max_points": 2,
+     "ok": true,
+     "points": 2,
+     "unavailable": false
+    },
+    {
+     "detail_fa": "حمایت 0.65 در فاصلهٔ ۱۰.۰ برابر ATR — قیمت از سطح فاصله گرفته (دیر رسیده‌ایم)",
+     "icon": "➖",
+     "key": "level",
+     "label_fa": "واکنش به سطح کلیدی (حمایت)",
+     "max_points": 2,
+     "ok": false,
+     "points": 0,
+     "unavailable": false
+    },
+    {
+     "detail_fa": "هیچ رویداد پراثری تا ۶ ساعت آینده روی AUD/USD نیست — مسیر برای معامله باز است",
+     "icon": "✅",
+     "key": "fundamental",
+     "label_fa": "پنجرهٔ فاندامنتال پاک",
+     "max_points": 2,
+     "ok": true,
+     "points": 2,
+     "unavailable": false
+    },
+    {
+     "detail_fa": "RSI=55 بالای ۵۰ است — مومنتوم، ورود را تایید نمی‌کند",
+     "icon": "➖",
+     "key": "momentum",
+     "label_fa": "تایید مومنتوم (RSI)",
+     "max_points": 1,
+     "ok": false,
+     "points": 0,
+     "unavailable": false
+    },
+    {
+     "detail_fa": "AUD یا USD در جدول قدرت ارزها نیست",
+     "icon": "❔",
+     "key": "strength",
+     "label_fa": "هم‌جهتی جریان قدرت ارزها",
+     "max_points": 1,
+     "ok": false,
+     "points": 0,
+     "unavailable": true
+    },
+    {
+     "detail_fa": "موتور اخبار در دسترس نبود — این مدرک بررسی نشد",
+     "icon": "❔",
+     "key": "news",
+     "label_fa": "تایید خبری",
+     "max_points": 1,
+     "ok": false,
+     "points": 0,
+     "unavailable": true
+    },
+    {
+     "detail_fa": "تاییدیهٔ تریدینگ‌ویو در دسترس نبود",
+     "icon": "❔",
+     "key": "tv",
+     "label_fa": "هم‌جهتی با تریدینگ‌ویو",
+     "max_points": 1,
+     "ok": false,
+     "points": 0,
+     "unavailable": true
+    },
+    {
+     "detail_fa": "سشن لندن + نیویورک (هم‌پوشانی — بهترین نقدینگی ⭐) — بیشترین نقدینگی و کمترین اسپرد هفته",
+     "icon": "✅",
+     "key": "session",
+     "label_fa": "زمان‌بندی مناسب (سشن)",
+     "max_points": 1,
+     "ok": true,
+     "points": 1,
+     "unavailable": false
+    }
+   ],
+   "fa_name": "دلار استرالیا به دلار آمریکا",
+   "max_score": 11,
+   "pip": 0.0001,
+   "price": 0.66,
+   "reject_detail": "امتیاز ۵ از ۱۱ — زیر آستانهٔ ۷ است، پس سیگنال صادر نمی‌شود",
+   "reject_reason": "LOW_SCORE",
+   "score": 5,
+   "signal": null,
+   "status_fa": "⏳ امتیاز ناکافی",
+   "symbol": "AUDUSD",
+   "vetoes": [],
+   "warnings": []
+  }
+ ],
+ "judge_capped": [
+  {
+   "direction": "BUY",
+   "evidences": [
+    {
+     "detail_fa": "روند صعودی 📈 و تایم‌فریم ۱ ساعته هم تایید می‌کند؛ ADX=32 → روند قوی",
+     "icon": "✅",
+     "key": "trend",
+     "label_fa": "هم‌راستایی روند ۴ ساعته و ۱ ساعته",
+     "max_points": 2,
+     "ok": true,
+     "points": 2,
+     "unavailable": false
+    },
+    {
+     "detail_fa": "حمایت 1.1486 در فاصلهٔ ۰.۴ برابر ATR — قیمت چسبیده به سطح است (واکنش تازه)",
+     "icon": "✅",
+     "key": "level",
+     "label_fa": "واکنش به سطح کلیدی (حمایت)",
+     "max_points": 2,
+     "ok": true,
+     "points": 2,
+     "unavailable": false
+    },
+    {
+     "detail_fa": "هیچ رویداد پراثری تا ۶ ساعت آینده روی EUR/USD نیست — مسیر برای معامله باز است",
+     "icon": "✅",
+     "key": "fundamental",
+     "label_fa": "پنجرهٔ فاندامنتال پاک",
+     "max_points": 2,
+     "ok": true,
+     "points": 2,
+     "unavailable": false
+    },
+    {
+     "detail_fa": "RSI=38 و رو به بالا ↗️ — پولبک در حال برگشت است (بهترین نقطهٔ ورود)",
+     "icon": "✅",
+     "key": "momentum",
+     "label_fa": "تایید مومنتوم (RSI)",
+     "max_points": 1,
+     "ok": true,
+     "points": 1,
+     "unavailable": false
+    },
+    {
+     "detail_fa": "رتبهٔ EUR: ۱ از ۴ | رتبهٔ USD: ۳ از ۴ → جریان قدرت به نفع خرید است ✅",
+     "icon": "✅",
+     "key": "strength",
+     "label_fa": "هم‌جهتی جریان قدرت ارزها",
+     "max_points": 1,
+     "ok": true,
+     "points": 1,
+     "unavailable": false
+    },
+    {
+     "detail_fa": "اخبار جهت خرید را تایید می‌کند (+۲ رأی): «Euro rallies as ECB turns hawkish»؛ «Dollar slides on soft US data»",
+     "icon": "✅",
+     "key": "news",
+     "label_fa": "تایید خبری",
+     "max_points": 1,
+     "ok": true,
+     "points": 1,
+     "unavailable": false
+    },
+    {
+     "detail_fa": "امتیاز تکنیکال رسمی تریدینگ‌ویو «BUY» است (۱۳ خرید/۴ فروش/۹ خنثی) — هم‌جهت با ما ✅",
+     "icon": "✅",
+     "key": "tv",
+     "label_fa": "هم‌جهتی با تریدینگ‌ویو",
+     "max_points": 1,
+     "ok": true,
+     "points": 1,
+     "unavailable": false
+    },
+    {
+     "detail_fa": "سشن لندن + نیویورک (هم‌پوشانی — بهترین نقدینگی ⭐) — بیشترین نقدینگی و کمترین اسپرد هفته",
+     "icon": "✅",
+     "key": "session",
+     "label_fa": "زمان‌بندی مناسب (سشن)",
+     "max_points": 1,
+     "ok": true,
+     "points": 1,
+     "unavailable": false
+    }
+   ],
+   "fa_name": "یورو به دلار آمریکا",
+   "max_score": 11,
+   "pip": 0.0001,
+   "price": 1.149,
+   "reject_detail": "",
+   "reject_reason": "",
+   "score": 11,
+   "signal": {
+    "atr": 0.001,
+    "direction": "BUY",
+    "direction_fa": "خرید 🟢",
+    "entry": 1.149,
+    "fa_name": "یورو به دلار آمریکا",
+    "is_gold": false,
+    "journal": {
+     "atr": 0.001,
+     "direction": "BUY",
+     "entry": 1.149,
+     "evidences": [
+      "trend:2/2",
+      "level:2/2",
+      "fundamental:2/2",
+      "momentum:1/1",
+      "strength:1/1",
+      "news:1/1",
+      "tv:1/1",
+      "session:1/1"
+     ],
+     "id": "EURUSD-BUY-20260923140000-1.149",
+     "kind": "signal",
+     "max_score": 11,
+     "pip": 0.0001,
+     "reward_pips": 14.0,
+     "risk_pips": 7.0,
+     "rr": 2.0,
+     "score": 11,
+     "sent": true,
+     "session": "لندن + نیویورک (هم‌پوشانی — بهترین نقدینگی ⭐)",
+     "sl": 1.1483,
+     "symbol": "EURUSD",
+     "tp": 1.1504,
+     "ts": "2026-09-23T14:00:00+00:00"
+    },
+    "max_score": 11,
+    "now": "2026-09-23T14:00:00+00:00",
+    "pip": 0.0001,
+    "reward_pips": 13.999999999998458,
+    "risk_pips": 6.999999999999229,
+    "rr": 2.0,
+    "score": 11,
+    "session_fa": "لندن + نیویورک (هم‌پوشانی — بهترین نقدینگی ⭐)",
+    "sid": "EURUSD-BUY-20260923140000-1.149",
+    "sl": 1.1483,
+    "sl_capped": false,
+    "stars": 5,
+    "symbol": "EURUSD",
+    "tp": 1.1503999999999999,
+    "warnings": []
+   },
+   "status_fa": "✅ سیگنال صادر شد",
+   "symbol": "EURUSD",
+   "vetoes": [],
+   "warnings": []
+  },
+  {
+   "direction": "BUY",
+   "evidences": [
+    {
+     "detail_fa": "روند صعودی 📈 و تایم‌فریم ۱ ساعته هم تایید می‌کند؛ ADX=32 → روند قوی",
+     "icon": "✅",
+     "key": "trend",
+     "label_fa": "هم‌راستایی روند ۴ ساعته و ۱ ساعته",
+     "max_points": 2,
+     "ok": true,
+     "points": 2,
+     "unavailable": false
+    },
+    {
+     "detail_fa": "حمایت 1.3496 در فاصلهٔ ۰.۴ برابر ATR — قیمت چسبیده به سطح است (واکنش تازه)",
+     "icon": "✅",
+     "key": "level",
+     "label_fa": "واکنش به سطح کلیدی (حمایت)",
+     "max_points": 2,
+     "ok": true,
+     "points": 2,
+     "unavailable": false
+    },
+    {
+     "detail_fa": "هیچ رویداد پراثری تا ۶ ساعت آینده روی GBP/USD نیست — مسیر برای معامله باز است",
+     "icon": "✅",
+     "key": "fundamental",
+     "label_fa": "پنجرهٔ فاندامنتال پاک",
+     "max_points": 2,
+     "ok": true,
+     "points": 2,
+     "unavailable": false
+    },
+    {
+     "detail_fa": "RSI=38 و رو به بالا ↗️ — پولبک در حال برگشت است (بهترین نقطهٔ ورود)",
+     "icon": "✅",
+     "key": "momentum",
+     "label_fa": "تایید مومنتوم (RSI)",
+     "max_points": 1,
+     "ok": true,
+     "points": 1,
+     "unavailable": false
+    },
+    {
+     "detail_fa": "رتبهٔ GBP: ۲ از ۴ | رتبهٔ USD: ۳ از ۴ → جریان قدرت به نفع خرید است ✅",
+     "icon": "✅",
+     "key": "strength",
+     "label_fa": "هم‌جهتی جریان قدرت ارزها",
+     "max_points": 1,
+     "ok": true,
+     "points": 1,
+     "unavailable": false
+    },
+    {
+     "detail_fa": "اخبار جهت خرید را تایید می‌کند (+۲ رأی): «Euro rallies as ECB turns hawkish»؛ «Dollar slides on soft US data»",
+     "icon": "✅",
+     "key": "news",
+     "label_fa": "تایید خبری",
+     "max_points": 1,
+     "ok": true,
+     "points": 1,
+     "unavailable": false
+    },
+    {
+     "detail_fa": "تاییدیهٔ تریدینگ‌ویو در دسترس نبود",
+     "icon": "❔",
+     "key": "tv",
+     "label_fa": "هم‌جهتی با تریدینگ‌ویو",
+     "max_points": 1,
+     "ok": false,
+     "points": 0,
+     "unavailable": true
+    },
+    {
+     "detail_fa": "سشن لندن + نیویورک (هم‌پوشانی — بهترین نقدینگی ⭐) — بیشترین نقدینگی و کمترین اسپرد هفته",
+     "icon": "✅",
+     "key": "session",
+     "label_fa": "زمان‌بندی مناسب (سشن)",
+     "max_points": 1,
+     "ok": true,
+     "points": 1,
+     "unavailable": false
+    }
+   ],
+   "fa_name": "پوند به دلار آمریکا",
+   "max_score": 11,
+   "pip": 0.0001,
+   "price": 1.35,
+   "reject_detail": "امتیاز ۱۰ از ۱۱ کافی بود، ولی سقف ۱ سیگنال در هر چرخه پر شده — بهترین‌ها اولویت دارند",
+   "reject_reason": "CAPPED",
+   "score": 10,
+   "signal": null,
+   "status_fa": "🔢 به سقف تعداد سیگنال رسید",
+   "symbol": "GBPUSD",
+   "vetoes": [],
+   "warnings": []
+  },
+  {
+   "direction": "BUY",
+   "evidences": [
+    {
+     "detail_fa": "روند صعودی 📈 و تایم‌فریم ۱ ساعته هم تایید می‌کند؛ ADX=32 → روند قوی",
+     "icon": "✅",
+     "key": "trend",
+     "label_fa": "هم‌راستایی روند ۴ ساعته و ۱ ساعته",
+     "max_points": 2,
+     "ok": true,
+     "points": 2,
+     "unavailable": false
+    },
+    {
+     "detail_fa": "حمایت 149.96 در فاصلهٔ ۰.۴ برابر ATR — قیمت چسبیده به سطح است (واکنش تازه)",
+     "icon": "✅",
+     "key": "level",
+     "label_fa": "واکنش به سطح کلیدی (حمایت)",
+     "max_points": 2,
+     "ok": true,
+     "points": 2,
+     "unavailable": false
+    },
+    {
+     "detail_fa": "هیچ رویداد پراثری تا ۶ ساعت آینده روی USD/JPY نیست — مسیر برای معامله باز است",
+     "icon": "✅",
+     "key": "fundamental",
+     "label_fa": "پنجرهٔ فاندامنتال پاک",
+     "max_points": 2,
+     "ok": true,
+     "points": 2,
+     "unavailable": false
+    },
+    {
+     "detail_fa": "RSI=55 بالای ۵۰ است — مومنتوم، ورود را تایید نمی‌کند",
+     "icon": "➖",
+     "key": "momentum",
+     "label_fa": "تایید مومنتوم (RSI)",
+     "max_points": 1,
+     "ok": false,
+     "points": 0,
+     "unavailable": false
+    },
+    {
+     "detail_fa": "رتبهٔ USD: ۳ از ۴ | رتبهٔ JPY: ۴ از ۴ → جریان قدرت به نفع خرید است ✅",
+     "icon": "✅",
+     "key": "strength",
+     "label_fa": "هم‌جهتی جریان قدرت ارزها",
+     "max_points": 1,
+     "ok": true,
+     "points": 1,
+     "unavailable": false
+    },
+    {
+     "detail_fa": "⚠️ اخبار خلاف جهت است (-۲ رأی): «Euro rallies as ECB turns hawkish»؛ «Dollar slides on soft US data»",
+     "icon": "➖",
+     "key": "news",
+     "label_fa": "تایید خبری",
+     "max_points": 1,
+     "ok": false,
+     "points": 0,
+     "unavailable": false
+    },
+    {
+     "detail_fa": "تاییدیهٔ تریدینگ‌ویو در دسترس نبود",
+     "icon": "❔",
+     "key": "tv",
+     "label_fa": "هم‌جهتی با تریدینگ‌ویو",
+     "max_points": 1,
+     "ok": false,
+     "points": 0,
+     "unavailable": true
+    },
+    {
+     "detail_fa": "سشن لندن + نیویورک (هم‌پوشانی — بهترین نقدینگی ⭐) — بیشترین نقدینگی و کمترین اسپرد هفته",
+     "icon": "✅",
+     "key": "session",
+     "label_fa": "زمان‌بندی مناسب (سشن)",
+     "max_points": 1,
+     "ok": true,
+     "points": 1,
+     "unavailable": false
+    }
+   ],
+   "fa_name": "دلار به ین ژاپن",
+   "max_score": 11,
+   "pip": 0.01,
+   "price": 150.0,
+   "reject_detail": "امتیاز ۸ از ۱۱ کافی بود، ولی سقف ۱ سیگنال در هر چرخه پر شده — بهترین‌ها اولویت دارند",
+   "reject_reason": "CAPPED",
+   "score": 8,
+   "signal": null,
+   "status_fa": "🔢 به سقف تعداد سیگنال رسید",
+   "symbol": "USDJPY",
+   "vetoes": [],
+   "warnings": [
+    "اخبار خلاف جهت است (-۲ رأی): «Euro rallies as ECB turns hawkish»؛ «Dollar slides on soft US data»"
+   ]
+  }
+ ],
+ "judge_full": {
+  "buy": {
+   "direction": "BUY",
+   "evidences": [
+    {
+     "detail_fa": "روند صعودی 📈 و تایم‌فریم ۱ ساعته هم تایید می‌کند؛ ADX=32 → روند قوی",
+     "icon": "✅",
+     "key": "trend",
+     "label_fa": "هم‌راستایی روند ۴ ساعته و ۱ ساعته",
+     "max_points": 2,
+     "ok": true,
+     "points": 2,
+     "unavailable": false
+    },
+    {
+     "detail_fa": "حمایت 1.1486 در فاصلهٔ ۰.۴ برابر ATR — قیمت چسبیده به سطح است (واکنش تازه)",
+     "icon": "✅",
+     "key": "level",
+     "label_fa": "واکنش به سطح کلیدی (حمایت)",
+     "max_points": 2,
+     "ok": true,
+     "points": 2,
+     "unavailable": false
+    },
+    {
+     "detail_fa": "هیچ رویداد پراثری تا ۶ ساعت آینده روی EUR/USD نیست — مسیر برای معامله باز است",
+     "icon": "✅",
+     "key": "fundamental",
+     "label_fa": "پنجرهٔ فاندامنتال پاک",
+     "max_points": 2,
+     "ok": true,
+     "points": 2,
+     "unavailable": false
+    },
+    {
+     "detail_fa": "RSI=38 و رو به بالا ↗️ — پولبک در حال برگشت است (بهترین نقطهٔ ورود)",
+     "icon": "✅",
+     "key": "momentum",
+     "label_fa": "تایید مومنتوم (RSI)",
+     "max_points": 1,
+     "ok": true,
+     "points": 1,
+     "unavailable": false
+    },
+    {
+     "detail_fa": "رتبهٔ EUR: ۱ از ۴ | رتبهٔ USD: ۳ از ۴ → جریان قدرت به نفع خرید است ✅",
+     "icon": "✅",
+     "key": "strength",
+     "label_fa": "هم‌جهتی جریان قدرت ارزها",
+     "max_points": 1,
+     "ok": true,
+     "points": 1,
+     "unavailable": false
+    },
+    {
+     "detail_fa": "اخبار جهت خرید را تایید می‌کند (+۲ رأی): «Euro rallies as ECB turns hawkish»؛ «Dollar slides on soft US data»",
+     "icon": "✅",
+     "key": "news",
+     "label_fa": "تایید خبری",
+     "max_points": 1,
+     "ok": true,
+     "points": 1,
+     "unavailable": false
+    },
+    {
+     "detail_fa": "امتیاز تکنیکال رسمی تریدینگ‌ویو «BUY» است (۱۳ خرید/۴ فروش/۹ خنثی) — هم‌جهت با ما ✅",
+     "icon": "✅",
+     "key": "tv",
+     "label_fa": "هم‌جهتی با تریدینگ‌ویو",
+     "max_points": 1,
+     "ok": true,
+     "points": 1,
+     "unavailable": false
+    },
+    {
+     "detail_fa": "سشن لندن + نیویورک (هم‌پوشانی — بهترین نقدینگی ⭐) — بیشترین نقدینگی و کمترین اسپرد هفته",
+     "icon": "✅",
+     "key": "session",
+     "label_fa": "زمان‌بندی مناسب (سشن)",
+     "max_points": 1,
+     "ok": true,
+     "points": 1,
+     "unavailable": false
+    }
+   ],
+   "fa_name": "یورو به دلار آمریکا",
+   "max_score": 11,
+   "pip": 0.0001,
+   "price": 1.149,
+   "reject_detail": "",
+   "reject_reason": "",
+   "score": 11,
+   "signal": {
+    "atr": 0.001,
+    "direction": "BUY",
+    "direction_fa": "خرید 🟢",
+    "entry": 1.149,
+    "fa_name": "یورو به دلار آمریکا",
+    "is_gold": false,
+    "journal": {
+     "atr": 0.001,
+     "direction": "BUY",
+     "entry": 1.149,
+     "evidences": [
+      "trend:2/2",
+      "level:2/2",
+      "fundamental:2/2",
+      "momentum:1/1",
+      "strength:1/1",
+      "news:1/1",
+      "tv:1/1",
+      "session:1/1"
+     ],
+     "id": "EURUSD-BUY-20260923140000-1.149",
+     "kind": "signal",
+     "max_score": 11,
+     "pip": 0.0001,
+     "reward_pips": 14.0,
+     "risk_pips": 7.0,
+     "rr": 2.0,
+     "score": 11,
+     "sent": true,
+     "session": "لندن + نیویورک (هم‌پوشانی — بهترین نقدینگی ⭐)",
+     "sl": 1.1483,
+     "symbol": "EURUSD",
+     "tp": 1.1504,
+     "ts": "2026-09-23T14:00:00+00:00"
+    },
+    "max_score": 11,
+    "now": "2026-09-23T14:00:00+00:00",
+    "pip": 0.0001,
+    "reward_pips": 13.999999999998458,
+    "risk_pips": 6.999999999999229,
+    "rr": 2.0,
+    "score": 11,
+    "session_fa": "لندن + نیویورک (هم‌پوشانی — بهترین نقدینگی ⭐)",
+    "sid": "EURUSD-BUY-20260923140000-1.149",
+    "sl": 1.1483,
+    "sl_capped": false,
+    "stars": 5,
+    "symbol": "EURUSD",
+    "tp": 1.1503999999999999,
+    "warnings": []
+   },
+   "status_fa": "✅ سیگنال صادر شد",
+   "symbol": "EURUSD",
+   "vetoes": [],
+   "warnings": []
+  },
+  "sell": {
+   "direction": "SELL",
+   "evidences": [
+    {
+     "detail_fa": "روند نزولی 📉 و تایم‌فریم ۱ ساعته هم تایید می‌کند؛ ADX=32 → روند قوی",
+     "icon": "✅",
+     "key": "trend",
+     "label_fa": "هم‌راستایی روند ۴ ساعته و ۱ ساعته",
+     "max_points": 2,
+     "ok": true,
+     "points": 2,
+     "unavailable": false
+    },
+    {
+     "detail_fa": "مقاومت 1.1494 در فاصلهٔ ۰.۴ برابر ATR — قیمت چسبیده به سطح است (واکنش تازه)",
+     "icon": "✅",
+     "key": "level",
+     "label_fa": "واکنش به سطح کلیدی (مقاومت)",
+     "max_points": 2,
+     "ok": true,
+     "points": 2,
+     "unavailable": false
+    },
+    {
+     "detail_fa": "هیچ رویداد پراثری تا ۶ ساعت آینده روی EUR/USD نیست — مسیر برای معامله باز است",
+     "icon": "✅",
+     "key": "fundamental",
+     "label_fa": "پنجرهٔ فاندامنتال پاک",
+     "max_points": 2,
+     "ok": true,
+     "points": 2,
+     "unavailable": false
+    },
+    {
+     "detail_fa": "RSI=62 و رو به پایین ↘️ — اصلاح رو به بالا در روند نزولی (بهترین نقطهٔ ورود فروش)",
+     "icon": "✅",
+     "key": "momentum",
+     "label_fa": "تایید مومنتوم (RSI)",
+     "max_points": 1,
+     "ok": true,
+     "points": 1,
+     "unavailable": false
+    },
+    {
+     "detail_fa": "رتبهٔ EUR: ۳ از ۴ | رتبهٔ USD: ۱ از ۴ → جریان قدرت به نفع فروش است ✅",
+     "icon": "✅",
+     "key": "strength",
+     "label_fa": "هم‌جهتی جریان قدرت ارزها",
+     "max_points": 1,
+     "ok": true,
+     "points": 1,
+     "unavailable": false
+    },
+    {
+     "detail_fa": "اخبار جهت فروش را تایید می‌کند (+۱ رأی): «Dollar rallies as Fed turns hawkish»",
+     "icon": "✅",
+     "key": "news",
+     "label_fa": "تایید خبری",
+     "max_points": 1,
+     "ok": true,
+     "points": 1,
+     "unavailable": false
+    },
+    {
+     "detail_fa": "امتیاز تکنیکال رسمی تریدینگ‌ویو «SELL» است (۴ خرید/۱۳ فروش/۹ خنثی) — هم‌جهت با ما ✅",
+     "icon": "✅",
+     "key": "tv",
+     "label_fa": "هم‌جهتی با تریدینگ‌ویو",
+     "max_points": 1,
+     "ok": true,
+     "points": 1,
+     "unavailable": false
+    },
+    {
+     "detail_fa": "سشن لندن + نیویورک (هم‌پوشانی — بهترین نقدینگی ⭐) — بیشترین نقدینگی و کمترین اسپرد هفته",
+     "icon": "✅",
+     "key": "session",
+     "label_fa": "زمان‌بندی مناسب (سشن)",
+     "max_points": 1,
+     "ok": true,
+     "points": 1,
+     "unavailable": false
+    }
+   ],
+   "fa_name": "یورو به دلار آمریکا",
+   "max_score": 11,
+   "pip": 0.0001,
+   "price": 1.149,
+   "reject_detail": "",
+   "reject_reason": "",
+   "score": 11,
+   "signal": {
+    "atr": 0.001,
+    "direction": "SELL",
+    "direction_fa": "فروش 🔴",
+    "entry": 1.149,
+    "fa_name": "یورو به دلار آمریکا",
+    "is_gold": false,
+    "journal": {
+     "atr": 0.001,
+     "direction": "SELL",
+     "entry": 1.149,
+     "evidences": [
+      "trend:2/2",
+      "level:2/2",
+      "fundamental:2/2",
+      "momentum:1/1",
+      "strength:1/1",
+      "news:1/1",
+      "tv:1/1",
+      "session:1/1"
+     ],
+     "id": "EURUSD-SELL-20260923140000-1.149",
+     "kind": "signal",
+     "max_score": 11,
+     "pip": 0.0001,
+     "reward_pips": 14.0,
+     "risk_pips": 7.0,
+     "rr": 2.0,
+     "score": 11,
+     "sent": true,
+     "session": "لندن + نیویورک (هم‌پوشانی — بهترین نقدینگی ⭐)",
+     "sl": 1.1497,
+     "symbol": "EURUSD",
+     "tp": 1.1476,
+     "ts": "2026-09-23T14:00:00+00:00"
+    },
+    "max_score": 11,
+    "now": "2026-09-23T14:00:00+00:00",
+    "pip": 0.0001,
+    "reward_pips": 13.999999999998458,
+    "risk_pips": 6.999999999999229,
+    "rr": 2.0,
+    "score": 11,
+    "session_fa": "لندن + نیویورک (هم‌پوشانی — بهترین نقدینگی ⭐)",
+    "sid": "EURUSD-SELL-20260923140000-1.149",
+    "sl": 1.1497,
+    "sl_capped": false,
+    "stars": 5,
+    "symbol": "EURUSD",
+    "tp": 1.1476000000000002,
+    "warnings": []
+   },
+   "status_fa": "✅ سیگنال صادر شد",
+   "symbol": "EURUSD",
+   "vetoes": [],
+   "warnings": []
+  }
+ },
+ "judge_low_score": {
+  "low_score": {
+   "direction": "BUY",
+   "evidences": [
+    {
+     "detail_fa": "روند صعودی 📈 و تایم‌فریم ۱ ساعته هم تایید می‌کند؛ ADX=32 → روند قوی",
+     "icon": "✅",
+     "key": "trend",
+     "label_fa": "هم‌راستایی روند ۴ ساعته و ۱ ساعته",
+     "max_points": 2,
+     "ok": true,
+     "points": 2,
+     "unavailable": false
+    },
+    {
+     "detail_fa": "حمایت 1.14 در فاصلهٔ ۹.۰ برابر ATR — قیمت از سطح فاصله گرفته (دیر رسیده‌ایم)",
+     "icon": "➖",
+     "key": "level",
+     "label_fa": "واکنش به سطح کلیدی (حمایت)",
+     "max_points": 2,
+     "ok": false,
+     "points": 0,
+     "unavailable": false
+    },
+    {
+     "detail_fa": "هیچ رویداد پراثری تا ۶ ساعت آینده روی EUR/USD نیست — مسیر برای معامله باز است",
+     "icon": "✅",
+     "key": "fundamental",
+     "label_fa": "پنجرهٔ فاندامنتال پاک",
+     "max_points": 2,
+     "ok": true,
+     "points": 2,
+     "unavailable": false
+    },
+    {
+     "detail_fa": "RSI=55 بالای ۵۰ است — مومنتوم، ورود را تایید نمی‌کند",
+     "icon": "➖",
+     "key": "momentum",
+     "label_fa": "تایید مومنتوم (RSI)",
+     "max_points": 1,
+     "ok": false,
+     "points": 0,
+     "unavailable": false
+    },
+    {
+     "detail_fa": "رتبهٔ EUR: ۳ از ۴ | رتبهٔ USD: ۱ از ۴ → جریان قدرت خلاف جهت است (برای EUR قوی‌تر از USD باید برعکس می‌بود)",
+     "icon": "➖",
+     "key": "strength",
+     "label_fa": "هم‌جهتی جریان قدرت ارزها",
+     "max_points": 1,
+     "ok": false,
+     "points": 0,
+     "unavailable": false
+    },
+    {
+     "detail_fa": "⚠️ اخبار خلاف جهت است (-۱ رأی): «Euro falls as ECB signals rate cuts»",
+     "icon": "➖",
+     "key": "news",
+     "label_fa": "تایید خبری",
+     "max_points": 1,
+     "ok": false,
+     "points": 0,
+     "unavailable": false
+    },
+    {
+     "detail_fa": "⚠️ تریدینگ‌ویو «SELL» می‌گوید — خلاف جهت تحلیل ما",
+     "icon": "➖",
+     "key": "tv",
+     "label_fa": "هم‌جهتی با تریدینگ‌ویو",
+     "max_points": 1,
+     "ok": false,
+     "points": 0,
+     "unavailable": false
+    },
+    {
+     "detail_fa": "سشن لندن + نیویورک (هم‌پوشانی — بهترین نقدینگی ⭐) — بیشترین نقدینگی و کمترین اسپرد هفته",
+     "icon": "✅",
+     "key": "session",
+     "label_fa": "زمان‌بندی مناسب (سشن)",
+     "max_points": 1,
+     "ok": true,
+     "points": 1,
+     "unavailable": false
+    }
+   ],
+   "fa_name": "یورو به دلار آمریکا",
+   "max_score": 11,
+   "pip": 0.0001,
+   "price": 1.149,
+   "reject_detail": "امتیاز ۵ از ۱۱ — زیر آستانهٔ ۷ است، پس سیگنال صادر نمی‌شود",
+   "reject_reason": "LOW_SCORE",
+   "score": 5,
+   "signal": null,
+   "status_fa": "⏳ امتیاز ناکافی",
+   "symbol": "EURUSD",
+   "vetoes": [],
+   "warnings": [
+    "اخبار خلاف جهت است (-۱ رأی): «Euro falls as ECB signals rate cuts»",
+    "تریدینگ‌ویو «SELL» می‌گوید — خلاف جهت تحلیل ما"
+   ]
+  }
+ },
+ "judge_no_setup": {
+  "bearish_rsi_low": {
+   "direction": null,
+   "evidences": [],
+   "fa_name": "یورو به دلار آمریکا",
+   "max_score": 11,
+   "pip": 0.0001,
+   "price": 1.149,
+   "reject_detail": "روند نزولی است ولی RSI=40 در منطقهٔ اصلاح رو به بالا نیست (برای ستاپ فروش باید بالای ۵۵ باشد)",
+   "reject_reason": "NO_SETUP",
+   "score": 0,
+   "signal": null,
+   "status_fa": "❔ ستاپی شکل نگرفته",
+   "symbol": "EURUSD",
+   "vetoes": [],
+   "warnings": []
+  },
+  "bullish_rsi_high": {
+   "direction": null,
+   "evidences": [],
+   "fa_name": "یورو به دلار آمریکا",
+   "max_score": 11,
+   "pip": 0.0001,
+   "price": 1.149,
+   "reject_detail": "روند صعودی است ولی RSI=55 در منطقهٔ پولبک نیست (برای ستاپ خرید باید زیر ۴۵ باشد) — یعنی یا دیر رسیده‌ایم یا اصلاح هنوز تمام نشده",
+   "reject_reason": "NO_SETUP",
+   "score": 0,
+   "signal": null,
+   "status_fa": "❔ ستاپی شکل نگرفته",
+   "symbol": "EURUSD",
+   "vetoes": [],
+   "warnings": []
+  },
+  "h1_disagree": {
+   "direction": null,
+   "evidences": [],
+   "fa_name": "یورو به دلار آمریکا",
+   "max_score": 11,
+   "pip": 0.0001,
+   "price": 1.149,
+   "reject_detail": "تایم‌فریم ۱ ساعته با ۴ ساعته هم‌جهت نیست",
+   "reject_reason": "NO_SETUP",
+   "score": 0,
+   "signal": null,
+   "status_fa": "❔ ستاپی شکل نگرفته",
+   "symbol": "EURUSD",
+   "vetoes": [],
+   "warnings": []
+  },
+  "range_no_veto": {
+   "direction": null,
+   "evidences": [],
+   "fa_name": "یورو به دلار آمریکا",
+   "max_score": 11,
+   "pip": 0.0001,
+   "price": 1.149,
+   "reject_detail": "بازار بی‌روند است (ADX=14 زیر 20)",
+   "reject_reason": "NO_SETUP",
+   "score": 0,
+   "signal": null,
+   "status_fa": "❔ ستاپی شکل نگرفته",
+   "symbol": "EURUSD",
+   "vetoes": [],
+   "warnings": []
+  },
+  "trend_none": {
+   "direction": null,
+   "evidences": [],
+   "fa_name": "یورو به دلار آمریکا",
+   "max_score": 11,
+   "pip": 0.0001,
+   "price": 1.149,
+   "reject_detail": "جهت روند نامشخص است",
+   "reject_reason": "NO_SETUP",
+   "score": 0,
+   "signal": null,
+   "status_fa": "❔ ستاپی شکل نگرفته",
+   "symbol": "EURUSD",
+   "vetoes": [],
+   "warnings": []
+  }
+ },
+ "risk_math": {
+  "atr_zero_guard": {
+   "capped": false,
+   "risk": 0.0007447000000000426,
+   "sl": 1.1482553,
+   "tp": 1.1504894
+  },
+  "buy_far_capped": {
+   "capped": true,
+   "risk": 0.0029999999999998916,
+   "sl": 1.1460000000000001,
+   "tp": 1.1549999999999998
+  },
+  "buy_level": {
+   "capped": false,
+   "risk": 0.0006999999999999229,
+   "sl": 1.1483,
+   "tp": 1.1503999999999999
+  },
+  "buy_no_level": {
+   "capped": false,
+   "risk": 0.0015000000000000568,
+   "sl": 1.1475,
+   "tp": 1.1520000000000001
+  },
+  "buy_tight_floor": {
+   "capped": false,
+   "risk": 0.0005999999999999339,
+   "sl": 1.1484,
+   "tp": 1.1502
+  },
+  "sell_level": {
+   "capped": false,
+   "risk": 0.0007999999999999119,
+   "sl": 1.1498,
+   "tp": 1.1474000000000002
+  }
+ },
+ "veto_clean": [],
+ "veto_multi": {
+  "all_except_data": {
+   "direction": "BUY",
+   "evidences": [],
+   "fa_name": "یورو به دلار آمریکا",
+   "max_score": 11,
+   "pip": 0.0001,
+   "price": 1.149,
+   "reject_detail": "🔒 بازار بسته است؛ 🔀 تضاد جهت بین تایم‌فریم‌ها؛ 😴 بازار بی‌روند (رنج)؛ 📅 رویداد پراثر تقویم؛ 📈 جهش غیرعادی نوسان؛ 🚨 خبر فوری",
+   "reject_reason": "VETO",
+   "score": 0,
+   "signal": null,
+   "status_fa": "🚫 وتو شد",
+   "symbol": "EURUSD",
+   "vetoes": [
+    {
+     "detail_fa": "شنبه — بازار فارکس بسته است 🔒",
+     "key": "WEEKEND",
+     "title_fa": "🔒 بازار بسته است"
+    },
+    {
+     "detail_fa": "روند ۴ ساعته صعودی 📈 است ولی ۱ ساعته هم‌جهت نیست — طبق قوانین، معامله در تضاد تایم‌فریم ممنوع است",
+     "key": "TF_CONFLICT",
+     "title_fa": "🔀 تضاد جهت بین تایم‌فریم‌ها"
+    },
+    {
+     "detail_fa": "ADX=14 زیر آستانهٔ 20 است — استراتژی روندی در بازار رنج کار نمی‌کند",
+     "key": "RANGE",
+     "title_fa": "😴 بازار بی‌روند (رنج)"
+    },
+    {
+     "detail_fa": "«نرخ بهره فدرال رزرو» (آمریکا) — ۱۲ دقیقه بعد. نوسان خبری غیرقابل پیش‌بینی است",
+     "key": "EVENT",
+     "title_fa": "📅 رویداد پراثر تقویم"
+    },
+    {
+     "detail_fa": "ATR یک‌ساعتهٔ فعلی ۳.۲ برابر میانگین ۱۰۰ کندل اخیر است (آستانهٔ وتو: ۲.۰ برابر). در این شرایط اسپرد وید می‌شود و حد ضرر قابل اتکا نیست",
+     "key": "VOL_SPIKE",
+     "title_fa": "📈 جهش غیرعادی نوسان"
+    },
+    {
+     "detail_fa": "«🚨 BREAKING: ECB surprise decision» — تا آرام‌شدن بازار صبر کن",
+     "key": "BREAKING_NEWS",
+     "title_fa": "🚨 خبر فوری"
+    }
+   ],
+   "warnings": []
+  },
+  "with_data": {
+   "direction": null,
+   "evidences": [],
+   "fa_name": "یورو به دلار آمریکا",
+   "max_score": 11,
+   "pip": 0.0001,
+   "price": 1.149,
+   "reject_detail": "⚠️ دادهٔ ناکافی؛ 🔒 بازار بسته است؛ 📅 رویداد پراثر تقویم؛ 📈 جهش غیرعادی نوسان؛ 🚨 خبر فوری",
+   "reject_reason": "VETO",
+   "score": 0,
+   "signal": null,
+   "status_fa": "🚫 وتو شد",
+   "symbol": "EURUSD",
+   "vetoes": [
+    {
+     "detail_fa": "تعداد کندل‌ها برای محاسبهٔ EMA200 کافی نیست — تحلیل قابل اتکا نیست",
+     "key": "DATA",
+     "title_fa": "⚠️ دادهٔ ناکافی"
+    },
+    {
+     "detail_fa": "شنبه — بازار فارکس بسته است 🔒",
+     "key": "WEEKEND",
+     "title_fa": "🔒 بازار بسته است"
+    },
+    {
+     "detail_fa": "«نرخ بهره فدرال رزرو» (آمریکا) — ۱۲ دقیقه بعد. نوسان خبری غیرقابل پیش‌بینی است",
+     "key": "EVENT",
+     "title_fa": "📅 رویداد پراثر تقویم"
+    },
+    {
+     "detail_fa": "ATR یک‌ساعتهٔ فعلی ۳.۲ برابر میانگین ۱۰۰ کندل اخیر است (آستانهٔ وتو: ۲.۰ برابر). در این شرایط اسپرد وید می‌شود و حد ضرر قابل اتکا نیست",
+     "key": "VOL_SPIKE",
+     "title_fa": "📈 جهش غیرعادی نوسان"
+    },
+    {
+     "detail_fa": "«🚨 BREAKING: ECB surprise decision» — تا آرام‌شدن بازار صبر کن",
+     "key": "BREAKING_NEWS",
+     "title_fa": "🚨 خبر فوری"
+    }
+   ],
+   "warnings": []
+  }
+ },
+ "veto_single": {
+  "BREAKING_NEWS": {
+   "direction": "BUY",
+   "evidences": [],
+   "fa_name": "یورو به دلار آمریکا",
+   "max_score": 11,
+   "pip": 0.0001,
+   "price": 1.149,
+   "reject_detail": "🚨 خبر فوری",
+   "reject_reason": "VETO",
+   "score": 0,
+   "signal": null,
+   "status_fa": "🚫 وتو شد",
+   "symbol": "EURUSD",
+   "vetoes": [
+    {
+     "detail_fa": "«🚨 BREAKING: ECB surprise decision» — تا آرام‌شدن بازار صبر کن",
+     "key": "BREAKING_NEWS",
+     "title_fa": "🚨 خبر فوری"
+    }
+   ],
+   "warnings": []
+  },
+  "DATA": {
+   "direction": null,
+   "evidences": [],
+   "fa_name": "یورو به دلار آمریکا",
+   "max_score": 11,
+   "pip": 0.0001,
+   "price": 1.149,
+   "reject_detail": "⚠️ دادهٔ ناکافی",
+   "reject_reason": "VETO",
+   "score": 0,
+   "signal": null,
+   "status_fa": "🚫 وتو شد",
+   "symbol": "EURUSD",
+   "vetoes": [
+    {
+     "detail_fa": "تعداد کندل‌ها برای محاسبهٔ EMA200 کافی نیست — تحلیل قابل اتکا نیست",
+     "key": "DATA",
+     "title_fa": "⚠️ دادهٔ ناکافی"
+    }
+   ],
+   "warnings": []
+  },
+  "EVENT": {
+   "direction": "BUY",
+   "evidences": [],
+   "fa_name": "یورو به دلار آمریکا",
+   "max_score": 11,
+   "pip": 0.0001,
+   "price": 1.149,
+   "reject_detail": "📅 رویداد پراثر تقویم",
+   "reject_reason": "VETO",
+   "score": 0,
+   "signal": null,
+   "status_fa": "🚫 وتو شد",
+   "symbol": "EURUSD",
+   "vetoes": [
+    {
+     "detail_fa": "«نرخ بهره فدرال رزرو» (آمریکا) — ۱۲ دقیقه بعد. نوسان خبری غیرقابل پیش‌بینی است",
+     "key": "EVENT",
+     "title_fa": "📅 رویداد پراثر تقویم"
+    }
+   ],
+   "warnings": []
+  },
+  "RANGE": {
+   "direction": "BUY",
+   "evidences": [],
+   "fa_name": "یورو به دلار آمریکا",
+   "max_score": 11,
+   "pip": 0.0001,
+   "price": 1.149,
+   "reject_detail": "😴 بازار بی‌روند (رنج)",
+   "reject_reason": "VETO",
+   "score": 0,
+   "signal": null,
+   "status_fa": "🚫 وتو شد",
+   "symbol": "EURUSD",
+   "vetoes": [
+    {
+     "detail_fa": "ADX=14 زیر آستانهٔ 20 است — استراتژی روندی در بازار رنج کار نمی‌کند",
+     "key": "RANGE",
+     "title_fa": "😴 بازار بی‌روند (رنج)"
+    }
+   ],
+   "warnings": []
+  },
+  "TF_CONFLICT": {
+   "direction": "BUY",
+   "evidences": [],
+   "fa_name": "یورو به دلار آمریکا",
+   "max_score": 11,
+   "pip": 0.0001,
+   "price": 1.149,
+   "reject_detail": "🔀 تضاد جهت بین تایم‌فریم‌ها",
+   "reject_reason": "VETO",
+   "score": 0,
+   "signal": null,
+   "status_fa": "🚫 وتو شد",
+   "symbol": "EURUSD",
+   "vetoes": [
+    {
+     "detail_fa": "روند ۴ ساعته صعودی 📈 است ولی ۱ ساعته هم‌جهت نیست — طبق قوانین، معامله در تضاد تایم‌فریم ممنوع است",
+     "key": "TF_CONFLICT",
+     "title_fa": "🔀 تضاد جهت بین تایم‌فریم‌ها"
+    }
+   ],
+   "warnings": []
+  },
+  "VOL_SPIKE": {
+   "direction": "BUY",
+   "evidences": [],
+   "fa_name": "یورو به دلار آمریکا",
+   "max_score": 11,
+   "pip": 0.0001,
+   "price": 1.149,
+   "reject_detail": "📈 جهش غیرعادی نوسان",
+   "reject_reason": "VETO",
+   "score": 0,
+   "signal": null,
+   "status_fa": "🚫 وتو شد",
+   "symbol": "EURUSD",
+   "vetoes": [
+    {
+     "detail_fa": "ATR یک‌ساعتهٔ فعلی ۳.۲ برابر میانگین ۱۰۰ کندل اخیر است (آستانهٔ وتو: ۲.۰ برابر). در این شرایط اسپرد وید می‌شود و حد ضرر قابل اتکا نیست",
+     "key": "VOL_SPIKE",
+     "title_fa": "📈 جهش غیرعادی نوسان"
+    }
+   ],
+   "warnings": []
+  },
+  "WEEKEND": {
+   "direction": "BUY",
+   "evidences": [],
+   "fa_name": "یورو به دلار آمریکا",
+   "max_score": 11,
+   "pip": 0.0001,
+   "price": 1.149,
+   "reject_detail": "🔒 بازار بسته است",
+   "reject_reason": "VETO",
+   "score": 0,
+   "signal": null,
+   "status_fa": "🚫 وتو شد",
+   "symbol": "EURUSD",
+   "vetoes": [
+    {
+     "detail_fa": "شنبه — بازار فارکس بسته است 🔒",
+     "key": "WEEKEND",
+     "title_fa": "🔒 بازار بسته است"
+    }
+   ],
+   "warnings": []
+  }
+ },
+ "veto_toggles": {
+  "range_off_low_adx": {
+   "direction": "BUY",
+   "evidences": [
+    {
+     "detail_fa": "روند صعودی 📈 و تایم‌فریم ۱ ساعته هم تایید می‌کند؛ ADX=14 → روند متوسط",
+     "icon": "✅",
+     "key": "trend",
+     "label_fa": "هم‌راستایی روند ۴ ساعته و ۱ ساعته",
+     "max_points": 2,
+     "ok": true,
+     "points": 1,
+     "unavailable": false
+    },
+    {
+     "detail_fa": "حمایت 1.1486 در فاصلهٔ ۰.۴ برابر ATR — قیمت چسبیده به سطح است (واکنش تازه)",
+     "icon": "✅",
+     "key": "level",
+     "label_fa": "واکنش به سطح کلیدی (حمایت)",
+     "max_points": 2,
+     "ok": true,
+     "points": 2,
+     "unavailable": false
+    },
+    {
+     "detail_fa": "هیچ رویداد پراثری تا ۶ ساعت آینده روی EUR/USD نیست — مسیر برای معامله باز است",
+     "icon": "✅",
+     "key": "fundamental",
+     "label_fa": "پنجرهٔ فاندامنتال پاک",
+     "max_points": 2,
+     "ok": true,
+     "points": 2,
+     "unavailable": false
+    },
+    {
+     "detail_fa": "RSI=38 و رو به بالا ↗️ — پولبک در حال برگشت است (بهترین نقطهٔ ورود)",
+     "icon": "✅",
+     "key": "momentum",
+     "label_fa": "تایید مومنتوم (RSI)",
+     "max_points": 1,
+     "ok": true,
+     "points": 1,
+     "unavailable": false
+    },
+    {
+     "detail_fa": "رتبهٔ EUR: ۱ از ۴ | رتبهٔ USD: ۳ از ۴ → جریان قدرت به نفع خرید است ✅",
+     "icon": "✅",
+     "key": "strength",
+     "label_fa": "هم‌جهتی جریان قدرت ارزها",
+     "max_points": 1,
+     "ok": true,
+     "points": 1,
+     "unavailable": false
+    },
+    {
+     "detail_fa": "اخبار جهت خرید را تایید می‌کند (+۲ رأی): «Euro rallies as ECB turns hawkish»؛ «Dollar slides on soft US data»",
+     "icon": "✅",
+     "key": "news",
+     "label_fa": "تایید خبری",
+     "max_points": 1,
+     "ok": true,
+     "points": 1,
+     "unavailable": false
+    },
+    {
+     "detail_fa": "امتیاز تکنیکال رسمی تریدینگ‌ویو «BUY» است (۱۳ خرید/۴ فروش/۹ خنثی) — هم‌جهت با ما ✅",
+     "icon": "✅",
+     "key": "tv",
+     "label_fa": "هم‌جهتی با تریدینگ‌ویو",
+     "max_points": 1,
+     "ok": true,
+     "points": 1,
+     "unavailable": false
+    },
+    {
+     "detail_fa": "سشن لندن + نیویورک (هم‌پوشانی — بهترین نقدینگی ⭐) — بیشترین نقدینگی و کمترین اسپرد هفته",
+     "icon": "✅",
+     "key": "session",
+     "label_fa": "زمان‌بندی مناسب (سشن)",
+     "max_points": 1,
+     "ok": true,
+     "points": 1,
+     "unavailable": false
+    }
+   ],
+   "fa_name": "یورو به دلار آمریکا",
+   "max_score": 11,
+   "pip": 0.0001,
+   "price": 1.149,
+   "reject_detail": "",
+   "reject_reason": "",
+   "score": 10,
+   "signal": {
+    "atr": 0.001,
+    "direction": "BUY",
+    "direction_fa": "خرید 🟢",
+    "entry": 1.149,
+    "fa_name": "یورو به دلار آمریکا",
+    "is_gold": false,
+    "journal": {
+     "atr": 0.001,
+     "direction": "BUY",
+     "entry": 1.149,
+     "evidences": [
+      "trend:1/2",
+      "level:2/2",
+      "fundamental:2/2",
+      "momentum:1/1",
+      "strength:1/1",
+      "news:1/1",
+      "tv:1/1",
+      "session:1/1"
+     ],
+     "id": "EURUSD-BUY-20260923140000-1.149",
+     "kind": "signal",
+     "max_score": 11,
+     "pip": 0.0001,
+     "reward_pips": 14.0,
+     "risk_pips": 7.0,
+     "rr": 2.0,
+     "score": 10,
+     "sent": true,
+     "session": "لندن + نیویورک (هم‌پوشانی — بهترین نقدینگی ⭐)",
+     "sl": 1.1483,
+     "symbol": "EURUSD",
+     "tp": 1.1504,
+     "ts": "2026-09-23T14:00:00+00:00"
+    },
+    "max_score": 11,
+    "now": "2026-09-23T14:00:00+00:00",
+    "pip": 0.0001,
+    "reward_pips": 13.999999999998458,
+    "risk_pips": 6.999999999999229,
+    "rr": 2.0,
+    "score": 10,
+    "session_fa": "لندن + نیویورک (هم‌پوشانی — بهترین نقدینگی ⭐)",
+    "sid": "EURUSD-BUY-20260923140000-1.149",
+    "sl": 1.1483,
+    "sl_capped": false,
+    "stars": 5,
+    "symbol": "EURUSD",
+    "tp": 1.1503999999999999,
+    "warnings": []
+   },
+   "status_fa": "✅ سیگنال صادر شد",
+   "symbol": "EURUSD",
+   "vetoes": [],
+   "warnings": []
+  },
+  "weekend_off_saturday": {
+   "direction": "BUY",
+   "evidences": [
+    {
+     "detail_fa": "روند صعودی 📈 و تایم‌فریم ۱ ساعته هم تایید می‌کند؛ ADX=32 → روند قوی",
+     "icon": "✅",
+     "key": "trend",
+     "label_fa": "هم‌راستایی روند ۴ ساعته و ۱ ساعته",
+     "max_points": 2,
+     "ok": true,
+     "points": 2,
+     "unavailable": false
+    },
+    {
+     "detail_fa": "حمایت 1.1486 در فاصلهٔ ۰.۴ برابر ATR — قیمت چسبیده به سطح است (واکنش تازه)",
+     "icon": "✅",
+     "key": "level",
+     "label_fa": "واکنش به سطح کلیدی (حمایت)",
+     "max_points": 2,
+     "ok": true,
+     "points": 2,
+     "unavailable": false
+    },
+    {
+     "detail_fa": "هیچ رویداد پراثری تا ۶ ساعت آینده روی EUR/USD نیست — مسیر برای معامله باز است",
+     "icon": "✅",
+     "key": "fundamental",
+     "label_fa": "پنجرهٔ فاندامنتال پاک",
+     "max_points": 2,
+     "ok": true,
+     "points": 2,
+     "unavailable": false
+    },
+    {
+     "detail_fa": "RSI=38 و رو به بالا ↗️ — پولبک در حال برگشت است (بهترین نقطهٔ ورود)",
+     "icon": "✅",
+     "key": "momentum",
+     "label_fa": "تایید مومنتوم (RSI)",
+     "max_points": 1,
+     "ok": true,
+     "points": 1,
+     "unavailable": false
+    },
+    {
+     "detail_fa": "رتبهٔ EUR: ۱ از ۴ | رتبهٔ USD: ۳ از ۴ → جریان قدرت به نفع خرید است ✅",
+     "icon": "✅",
+     "key": "strength",
+     "label_fa": "هم‌جهتی جریان قدرت ارزها",
+     "max_points": 1,
+     "ok": true,
+     "points": 1,
+     "unavailable": false
+    },
+    {
+     "detail_fa": "اخبار جهت خرید را تایید می‌کند (+۲ رأی): «Euro rallies as ECB turns hawkish»؛ «Dollar slides on soft US data»",
+     "icon": "✅",
+     "key": "news",
+     "label_fa": "تایید خبری",
+     "max_points": 1,
+     "ok": true,
+     "points": 1,
+     "unavailable": false
+    },
+    {
+     "detail_fa": "امتیاز تکنیکال رسمی تریدینگ‌ویو «BUY» است (۱۳ خرید/۴ فروش/۹ خنثی) — هم‌جهت با ما ✅",
+     "icon": "✅",
+     "key": "tv",
+     "label_fa": "هم‌جهتی با تریدینگ‌ویو",
+     "max_points": 1,
+     "ok": true,
+     "points": 1,
+     "unavailable": false
+    },
+    {
+     "detail_fa": "شنبه — بازار فارکس بسته است 🔒",
+     "icon": "➖",
+     "key": "session",
+     "label_fa": "زمان‌بندی مناسب (سشن)",
+     "max_points": 1,
+     "ok": false,
+     "points": 0,
+     "unavailable": false
+    }
+   ],
+   "fa_name": "یورو به دلار آمریکا",
+   "max_score": 11,
+   "pip": 0.0001,
+   "price": 1.149,
+   "reject_detail": "",
+   "reject_reason": "",
+   "score": 10,
+   "signal": {
+    "atr": 0.001,
+    "direction": "BUY",
+    "direction_fa": "خرید 🟢",
+    "entry": 1.149,
+    "fa_name": "یورو به دلار آمریکا",
+    "is_gold": false,
+    "journal": {
+     "atr": 0.001,
+     "direction": "BUY",
+     "entry": 1.149,
+     "evidences": [
+      "trend:2/2",
+      "level:2/2",
+      "fundamental:2/2",
+      "momentum:1/1",
+      "strength:1/1",
+      "news:1/1",
+      "tv:1/1",
+      "session:0/1"
+     ],
+     "id": "EURUSD-BUY-20260919120000-1.149",
+     "kind": "signal",
+     "max_score": 11,
+     "pip": 0.0001,
+     "reward_pips": 14.0,
+     "risk_pips": 7.0,
+     "rr": 2.0,
+     "score": 10,
+     "sent": true,
+     "session": "بازار بسته 🔒",
+     "sl": 1.1483,
+     "symbol": "EURUSD",
+     "tp": 1.1504,
+     "ts": "2026-09-19T12:00:00+00:00"
+    },
+    "max_score": 11,
+    "now": "2026-09-19T12:00:00+00:00",
+    "pip": 0.0001,
+    "reward_pips": 13.999999999998458,
+    "risk_pips": 6.999999999999229,
+    "rr": 2.0,
+    "score": 10,
+    "session_fa": "بازار بسته 🔒",
+    "sid": "EURUSD-BUY-20260919120000-1.149",
+    "sl": 1.1483,
+    "sl_capped": false,
+    "stars": 5,
+    "symbol": "EURUSD",
+    "tp": 1.1503999999999999,
+    "warnings": []
+   },
+   "status_fa": "✅ سیگنال صادر شد",
+   "symbol": "EURUSD",
+   "vetoes": [],
+   "warnings": []
+  }
+ }
+}

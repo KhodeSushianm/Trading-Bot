@@ -97,6 +97,13 @@ jobs:
       - name: Engine behavior pins + golden cycle (آفلاین)
         run: python tests/test_engine_switch.py
 
+      # فاز ۴ معماری پلاگین: میخ‌های رفتاری قواعد داور (۷ وتو + ۸ شاهد +
+      # ریاضی ریسک) — قبل از سوییچ به rule-plugin نوشته و سبز شده‌اند؛ بعد از
+      # سوییچ باید بدون تغییر سبز بمانند. شامل باتری طلاییِ سناریوها
+      # (tests/golden/judge_rules_golden.json — دادهٔ ساختگی قطعی، آفلاین).
+      - name: Judge-rules behavior pins + golden battery (آفلاین)
+        run: python tests/test_judge_rules.py
+
       # تست‌های JS اپ اندروید — چرا اینجا هم؟ چون job «test» روی ubuntu اجرا
       # می‌شود و سریع است؛ این‌طور یک کامیتِ «فقط ویندوزی» هم نمی‌تواند
       # پاریتی تم یا رانش نسخهٔ اندروید را بی‌صدا بشکند.
