@@ -315,6 +315,24 @@ O.http = async function (url, opts) {
       deepEq(`parseAll.${fx.name}`, fx.items, items, 1e-9);
     });
   });
+  check('news dedupeKey (پین قطعی غیرASCII)', () => {
+    // درس parity زندهٔ فاز ۴: «Pokémon» — \w جاوااسکریپت ASCII-only است و
+    // نویسه‌هایی مثل é/پ را حذف می‌کرد، برخلاف \w یونیکدِ پایتون. این پین
+    // مستقل از دادهٔ زنده، هم‌ترازی دو موتور را برای عنوان‌های غیرلاتین
+    // (فارسی/ترکی/لهجه‌دار) قفل می‌کند.
+    FIX.news.dedupe.forEach(c => {
+      deepEq(`dedupeKey «${c.title.slice(0, 28)}»`, c.key, O.dedupeKey(c.title));
+    });
+    // é حرف است نه نقطه‌گذاری: «Pokémon» و «Pokemon» خبرِ *متفاوت‌اند* و
+    // نباید با هم ادغام شوند (dedupe کاذب = خبر گم‌شده در اندروید).
+    const pok = FIX.news.dedupe.filter(c => /^Pok.?mon rally extends$/.test(c.title));
+    if (pok.length === 2) {
+      const k1 = O.dedupeKey(pok[0].title), k2 = O.dedupeKey(pok[1].title);
+      if (k1 === k2) fails.push('dedupeKey: «Pokémon» و «Pokemon» ادغام شدند (é حذف شده)');
+    } else {
+      fails.push(`پینِ جفت Pokémon/Pokemon در fixtures نیست (${pok.length})`);
+    }
+  });
   check('scoreText (عنوان‌های دست‌ساز)', () => {
     FIX.scoreText.forEach((c, i) => {
       const r = O.scoreText(c.title, c.wide || undefined);

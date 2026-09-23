@@ -442,6 +442,26 @@ def gen_news_fixtures(cfg: dict, now_ms: int) -> None:
                   "config": {"max_age_hours": age, "min_score": min_score,
                              "max_items_per_feed": per_feed, "max_total": total_max}}
 
+    # پینِ قطعیِ dedupe_key — عنوان‌های غیرASCII (درسِ parity زندهٔ فاز ۴:
+    # «Pokémon»). \w جاوااسکریپت ASCII-only است و این نویسه‌ها را حذف می‌کرد
+    # (برخلاف \w یونیکدِ پایتون) → واگرایی dedupe_key دو موتور. این پین
+    # مستقل از دادهٔ زنده است تا باگ بی‌صدا برنگردد.
+    dedupe_titles = [
+        "As Pokémon cards sell for millions, are collectibles an investment bubble?",
+        "Moody’s upgrades Bending Spoons rating to Ba3",
+        "Gold recovers above $4,350 on US–Iran diplomacy hopes",
+        "ارزش ریال در برابر دلار افزایش یافت",
+        "بازار طلا در انتظار تصمیم فدرال رزرو",
+        "El niño weather pattern returns — EUR/USD outlook",
+        "TCMB faiz kararını açıkladı: 250bp indirim",
+        "Pokémon rally extends",
+        "Pokemon rally extends",
+        "BREAKING: ECB surprise decision",
+    ]
+    FX["news"]["dedupe"] = [
+        {"title": t, "key": news_mod.NewsItem(title=t).dedupe_key}
+        for t in dedupe_titles]
+
     # عنوان‌های دست‌ساز برای پوشش مسیرهای امتیازدهی جهت‌دار
     crafted = [
         ("USDJPY surges as Fed turns hawkish", ""),
