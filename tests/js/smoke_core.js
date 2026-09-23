@@ -12,9 +12,9 @@
  *      ALLOWED) مستقیماً از سورس پایتون (src/core/*) استخراج و با JS
  *      مقایسه می‌شوند — اگر کسی در پایتون تغییر داد، اینجا بی‌صدا رد نمی‌شود.
  *
- * نگهبان‌ها: core.js باید ES5 خالص بماند (WebView قدیمی) · تا فاز ۶ هیچ
- * ماژول دیگری اجازهٔ مصرف O.core را ندارد (inert) · index.html باید core.js
- * را *پیش از همه* بار کند.
+ * نگهبان‌ها: core.js باید ES5 خالص بماند (WebView قدیمی) · از فاز ۶ فقط
+ * plugins.js/app.js/data.js (لایهٔ پلاگین + ارکستراتورها) O.core را مصرف
+ * می‌کنند · index.html باید core.js را *پیش از همه* بار کند.
  */
 'use strict';
 
@@ -540,7 +540,7 @@ group('۹) پاریتیِ سورس — فهرست‌ها مستقیماً از s
 }
 
 // ══════════════════════════════════════════════════════════════
-group('۱۰) نگهبان‌ها — ES5 · inert بودن · ترتیب بارگذاری در index.html');
+group('۱۰) نگهبان‌ها — ES5 · مصرف‌کننده‌های مجاز · ترتیب بارگذاری در index.html');
 {
   const src = read(CORE_JS, 'core.js');
 
@@ -561,7 +561,10 @@ group('۱۰) نگهبان‌ها — ES5 · inert بودن · ترتیب بار�
   ok(keys.length === 1 && keys[0] === 'core',
     'core.js باید فقط O.core را تعریف کند (بدون side-effect) — یافت: ' + JSON.stringify(keys));
 
-  // تا فاز ۶ هیچ ماژول دیگری O.core را مصرف نمی‌کند
+  // مصرف‌کننده‌های O.core — فاز ۶ رسید: فقط لایهٔ پلاگین + ارکستراتورها
+  // (plugins.js/app.js/data.js). هیچ ماژول دیگری (UI/فیچر) اجازهٔ مصرف
+  // مستقیم ندارد — این فهرست همان «بلوک ثبتِ پلاگین» فاز ۶ است.
+  const ALLOWED_CORE_CONSUMERS = ['app.js', 'data.js', 'plugins.js'];
   const jsDir = path.join(WWW, 'js');
   const consumers = [];
   fs.readdirSync(jsDir).filter((f) => f.endsWith('.js') && f !== 'core.js').forEach((f) => {
@@ -570,8 +573,11 @@ group('۱۰) نگهبان‌ها — ES5 · inert بودن · ترتیب بار�
       .replace(/(^|[^:'"`\\])\/\/[^\n]*/g, '$1 ');
     if (/O\.core\b/.test(code)) consumers.push(f);
   });
-  ok(consumers.length === 0,
-    'تا فاز ۶ هیچ ماژولی نباید O.core را مصرف کند: ' + consumers.join(', '));
+  ok(consumers.length > 0
+     && consumers.every((f) => ALLOWED_CORE_CONSUMERS.indexOf(f) >= 0)
+     && ALLOWED_CORE_CONSUMERS.every((f) => consumers.indexOf(f) >= 0),
+    'مصرف‌کننده‌های O.core باید دقیقاً plugins.js/app.js/data.js باشند — یافت: '
+    + JSON.stringify(consumers));
 
   // index.html: core.js باید *اولین* اسکریپت باشد (ثبت پلاگین‌ها در فاز ۶
   // به بودنِ O.core در زمان اجرای ماژول‌ها نیاز دارد)
@@ -590,4 +596,4 @@ if (failures) {
   process.exit(1);
 }
 console.log('✅ SMOKE CORE OK — ' + checks + ' بررسی پاس؛ هستهٔ پلاگین JS آینهٔ '
-  + 'src/core/ پایتون است (رفتار + فهرست‌های مشترک از سورس) و ES5/inert/اولین-اسکریپت ماند');
+  + 'src/core/ پایتون است (رفتار + فهرست‌های مشترک از سورس) و ES5/مصرف‌کننده‌های مجاز/اولین-اسکریپت ماند');

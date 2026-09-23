@@ -329,8 +329,12 @@
   };
 
   // ── چرخهٔ کامل تحلیل (معادل run_cycle بدون تلگرام) ──────────
+  // فاز ۶: قابلیت‌ها از registry مصرف می‌شوند (caps) — ترتیب/لاگ‌ها/خروجی
+  // بایت‌به‌بایت همان قبلی (میخ: tests/js/test_cycle_switch.js). رویدادهای
+  // BUS افزودنی‌اند: بدون listener هیچ اثر رفتاری ندارند.
   O.runPipeline = function (cfg, storage, onProgress) {
     var log = onProgress || function () { };
+    var caps = O.makeCaps(cfg);
     var mkt = {
       analyses: [], datasets: {}, ranking: [], tvMap: {}, tvTf: '4h',
       sourceName: 'yahoo', errors: 0
@@ -339,46 +343,75 @@
     var total = syms.length;
     var done = 0;
 
+    // منبع داده — connect/disconnect در adapter جاوااسکریپت no-op صادقانه‌اند
+    // (fetch بی‌حالت است) ولی shape قراردادِ مشترک با دسکتاپ حفظ می‌شود.
+    var source = caps.market;
+    if (!source) {
+      log('❌ منبع داده در دسترس نیست — اینترنت/تنظیمات را بررسی کنید');
+      mkt.errors = 1;
+      O.BUS.emit(O.core.EVENTS.MARKET_COLLECTED, { analyses: 0, errors: mkt.errors });
+      return Promise.resolve(mkt);
+    }
+    try { source.connect(); }
+    catch (e) {
+      log('❌ اتصال به منبع داده ناموفق: ' + String(e && e.message || e).slice(0, 120));
+      mkt.errors = 1;
+      O.BUS.emit(O.core.EVENTS.MARKET_COLLECTED, { analyses: 0, errors: mkt.errors });
+      return Promise.resolve(mkt);
+    }
+
     return Promise.all(syms.map(function (s) {
       log('📡 دریافت ' + s.name + '...');
-      return O.fetchYahooSymbol(s, cfg.history).then(function (md) {
+      return source.fetch(s).then(function (md) {
         done++;
         if (!md) {
           mkt.errors++;
           log('[!] دادهٔ ' + s.name + ' ناقص است — رد شد');
         } else {
           mkt.datasets[s.name] = md;
-          try { mkt.analyses.push(O.analyzeSymbol(s, md, cfg.analysis)); }
+          try { mkt.analyses.push(caps.technical.analyzeSymbol(s, md, cfg.analysis)); }
           catch (e) { mkt.errors++; log('[!] خطای تحلیل ' + s.name + ': ' + e); }
         }
         log('(' + O.faNum(done) + '/' + O.faNum(total) + ') ' + s.name + (md ? ' ✅' : ' ❌'));
       });
     })).then(function () {
+      try { source.disconnect(); } catch (e) { }
       if (!mkt.analyses.length) {
         log('❌ هیچ نمادی تحلیل نشد — اینترنت را بررسی کنید');
         mkt.errors = Math.max(mkt.errors, 1);
+        O.BUS.emit(O.core.EVENTS.MARKET_COLLECTED, { analyses: 0, errors: mkt.errors });
         return mkt;
       }
       log('✅ تحلیل ' + O.faNum(mkt.analyses.length) + ' نماد انجام شد');
-      mkt.ranking = O.currencyStrength(mkt.datasets, (cfg.analysis.strength_lookback_h1 | 0) || 24);
+      mkt.ranking = caps.strength.currencyStrength(mkt.datasets, (cfg.analysis.strength_lookback_h1 | 0) || 24);
+      // market.collected: payload همان کلیدهای پایتون {analyses, errors} —
+      // اینجا منتشر می‌شود چون تعداد تحلیل‌ها قطعی است (TV لایهٔ تاییدیه است
+      // و هم‌زمان با فاندامنتال واکشی می‌شود؛ در پایتون بخشی از collect_market است)
+      O.BUS.emit(O.core.EVENTS.MARKET_COLLECTED,
+        { analyses: mkt.analyses.length, errors: mkt.errors });
 
       var tvCfg = cfg.tradingview || {};
       mkt.tvTf = tvCfg.timeframe || '4h';
-      var tvP = (tvCfg.enabled !== false)
+      var tv = caps.tv;   // binding مانیفست: tradingview.enabled=false → null
+      var tvP = (tvCfg.enabled !== false && tv)
         ? (log('🔍 دریافت تاییدیه تریدینگ‌ویو...'),
-          O.fetchTvSnapshot(cfg.symbols, mkt.tvTf).then(function (m) {
+          tv.fetchTvSnapshot(cfg.symbols, mkt.tvTf).then(function (m) {
             mkt.tvMap = m || {};
             log('✅ تاییدیه تریدینگ‌ویو برای ' + O.faNum(Object.keys(mkt.tvMap).length) + ' نماد دریافت شد');
           }))
         : Promise.resolve();
 
-      var calP = O.fetchCalendar(cfg, storage).then(function (s) {
+      // پلاگین خاموش (طبق binding) → fallback به همان تابع قبلی تا خروجیِ
+      // مسیر «غیرفعال در تنظیمات» (guard داخلی) بایت‌به‌بایت امروز بماند.
+      var cal = caps.calendar;
+      var calP = (cal ? cal.fetchCalendar(cfg, storage) : O.fetchCalendar(cfg, storage)).then(function (s) {
         mkt.calSnap = s;
         if (s && s.ok) log('🏦 تقویم اقتصادی: ' + O.faNum(s.events.length) + ' رویداد' + (s.fromCache ? ' (از کش)' : ''));
         else log('[!] تقویم اقتصادی در دسترس نیست: ' + String((s && s.error) || '').slice(0, 80));
       });
 
-      var newsP = O.fetchNews(cfg, log).then(function (s) {
+      var news = caps.news;
+      var newsP = (news ? news.fetchNews(cfg, log) : O.fetchNews(cfg, log)).then(function (s) {
         mkt.newsSnap = s;
         if (s && s.ok) {
           var br = s.items.filter(function (i) { return i.breaking; }).length;
@@ -387,7 +420,13 @@
         } else log('[!] موتور اخبار: ' + ((s && s.error) || 'خبری پیدا نشد'));
       });
 
-      return Promise.all([tvP, calP, newsP]).then(function () { return mkt; });
+      return Promise.all([tvP, calP, newsP]).then(function () {
+        O.BUS.emit(O.core.EVENTS.FUNDAMENTAL_COLLECTED, {
+          calendar_ok: !!(mkt.calSnap && mkt.calSnap.ok),
+          news_items: (mkt.newsSnap && mkt.newsSnap.items) ? mkt.newsSnap.items.length : 0
+        });
+        return mkt;
+      });
     });
   };
 })(typeof ODIN !== 'undefined' ? ODIN : (globalThis.ODIN = {}));

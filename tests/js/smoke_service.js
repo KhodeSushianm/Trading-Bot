@@ -42,7 +42,7 @@ ctx.ODINNative = {
   // عمداً بدون http → لایهٔ داده به fetch نیتیوِ Node می‌افتد (مثل گوشی بدون Bridge نبودن)
 };
 vm.createContext(ctx);
-for (const f of ['md5.js', 'fa.js', 'icons.js', 'license.js', 'config.js', 'indicators.js', 'session.js',
+for (const f of ['core.js', 'plugins.js', 'md5.js', 'fa.js', 'icons.js', 'license.js', 'config.js', 'indicators.js', 'session.js',
   'technical.js', 'calendar.js', 'news.js', 'judge.js', 'journal.js', 'data.js', 'alerts.js', 'chart.js', 'sharecard.js',
   'briefing.js', 'components.js', 'ui.js', 'app.js']) {
   vm.runInContext(fs.readFileSync(path.join(WWW, f), 'utf8'), ctx, { filename: f });
