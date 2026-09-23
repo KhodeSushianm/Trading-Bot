@@ -81,6 +81,12 @@ jobs:
       - name: Core plugin-skeleton unit tests (آفلاین)
         run: python tests/test_core.py
 
+      # فاز ۲ معماری پلاگین: تست‌های طلایی src/plugins/ — هر adapter باید
+      # خروجی فراخوانی مستقیم را عیناً بازتولید کند. آفلاین (yfinance در CI
+      # نیست؛ تست نوع منبع داده به‌طور طراحی‌شده skip می‌شود).
+      - name: Plugin golden tests (adapter == direct call — آفلاین)
+        run: python tests/test_plugins.py
+
       # تست‌های JS اپ اندروید — چرا اینجا هم؟ چون job «test» روی ubuntu اجرا
       # می‌شود و سریع است؛ این‌طور یک کامیتِ «فقط ویندوزی» هم نمی‌تواند
       # پاریتی تم یا رانش نسخهٔ اندروید را بی‌صدا بشکند.
