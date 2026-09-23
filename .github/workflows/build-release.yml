@@ -63,11 +63,15 @@ jobs:
           python-version: "3.11"
 
       - name: Install minimal test dependencies
-        # عمداً سبک: yfinance، tradingview-ta و PySide6 برای خودآزمون لازم نیستند
-        # (هر سه به‌صورت lazy داخل تابع ایمپورت می‌شوند)
+        # عمداً سبک: tradingview-ta و PySide6 برای خودآزمون‌ها لازم نیستند
+        # (هر دو به‌صورت lazy داخل تابع ایمپورت می‌شوند).
+        # yfinance از فاز ۳ اضافه شد: میخ‌های طلاییِ سوییچ engine
+        # (tests/test_engine_switch.py) کلاس YahooSource را پچ می‌کنند — seam
+        # مشترکِ قبل/بعد از سوییچ. yfinance وابستگی واقعیِ requirements.txt
+        # است، پس CI حالا به تولید نزدیک‌تر است نه دورتر.
         run: |
           python -m pip install --upgrade pip
-          pip install pandas numpy PyYAML requests feedparser
+          pip install pandas numpy PyYAML requests feedparser yfinance
 
       - name: Backend selftest (offline — تقویم، اخبار، وتو، گزارش)
         run: python main.py --selftest
@@ -82,10 +86,16 @@ jobs:
         run: python tests/test_core.py
 
       # فاز ۲ معماری پلاگین: تست‌های طلایی src/plugins/ — هر adapter باید
-      # خروجی فراخوانی مستقیم را عیناً بازتولید کند. آفلاین (yfinance در CI
-      # نیست؛ تست نوع منبع داده به‌طور طراحی‌شده skip می‌شود).
+      # خروجی فراخوانی مستقیم را عیناً بازتولید کند. آفلاین (تست «نوع منبع
+      # داده» با yfinance کامل می‌شود و بدون آن به‌طور طراحی‌شده skip است).
       - name: Plugin golden tests (adapter == direct call — آفلاین)
         run: python tests/test_plugins.py
+
+      # فاز ۳ معماری پلاگین: میخ‌های رفتاری engine (قبل از سوییچ نوشته و سبز
+      # شده‌اند؛ بعد از سوییچ باید بدون تغییر سبز بمانند). شامل مقایسهٔ چرخهٔ
+      # کامل mock با tests/golden/run_cycle_golden.json — آفلاین.
+      - name: Engine behavior pins + golden cycle (آفلاین)
+        run: python tests/test_engine_switch.py
 
       # تست‌های JS اپ اندروید — چرا اینجا هم؟ چون job «test» روی ubuntu اجرا
       # می‌شود و سریع است؛ این‌طور یک کامیتِ «فقط ویندوزی» هم نمی‌تواند
