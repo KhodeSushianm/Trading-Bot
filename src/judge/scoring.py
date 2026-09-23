@@ -45,7 +45,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
-from typing import Optional
+from typing import Callable, Optional
 
 from ..analysis import indicators as ind
 from ..analysis.technical import SymbolAnalysis
@@ -277,32 +277,61 @@ def _breaking_news_for(news_snap, base: str, quote: str, min_score: int) -> list
     return out
 
 
-def collect_vetoes(a: SymbolAnalysis, sym_cfg: dict, md: Optional[MarketData],
-                   ctx: JudgeContext) -> list[Veto]:
-    """همهٔ دروازه‌های وتو را بررسی می‌کند."""
-    v: list[Veto] = []
+# ── ۷ قاعدهٔ وتو (فاز ۴) ────────────────────────────────────────
+# هر دروازه یک تابع مستقل با shape قرارداد odin.judge.veto@1 است:
+# (a, sym_cfg, md, ctx) → Veto|None. بدنهٔ هر تابع، جابه‌جاییِ بایت‌به‌بایتِ
+# همان بلوک از collect_vetoes قبلی است — فقط مرز عوض شده، نه منطق.
+# دو مسیر مصرف دارند:
+#   ۱) مستقیم: collect_vetoes با پیش‌فرض _VETO_RULES (رفتار امروز)
+#   ۲) rule-plugin: adapterهای نازک در src/plugins/judge.py (ثبت در registry)
+
+def veto_data(a: SymbolAnalysis, sym_cfg: dict, md: Optional[MarketData],
+              ctx: JudgeContext) -> Optional[Veto]:
+    """⚠️ دادهٔ ناکافی — تعداد کندل‌ها برای EMA200 کافی نیست."""
+    if a.verdict == "DATA":
+        return Veto("DATA", "⚠️ دادهٔ ناکافی",
+                    "تعداد کندل‌ها برای محاسبهٔ EMA200 کافی نیست — تحلیل قابل اتکا نیست")
+    return None
+
+
+def veto_weekend(a: SymbolAnalysis, sym_cfg: dict, md: Optional[MarketData],
+                 ctx: JudgeContext) -> Optional[Veto]:
+    """🔒 بازار بسته است (شنبه/یکشنبه و جمعه بعد از ۲۱ UTC)."""
+    vc = ctx.jcfg["veto"]
+    if vc.get("weekend", True) and not ctx.status.open:
+        return Veto("WEEKEND", "🔒 بازار بسته است", ctx.status.reason_fa)
+    return None
+
+
+def veto_tf_conflict(a: SymbolAnalysis, sym_cfg: dict, md: Optional[MarketData],
+                     ctx: JudgeContext) -> Optional[Veto]:
+    """🔀 تضاد جهت بین تایم‌فریم ۴ ساعته و ۱ ساعته."""
+    vc = ctx.jcfg["veto"]
+    if vc.get("timeframe_conflict", True) and a.verdict != "DATA" and not a.h1_agrees:
+        return Veto("TF_CONFLICT", "🔀 تضاد جهت بین تایم‌فریم‌ها",
+                    f"روند ۴ ساعته {TREND_FA[a.trend]} است ولی ۱ ساعته هم‌جهت نیست "
+                    f"— طبق قوانین، معامله در تضاد تایم‌فریم ممنوع است")
+    return None
+
+
+def veto_range(a: SymbolAnalysis, sym_cfg: dict, md: Optional[MarketData],
+               ctx: JudgeContext) -> Optional[Veto]:
+    """😴 بازار بی‌روند — ADX زیر analysis.adx_min_trend."""
     vc = ctx.jcfg["veto"]
     acfg = ctx.acfg
-    base, quote = a.base, a.quote
-
-    if a.verdict == "DATA":
-        v.append(Veto("DATA", "⚠️ دادهٔ ناکافی",
-                      "تعداد کندل‌ها برای محاسبهٔ EMA200 کافی نیست — تحلیل قابل اتکا نیست"))
-
-    if vc.get("weekend", True) and not ctx.status.open:
-        v.append(Veto("WEEKEND", "🔒 بازار بسته است", ctx.status.reason_fa))
-
-    if vc.get("timeframe_conflict", True) and a.verdict != "DATA" and not a.h1_agrees:
-        v.append(Veto("TF_CONFLICT", "🔀 تضاد جهت بین تایم‌فریم‌ها",
-                      f"روند ۴ ساعته {TREND_FA[a.trend]} است ولی ۱ ساعته هم‌جهت نیست "
-                      f"— طبق قوانین، معامله در تضاد تایم‌فریم ممنوع است"))
-
     adx_min = float(acfg.get("adx_min_trend", 20))
     if vc.get("range_market", True) and a.verdict != "DATA" and a.adx < adx_min:
-        v.append(Veto("RANGE", "😴 بازار بی‌روند (رنج)",
-                      f"ADX={a.adx:.0f} زیر آستانهٔ {adx_min:.0f} است — استراتژی روندی "
-                      f"در بازار رنج کار نمی‌کند"))
+        return Veto("RANGE", "😴 بازار بی‌روند (رنج)",
+                    f"ADX={a.adx:.0f} زیر آستانهٔ {adx_min:.0f} است — استراتژی روندی "
+                    f"در بازار رنج کار نمی‌کند")
+    return None
 
+
+def veto_event(a: SymbolAnalysis, sym_cfg: dict, md: Optional[MarketData],
+               ctx: JudgeContext) -> Optional[Veto]:
+    """📅 رویداد پراثر تقویم در پنجرهٔ وتو (fundamental.veto_minutes_before)."""
+    vc = ctx.jcfg["veto"]
+    base, quote = a.base, a.quote
     if vc.get("high_impact_event", True) and ctx.cal_snap is not None:
         evs = veto_for_symbol(ctx.cal_snap, base, quote, ctx.now,
                               minutes=float(ctx.event_veto_minutes))
@@ -311,28 +340,64 @@ def collect_vetoes(a: SymbolAnalysis, sym_cfg: dict, md: Optional[MarketData],
             soon = min(evs, key=lambda e: abs(e.minutes_from(ctx.now)))
             mins = int(round(soon.minutes_from(ctx.now)))
             when = f"{fa_num(abs(mins))} دقیقه {'بعد' if mins >= 0 else 'پیش'}"
-            v.append(Veto("EVENT", "📅 رویداد پراثر تقویم",
-                          f"{names} — {when}. نوسان خبری غیرقابل پیش‌بینی است"))
+            return Veto("EVENT", "📅 رویداد پراثر تقویم",
+                        f"{names} — {when}. نوسان خبری غیرقابل پیش‌بینی است")
+    return None
 
+
+def veto_vol_spike(a: SymbolAnalysis, sym_cfg: dict, md: Optional[MarketData],
+                   ctx: JudgeContext) -> Optional[Veto]:
+    """📈 جهش غیرعادی نوسان — ATR فعلی در برابر میانگین کندل‌های اخیر."""
+    vc = ctx.jcfg["veto"]
+    acfg = ctx.acfg
     if vc.get("volatility_spike", True) and md is not None:
         vol = ctx.jcfg["volatility"]
         lookback = int(vol.get("lookback_bars", 100))
         ratio, mean = _volatility_ratio(md, acfg, lookback)
         mult = float(vol.get("spike_multiplier", 2.0))
         if ratio and ratio > mult:
-            v.append(Veto("VOL_SPIKE", "📈 جهش غیرعادی نوسان",
-                          f"ATR یک‌ساعتهٔ فعلی {fa_num(f'{ratio:.1f}')} برابر میانگین "
-                          f"{fa_num(lookback)} کندل اخیر است (آستانهٔ وتو: "
-                          f"{fa_num(f'{mult:.1f}')} برابر). در این شرایط اسپرد وید می‌شود و "
-                          f"حد ضرر قابل اتکا نیست"))
+            return Veto("VOL_SPIKE", "📈 جهش غیرعادی نوسان",
+                         f"ATR یک‌ساعتهٔ فعلی {fa_num(f'{ratio:.1f}')} برابر میانگین "
+                         f"{fa_num(lookback)} کندل اخیر است (آستانهٔ وتو: "
+                         f"{fa_num(f'{mult:.1f}')} برابر). در این شرایط اسپرد وید می‌شود و "
+                         f"حد ضرر قابل اتکا نیست")
+    return None
 
+
+def veto_breaking_news(a: SymbolAnalysis, sym_cfg: dict, md: Optional[MarketData],
+                       ctx: JudgeContext) -> Optional[Veto]:
+    """🚨 خبر فوریِ مرتبط با جفت‌ارز."""
+    vc = ctx.jcfg["veto"]
+    base, quote = a.base, a.quote
     if vc.get("breaking_news", True):
         brs = _breaking_news_for(ctx.news_snap, base, quote,
                                  int(ctx.jcfg["news"].get("breaking_min_score", 5)))
         if brs:
             b = brs[0]
-            v.append(Veto("BREAKING_NEWS", "🚨 خبر فوری",
-                          f"«{b.headline_fa(70)}» — تا آرام‌شدن بازار صبر کن"))
+            return Veto("BREAKING_NEWS", "🚨 خبر فوری",
+                         f"«{b.headline_fa(70)}» — تا آرام‌شدن بازار صبر کن")
+    return None
+
+
+# ترتیب ارزیابی = دقیقاً ترتیب دروازه‌ها در collect_vetoes قبلی (میخِ
+# tests/test_judge_rules.py). مسیر rule-plugin هم همین ترتیب را با priority
+# مانیفست‌ها پین می‌کند (طلاییِ providers در tests/test_plugins.py).
+_VETO_RULES: tuple = (veto_data, veto_weekend, veto_tf_conflict, veto_range,
+                      veto_event, veto_vol_spike, veto_breaking_news)
+
+
+def collect_vetoes(a: SymbolAnalysis, sym_cfg: dict, md: Optional[MarketData],
+                   ctx: JudgeContext, rules: Optional[list] = None) -> list[Veto]:
+    """همهٔ دروازه‌های وتو را به‌ترتیب بررسی می‌کند.
+
+    rules: فهرست callable با shape (a, sym_cfg, md, ctx)→Veto|None.
+    None = هفت قاعدهٔ پیش‌فرض (_VETO_RULES) — بایت‌به‌بایت رفتار امروز.
+    """
+    v: list[Veto] = []
+    for rule in (_VETO_RULES if rules is None else rules):
+        veto = rule(a, sym_cfg, md, ctx)
+        if veto is not None:
+            v.append(veto)
     return v
 
 
@@ -512,6 +577,23 @@ def ev_session(ctx: JudgeContext) -> Evidence:
                     f"سشن {st.label} — نقدینگی کمتر، حرکت‌ها کم‌جان‌تر و اسپرد نسبتاً بیشتر")
 
 
+def _ev_session_rule(a: SymbolAnalysis, ctx: JudgeContext, direction: str) -> Evidence:
+    """shape یکدستِ قواعد شاهد برای ev_session (فاز ۴) — a/direction نادیده.
+
+    ev_session امروز فقط (ctx) می‌گیرد؛ این wrapper نازک اجازه می‌دهد در
+    فهرست قواعد با همان shape هفت شاهد دیگر (a, ctx, direction) بنشیند —
+    بدون هیچ تغییر رفتاری (وعدهٔ صریح §۲.۲ سند معماری).
+    """
+    return ev_session(ctx)
+
+
+# ترتیب جدول امتیاز = دقیقاً فهرست امروزِ judge_symbol (میخِ
+# tests/test_judge_rules.py). مسیر rule-plugin هم همین ترتیب را با priority
+# مانیفست‌ها پین می‌کند (طلاییِ providers در tests/test_plugins.py).
+_EVIDENCE_RULES: tuple = (ev_trend, ev_level, ev_fundamental, ev_momentum,
+                          ev_strength, ev_news, ev_tradingview, _ev_session_rule)
+
+
 # ══════════════════════════════════════════════════════════════
 #  محاسبهٔ ورود / حد ضرر / هدف
 # ══════════════════════════════════════════════════════════════
@@ -577,13 +659,24 @@ def _no_setup_reason(a: SymbolAnalysis, ctx: JudgeContext) -> str:
 
 
 def judge_symbol(a: SymbolAnalysis, sym_cfg: dict, md: Optional[MarketData],
-                 ctx: JudgeContext) -> Judgment:
-    """داوری کامل یک نماد. هرگز استثنا پرتاب نمی‌کند."""
+                 ctx: JudgeContext, veto_rules: Optional[list] = None,
+                 evidence_rules: Optional[list] = None,
+                 risk_fn: Optional[Callable] = None) -> Judgment:
+    """داوری کامل یک نماد. هرگز استثنا پرتاب نمی‌کند.
+
+    veto_rules / evidence_rules / risk_fn (فاز ۴): تزریق *اختیاری* قواعد —
+    callableهایی با shape قراردادها (odin.judge.veto@1 / evidence@1 / risk@1).
+    None = توابع پیش‌فرض همین ماژول — بایت‌به‌بایت رفتار امروز. مسیر
+    rule-plugin (JudgePlugin + registry) همان قواعد را از registry تزریق
+    می‌کند؛ طلایی‌های tests/test_plugins.py برابری بایت‌به‌بایت دو مسیر را
+    اثبات می‌کنند. scoring عمداً core/plugins را import نمی‌کند — قواعد فقط
+    callableاند (استقلال لایهٔ فیچر از چارچوب).
+    """
     j = Judgment(symbol=a.symbol, fa_name=a.fa_name, direction=None,
                  max_score=11, price=a.price, pip=a.pip)
 
     # ۱) وتوها — همیشه اول، چون بدون استثنا هستند
-    j.vetoes = collect_vetoes(a, sym_cfg, md, ctx)
+    j.vetoes = collect_vetoes(a, sym_cfg, md, ctx, rules=veto_rules)
 
     # ۲) آیا اصلاً ستاپی هست که داوری شود؟
     if a.verdict == "BUY_SETUP":
@@ -601,16 +694,8 @@ def judge_symbol(a: SymbolAnalysis, sym_cfg: dict, md: Optional[MarketData],
         return j
 
     # ۳) جدول امتیاز
-    j.evidences = [
-        ev_trend(a, ctx, j.direction),
-        ev_level(a, ctx, j.direction),
-        ev_fundamental(a, ctx, j.direction),
-        ev_momentum(a, ctx, j.direction),
-        ev_strength(a, ctx, j.direction),
-        ev_news(a, ctx, j.direction),
-        ev_tradingview(a, ctx, j.direction),
-        ev_session(ctx),
-    ]
+    j.evidences = [rule(a, ctx, j.direction) for rule in
+                   (_EVIDENCE_RULES if evidence_rules is None else evidence_rules)]
     j.max_score = sum(e.max_points for e in j.evidences)
     j.score = sum(e.points for e in j.evidences)
 
@@ -628,8 +713,9 @@ def judge_symbol(a: SymbolAnalysis, sym_cfg: dict, md: Optional[MarketData],
 
     # ۶) ساخت سیگنال
     rcfg = ctx.jcfg["risk"]
-    sl, tp, risk, capped = compute_levels(j.direction, a.price, a.atr,
-                                          a.support, a.resistance, rcfg)
+    _levels = compute_levels if risk_fn is None else risk_fn
+    sl, tp, risk, capped = _levels(j.direction, a.price, a.atr,
+                                   a.support, a.resistance, rcfg)
     if capped:
         cap = float(rcfg.get("max_sl_atr", 3.0))
         j.warnings.append(f"حد ضرر از سطح کلیدی دور بود و به سقف "
@@ -656,9 +742,18 @@ def judge_symbol(a: SymbolAnalysis, sym_cfg: dict, md: Optional[MarketData],
     return j
 
 
-def judge_all(analyses: list[SymbolAnalysis], datasets: dict, ctx: JudgeContext) -> list[Judgment]:
-    """داوری همهٔ نمادها + اعمال سقف تعداد سیگنال در هر چرخه."""
-    out = [judge_symbol(a, {}, datasets.get(a.symbol), ctx) for a in analyses]
+def judge_all(analyses: list[SymbolAnalysis], datasets: dict, ctx: JudgeContext,
+              veto_rules: Optional[list] = None,
+              evidence_rules: Optional[list] = None,
+              risk_fn: Optional[Callable] = None) -> list[Judgment]:
+    """داوری همهٔ نمادها + اعمال سقف تعداد سیگنال در هر چرخه.
+
+    پارامترهای قواعد، pass-through به judge_symbol اند (فاز ۴) —
+    None = رفتار بایت‌به‌بایتِ امروز.
+    """
+    out = [judge_symbol(a, {}, datasets.get(a.symbol), ctx,
+                        veto_rules=veto_rules, evidence_rules=evidence_rules,
+                        risk_fn=risk_fn) for a in analyses]
     cap = int(ctx.jcfg.get("max_signals_per_cycle", 3))
     ready = sorted([j for j in out if j.signal], key=lambda j: -j.score)
     for j in ready[cap:]:

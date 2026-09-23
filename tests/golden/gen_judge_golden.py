@@ -26,6 +26,11 @@
 
 اجرا (برای ضبط/بازتولید عمدیِ طلایی — فقط با دلیل موجه):
     python tests/golden/gen_judge_golden.py
+
+build_battery(judge_symbol_fn, judge_all_fn): پارامترهای *اختیاریِ* تزریق —
+پیش‌فرض None = مسیر مستقیم scoring (همان میخ). tests/test_plugins.py با
+تزریقِ مسیر rule-plugin (JudgePlugin + registry) همان باتری را اجرا می‌کند و
+خروجی باید بایت‌به‌بایت با همین طلایی یکی باشد.
 """
 from __future__ import annotations
 
@@ -232,35 +237,41 @@ def judgment_dump(j) -> dict:
             "signal": signal_dump(j.signal) if j.signal else None}
 
 
-def _judge(a, md=None, ctx=None) -> dict:
-    return judgment_dump(judge_symbol(a, {}, md if md is not None else make_md(),
-                                      ctx if ctx is not None else make_ctx()))
+def _judge(a, md=None, ctx=None, jfn=None) -> dict:
+    fn = judge_symbol if jfn is None else jfn
+    return judgment_dump(fn(a, {}, md if md is not None else make_md(),
+                            ctx if ctx is not None else make_ctx()))
 
 
 # ══════════════════════════════════════════════════════════════
 #  گروه ۱ — وتوها
 # ══════════════════════════════════════════════════════════════
-def battery_veto_single() -> dict:
+def battery_veto_single(jfn=None) -> dict:
     """هر وتو به‌تنهایی — بقیهٔ دروازه‌ها خاموش/دور نگه داشته شده‌اند."""
     out = {}
     out["DATA"] = _judge(make_analysis(verdict="DATA"),
-                         ctx=make_ctx(cal=clean_cal(), news=good_news()))
+                         ctx=make_ctx(cal=clean_cal(), news=good_news()), jfn=jfn)
     out["WEEKEND"] = _judge(make_analysis(),
-                            ctx=make_ctx(now=SAT, cal=clean_cal(), news=good_news()))
+                            ctx=make_ctx(now=SAT, cal=clean_cal(), news=good_news()),
+                            jfn=jfn)
     out["TF_CONFLICT"] = _judge(make_analysis(h1_agrees=False),
-                                ctx=make_ctx(cal=clean_cal(), news=good_news()))
+                                ctx=make_ctx(cal=clean_cal(), news=good_news()),
+                                jfn=jfn)
     out["RANGE"] = _judge(make_analysis(adx=14.0),
-                          ctx=make_ctx(cal=clean_cal(), news=good_news()))
+                          ctx=make_ctx(cal=clean_cal(), news=good_news()), jfn=jfn)
     out["EVENT"] = _judge(make_analysis(),
-                          ctx=make_ctx(cal=near_cal(WED_OVERLAP), news=good_news()))
+                          ctx=make_ctx(cal=near_cal(WED_OVERLAP), news=good_news()),
+                          jfn=jfn)
     out["VOL_SPIKE"] = _judge(make_analysis(), md=make_md(last_spike=9.0),
-                              ctx=make_ctx(cal=clean_cal(), news=good_news()))
+                              ctx=make_ctx(cal=clean_cal(), news=good_news()),
+                              jfn=jfn)
     out["BREAKING_NEWS"] = _judge(make_analysis(),
-                                  ctx=make_ctx(cal=clean_cal(), news=breaking_news()))
+                                  ctx=make_ctx(cal=clean_cal(), news=breaking_news()),
+                                  jfn=jfn)
     return out
 
 
-def battery_veto_multi() -> dict:
+def battery_veto_multi(jfn=None) -> dict:
     """چند وتوی هم‌زمان — ترتیب ارزیابیِ امروز پین می‌شود.
 
     نکته: TF_CONFLICT و RANGE با گارد `verdict != "DATA"` رد می‌شوند، پس
@@ -270,25 +281,26 @@ def battery_veto_multi() -> dict:
     out = {}
     out["all_except_data"] = _judge(
         make_analysis(h1_agrees=False, adx=14.0), md=spiky,
-        ctx=make_ctx(now=SAT, cal=near_cal(SAT), news=breaking_news()))
+        ctx=make_ctx(now=SAT, cal=near_cal(SAT), news=breaking_news()), jfn=jfn)
     out["with_data"] = _judge(
         make_analysis(verdict="DATA", h1_agrees=False, adx=14.0), md=spiky,
-        ctx=make_ctx(now=SAT, cal=near_cal(SAT), news=breaking_news()))
+        ctx=make_ctx(now=SAT, cal=near_cal(SAT), news=breaking_news()), jfn=jfn)
     return out
 
 
-def battery_veto_toggles() -> dict:
+def battery_veto_toggles(jfn=None) -> dict:
     """کلیدهای *موجود* config — خاموش‌کردن یک دروازه فقط همان را برمی‌دارد."""
     out = {}
     veto_no_weekend = {**JCFG["veto"], "weekend": False}
     out["weekend_off_saturday"] = _judge(
         make_analysis(),
         ctx=make_ctx(now=SAT, cal=clean_cal(), news=good_news(),
-                     veto=veto_no_weekend))
+                     veto=veto_no_weekend), jfn=jfn)
     veto_no_range = {**JCFG["veto"], "range_market": False}
     out["range_off_low_adx"] = _judge(
         make_analysis(adx=14.0),
-        ctx=make_ctx(cal=clean_cal(), news=good_news(), veto=veto_no_range))
+        ctx=make_ctx(cal=clean_cal(), news=good_news(), veto=veto_no_range),
+        jfn=jfn)
     return out
 
 
@@ -377,51 +389,53 @@ def battery_evidence() -> dict:
 # ══════════════════════════════════════════════════════════════
 #  گروه ۳ — داوری کامل (judge_symbol / judge_all)
 # ══════════════════════════════════════════════════════════════
-def battery_judge_full() -> dict:
+def battery_judge_full(jfn=None) -> dict:
     out = {}
     # BUY طلایی — همهٔ مدارک حاضر → ۱۱/۱۱
     out["buy"] = _judge(make_analysis(), md=make_md(),
-                        ctx=make_ctx(cal=clean_cal(), news=good_news()))
+                        ctx=make_ctx(cal=clean_cal(), news=good_news()), jfn=jfn)
     # SELL طلایی — ۱۱/۱۱
     out["sell"] = _judge(
         make_analysis(trend="bearish", rsi=62.0, rsi_rising=False,
                       verdict="SELL_SETUP", support=1.1400, resistance=1.1494),
         md=make_md(),
         ctx=make_ctx(cal=clean_cal(), news=sell_news(),
-                     ranking=RANK_USD_STRONG, tv=TV_SELL))
+                     ranking=RANK_USD_STRONG, tv=TV_SELL), jfn=jfn)
     return out
 
 
-def battery_judge_low_score() -> dict:
+def battery_judge_low_score(jfn=None) -> dict:
     """امتیاز ۵ از ۱۱ → LOW_SCORE + دو هشدار ⚠️ (خبر و TV خلاف جهت)."""
     return {"low_score": _judge(
         make_analysis(rsi=55.0, support=1.1400),
         md=make_md(),
         ctx=make_ctx(cal=clean_cal(), news=contra_news(),
-                     ranking=RANK_USD_STRONG, tv=TV_SELL))}
+                     ranking=RANK_USD_STRONG, tv=TV_SELL), jfn=jfn)}
 
 
-def battery_judge_no_setup() -> dict:
+def battery_judge_no_setup(jfn=None) -> dict:
     """هر ۵ شاخهٔ «ستاپی شکل نگرفته» — با گاردهای وتو که لازم است خاموش."""
     out = {}
     base_ctx = dict(cal=clean_cal(), news=good_news())
     out["trend_none"] = _judge(make_analysis(trend="none", verdict="WAIT"),
-                               ctx=make_ctx(**base_ctx))
+                               ctx=make_ctx(**base_ctx), jfn=jfn)
     out["h1_disagree"] = _judge(
         make_analysis(h1_agrees=False, verdict="WAIT"),
-        ctx=make_ctx(veto={**JCFG["veto"], "timeframe_conflict": False}, **base_ctx))
+        ctx=make_ctx(veto={**JCFG["veto"], "timeframe_conflict": False}, **base_ctx),
+        jfn=jfn)
     out["range_no_veto"] = _judge(
         make_analysis(adx=14.0, verdict="WAIT"),
-        ctx=make_ctx(veto={**JCFG["veto"], "range_market": False}, **base_ctx))
+        ctx=make_ctx(veto={**JCFG["veto"], "range_market": False}, **base_ctx),
+        jfn=jfn)
     out["bullish_rsi_high"] = _judge(make_analysis(rsi=55.0, verdict="WAIT"),
-                                     ctx=make_ctx(**base_ctx))
+                                     ctx=make_ctx(**base_ctx), jfn=jfn)
     out["bearish_rsi_low"] = _judge(
         make_analysis(trend="bearish", rsi=40.0, verdict="WAIT"),
-        ctx=make_ctx(**base_ctx))
+        ctx=make_ctx(**base_ctx), jfn=jfn)
     return out
 
 
-def battery_judge_capped() -> list:
+def battery_judge_capped(jall=None) -> list:
     """سه سیگنال آماده، سقف ۱ → بهترین می‌ماند، بقیه CAPPED."""
     a1 = make_analysis()                                             # ۱۱/۱۱
     a2 = make_analysis(symbol="GBPUSD", fa_name="پوند به دلار آمریکا",
@@ -432,10 +446,11 @@ def battery_judge_capped() -> list:
                        atr=0.10, support=149.96, resistance=150.60,
                        rsi=55.0)                                    # ۸/۱۱
     ctx = make_ctx(cal=clean_cal(), news=good_news(), max_signals_per_cycle=1)
-    return [judgment_dump(j) for j in judge_all([a1, a2, a3], {}, ctx)]
+    fn = judge_all if jall is None else jall
+    return [judgment_dump(j) for j in fn([a1, a2, a3], {}, ctx)]
 
 
-def battery_judge_all_mixed() -> list:
+def battery_judge_all_mixed(jall=None) -> list:
     """judge_all با ۴ نماد در ۴ سرنوشت: سیگنال / وتو / بدون ستاپ / امتیاز کم."""
     a1 = make_analysis()                                             # BUY ۱۰/۱۱ (بدون خبر)
     a2 = make_analysis(symbol="GBPUSD", fa_name="پوند به دلار آمریکا",
@@ -449,7 +464,8 @@ def battery_judge_all_mixed() -> list:
                        base="AUD", quote="USD", price=0.6600, rsi=55.0,
                        support=0.6500, resistance=0.6700)            # LOW_SCORE (۵/۱۱)
     ctx = make_ctx(cal=clean_cal(), news=None)
-    return [judgment_dump(j) for j in judge_all([a1, a2, a3, a4], {}, ctx)]
+    fn = judge_all if jall is None else jall
+    return [judgment_dump(j) for j in fn([a1, a2, a3, a4], {}, ctx)]
 
 
 def battery_risk_math() -> dict:
@@ -471,19 +487,25 @@ def battery_risk_math() -> dict:
 
 
 # ══════════════════════════════════════════════════════════════
-def build_battery() -> dict:
-    """کل باتری — خروجی کاملاً قطعی (بدون شبکه، بدون ساعت سیستم)."""
+def build_battery(judge_symbol_fn=None, judge_all_fn=None) -> dict:
+    """کل باتری — خروجی کاملاً قطعی (بدون شبکه، بدون ساعت سیستم).
+
+    judge_symbol_fn/judge_all_fn: تزریق *اختیاری* مسیر داوری (پیش‌فرض =
+    توابع مستقیم scoring). برای طلاییِ مسیر rule-plugin در test_plugins.
+    گروه‌های veto_clean/evidence_branches/risk_math عمداً همیشه مستقیم‌اند —
+    parity آن‌ها با goldenهای «adapter == فراخوانی مستقیم» پوشش داده می‌شود.
+    """
     return {
-        "veto_single": battery_veto_single(),
-        "veto_multi": battery_veto_multi(),
-        "veto_toggles": battery_veto_toggles(),
+        "veto_single": battery_veto_single(judge_symbol_fn),
+        "veto_multi": battery_veto_multi(judge_symbol_fn),
+        "veto_toggles": battery_veto_toggles(judge_symbol_fn),
         "veto_clean": battery_veto_clean(),
         "evidence_branches": battery_evidence(),
-        "judge_full": battery_judge_full(),
-        "judge_low_score": battery_judge_low_score(),
-        "judge_no_setup": battery_judge_no_setup(),
-        "judge_capped": battery_judge_capped(),
-        "judge_all_mixed": battery_judge_all_mixed(),
+        "judge_full": battery_judge_full(judge_symbol_fn),
+        "judge_low_score": battery_judge_low_score(judge_symbol_fn),
+        "judge_no_setup": battery_judge_no_setup(judge_symbol_fn),
+        "judge_capped": battery_judge_capped(judge_all_fn),
+        "judge_all_mixed": battery_judge_all_mixed(judge_all_fn),
         "risk_math": battery_risk_math(),
     }
 

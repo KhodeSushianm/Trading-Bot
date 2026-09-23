@@ -71,7 +71,10 @@ def build_default_registry(cfg: Optional[dict] = None,
         log.append(f"[plugin] «{d['id']}» توسط resolver غیرفعال شد — {d['reason']}")
 
     info = {"cfg": cfg, "platform": platform,
-            "context": {"cfg": cfg, "platform": platform},
+            # registry در context (فاز ۴): judge-core قواعد وتو/شاهد/ریسک را
+            # از همان registry‌ای می‌خواند که خودش در آن ثبت شده — کلید
+            # افزودنی است و بقیهٔ factoryها (که ctx را نادیده می‌گیرند) بی‌اثر.
+            "context": {"cfg": cfg, "platform": platform, "registry": reg},
             "order": [r.id for r in order],
             "log": log, "disabled": disabled}
     return reg, info

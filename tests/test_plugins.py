@@ -1,11 +1,17 @@
 # -*- coding: utf-8 -*-
-"""تست‌های طلایی پلاگین‌های داخلی (فاز ۲) — آفلاین، سریع، بدون شبکه.
+"""تست‌های طلایی پلاگین‌های داخلی (فاز ۲ + قواعد داورِ فاز ۴) — آفلاین، سریع.
 
 اجرا:  python tests/test_plugins.py     (از ریشهٔ ریپو)
 
 ایدهٔ «تست طلایی»: خروجی هر adapter باید **دقیقاً** برابر خروجی فراخوانی
 مستقیم همان تابع/کلاس موجود باشد (ورودی دست‌سازِ ثابت). adapterها فقط
 delegation‌اند؛ هر اختلاف = تغییر رفتار = شکست.
+
+فاز ۴ — دو طلاییِ اضافه برای rule-pluginهای داور:
+  ۱) هر ۱۵ adapter قاعده (۷ وتو + ۸ شاهد) + judge-risk == فراخوانی مستقیم،
+     و ترتیب providers(veto@1/evidence@1) == ترتیب ارزیابیِ امروز (priority).
+  ۲) باتری کامل سناریوهای داوری از مسیر registry (JudgePlugin + rules) ==
+     فایل طلاییِ tests/golden/judge_rules_golden.json — بایت‌به‌بایت.
 
 توابع شبکه‌ای (fetch_calendar/fetch_tv_snapshot/telegram.send_message) با
 mock sentinel تست می‌شوند: هم «چه تابعی» و هم «با چه آرگومان‌هایی» صدا زده شد.
@@ -17,6 +23,7 @@ from __future__ import annotations
 
 import dataclasses
 import importlib.util
+import json
 import math
 import sys
 import tempfile
@@ -37,7 +44,10 @@ from src.plugins.analysis import StrengthPlugin, TechnicalPlugin     # noqa: E40
 from src.plugins.data import select_market_provider                  # noqa: E402
 from src.plugins.fundamental import CalendarPlugin, NewsPlugin       # noqa: E402
 from src.plugins.journal import JournalPlugin                        # noqa: E402
-from src.plugins.judge import JudgePlugin, SessionPlugin             # noqa: E402
+from src.plugins.judge import (EVIDENCE_RULES, VETO_RULES,           # noqa: E402
+                               EvidenceRuleAdapter, JudgePlugin,
+                               RiskPlugin, SessionPlugin,
+                               VetoRuleAdapter)
 from src.plugins.report import KINDS, ReportRendererPlugin           # noqa: E402
 
 COUNT = 0
@@ -109,11 +119,23 @@ def _mk_snapshot():
 EXPECTED_IDS = {
     "data-auto", "data-yahoo", "data-twelvedata", "data-tradingview",
     "analysis-technical", "analysis-strength", "session",
-    "fundamental-calendar", "fundamental-news", "judge-core", "journal",
-    "notify-telegram", "alerts-price", "report-renderer",
+    "fundamental-calendar", "fundamental-news", "judge-core", "judge-risk",
+    "journal", "notify-telegram", "alerts-price", "report-renderer",
+    # فاز ۴ — rule-pluginهای داور (idها دقیقاً از جدول قراردادهای سند معماری)
+    "veto-data", "veto-weekend", "veto-tf-conflict", "veto-range",
+    "veto-event", "veto-vol-spike", "veto-breaking-news",
+    "ev-trend", "ev-level", "ev-fundamental", "ev-momentum",
+    "ev-strength", "ev-news", "ev-tv", "ev-session",
 }
-# قراردادهایی که در فاز ۲ فراهم‌کننده دارند (veto/evidence کارِ فاز ۴ است)
-PROVIDED_NOW = set(CONTRACTS) - {"odin.judge.veto@1", "odin.judge.evidence@1"}
+# از فاز ۴ همهٔ قراردادها فراهم‌کننده دارند (veto@1/evidence@1 پر شدند)
+PROVIDED_NOW = set(CONTRACTS)
+
+# ترتیب ارزیابیِ قواعد — همان ترتیبِ collect_vetoes/جدول امتیازِ امروز،
+# پین‌شده با priority مانیفست‌ها (veto-data=10 … ev-session=80)
+VETO_ORDER = ["veto-data", "veto-weekend", "veto-tf-conflict", "veto-range",
+              "veto-event", "veto-vol-spike", "veto-breaking-news"]
+EVIDENCE_ORDER = ["ev-trend", "ev-level", "ev-fundamental", "ev-momentum",
+                  "ev-strength", "ev-news", "ev-tv", "ev-session"]
 
 
 # ══════════════════════════════════════════════════════════════
@@ -127,9 +149,12 @@ def test_registration() -> None:
 
     for cid in PROVIDED_NOW:
         A(len(reg.providers(cid)) >= 1, f"قرارداد {cid} بدون فراهم‌کننده است")
-    # وتو/شاهد عمداً در فاز ۲ فراهم‌کننده ندارند — judge-core یکجاست (فاز ۴)
-    A(reg.providers("odin.judge.veto@1") == [], "veto@1 باید تا فاز ۴ خالی بماند")
-    A(reg.providers("odin.judge.evidence@1") == [], "evidence@1 باید تا فاز ۴ خالی بماند")
+    # فاز ۴: veto@1/evidence@1 پر شدند — ترتیب providers == ترتیب ارزیابیِ
+    # امروز (priority پین می‌کند؛ جزئیات بایت‌به‌بایت در test_judge_rule_plugins)
+    A([r.id for r in reg.providers("odin.judge.veto@1")] == VETO_ORDER,
+      "ترتیب فراهم‌کنندگان veto@1 باید DATA→…→BREAKING_NEWS بماند")
+    A([r.id for r in reg.providers("odin.judge.evidence@1")] == EVIDENCE_ORDER,
+      "ترتیب فراهم‌کنندگان evidence@1 باید trend→…→session بماند")
 
     # وضعیت فعال‌بودن == کلیدهای موجود config (بدون کلید جدید)
     A(reg.by_id("fundamental-news").enabled is True, "news.enabled=true → فعال")
@@ -152,7 +177,10 @@ def test_registration() -> None:
     A("notify-telegram" not in ids_a, "تلگرام desktop-only است")
     A(not (ids_a & {"data-auto", "data-yahoo", "data-twelvedata", "data-tradingview"}),
       "منابع دادهٔ پایتون desktop-only هستند (JS مالِ فاز ۶)")
-    A({"judge-core", "journal", "alerts-price"} <= ids_a, "پلاگین‌های مشترک باید باشند")
+    A({"judge-core", "judge-risk", "journal", "alerts-price"} <= ids_a,
+      "پلاگین‌های مشترک باید باشند")
+    A(set(VETO_ORDER) | set(EVIDENCE_ORDER) <= ids_a,
+      "قواعد داور (وتو/شاهد) در اندروید هم ثبت می‌شوند")
 
 
 def test_enable_disable() -> None:
@@ -205,16 +233,19 @@ def test_golden_pure() -> None:
     for m in moments:
         A(same(sp.market_status(m), market_status(m)), f"market_status({m}) فرق کرد")
 
-    # ── compute_levels (ریاضی SL/TP) ──
+    # ── compute_levels (ریاضی SL/TP) — از فاز ۴ در پلاگین جداگانهٔ judge-risk ──
     from src.judge.scoring import compute_levels, judge_all, judge_config, JudgeContext
     jp = JudgePlugin()
+    rp = RiskPlugin()
     rcfg = judge_config(CFG)["risk"]
     cases = [("BUY", 1.1000, 0.0012, 1.0990, 1.1050),
              ("SELL", 150.50, 0.25, None, 151.00),
              ("BUY", 2400.0, 15.0, 2395.0, None)]
     for c in cases:
-        A(same(jp.compute_levels(*c, rcfg), compute_levels(*c, rcfg)),
-          f"compute_levels{c} فرق کرد")
+        A(same(rp.compute_levels(*c, rcfg), compute_levels(*c, rcfg)),
+          f"judge-risk: compute_levels{c} فرق کرد")
+    A(not hasattr(jp, "compute_levels"),
+      "judge-core از فاز ۴ فقط قرارداد engine است (risk تفکیک شد)")
 
     # ── judge_config + judge_all (خالی اما ctx واقعی) ──
     A(same(jp.judge_config(CFG), judge_config(CFG)), "judge_config باید یکسان باشد")
@@ -262,6 +293,121 @@ def test_golden_pure() -> None:
     n_plugin = NewsPlugin().fetch_news(cfg_off)
     A(same(n_direct, n_plugin) and n_plugin.error == "غیرفعال در تنظیمات",
       "fetch_news مسیر غیرفعال باید یکی باشد (آفلاین)")
+
+
+# ── هارنس طلاییِ داور (فاز ۴) — سازنده‌های سناریوی قطعی ──────────
+def _load_judge_golden_module():
+    spec = importlib.util.spec_from_file_location(
+        "gen_judge_golden", ROOT / "tests" / "golden" / "gen_judge_golden.py")
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
+
+def test_judge_rule_plugins() -> None:
+    """طلاییِ فاز ۴: هر adapter قاعده == فراخوانی مستقیم + ترتیب/شناسه‌ها.
+
+    دادهٔ سناریوها از هارنس طلایی داور (gen_judge_golden) — همان ورودی‌هایی
+    که میخ‌های tests/test_judge_rules.py خروجی‌شان را پین کرده‌اند.
+    """
+    from src.judge import scoring
+    gen = _load_judge_golden_module()
+    reg, info = build_default_registry(CFG)
+
+    # ── ترتیب و شناسه‌ها: دقیقاً جدول قراردادهای سند معماری ──
+    A([r.id for r in reg.providers("odin.judge.veto@1")] == VETO_ORDER,
+      "providers(veto@1) باید با ترتیب priority = ترتیب ارزیابی امروز بیاید")
+    A([r.id for r in reg.providers("odin.judge.evidence@1")] == EVIDENCE_ORDER,
+      "providers(evidence@1) باید با ترتیب priority = جدول امتیاز امروز بیاید")
+    A([vid for _, vid, _ in VETO_RULES]
+      == ["DATA", "WEEKEND", "TF_CONFLICT", "RANGE", "EVENT", "VOL_SPIKE",
+          "BREAKING_NEWS"], "veto_idهای اعلانی = ۷ کلید فعلی Veto")
+    A([eid for _, eid, _, _ in EVIDENCE_RULES]
+      == ["TREND", "LEVEL", "FUNDAMENTAL", "MOMENTUM", "STRENGTH", "NEWS",
+          "TV", "SESSION"], "evidence_idهای اعلانی = ۸ کلید فعلی Evidence")
+
+    # ── تفکیک قراردادها: judge-core فقط engine، judge-risk فقط risk ──
+    A(reg.by_id("judge-core").manifest.provides == ["odin.judge.engine@1"],
+      "judge-core باید فقط odin.judge.engine@1 را فراهم کند")
+    A(reg.by_id("judge-risk").manifest.provides == ["odin.judge.risk@1"],
+      "judge-risk باید odin.judge.risk@1 را فراهم کند")
+    A(reg.get("odin.judge.risk@1").id == "judge-risk",
+      "get(risk@1) = judge-risk")
+
+    # ── adapter == فراخوانی مستقیم: ۷ وتو روی دو ctx (چهارشنبه/شنبه) ──
+    a = gen.make_analysis()
+    md = gen.make_md()
+    ctx_wed = gen.make_ctx(cal=gen.clean_cal(), news=gen.good_news())
+    ctx_sat = gen.make_ctx(now=gen.SAT, cal=gen.near_cal(gen.SAT),
+                           news=gen.breaking_news())
+    for pid, vid, fname in VETO_RULES:
+        rec = reg.by_id(pid)
+        A(rec is not None and "odin.judge.veto@1" in rec.manifest.provides,
+          f"{pid}: ثبت‌شده با قرارداد veto@1")
+        inst = rec.factory(info["context"])
+        A(isinstance(inst, VetoRuleAdapter) and inst.veto_id == vid,
+          f"{pid}: veto_id باید {vid} باشد")
+        for c in (ctx_wed, ctx_sat):
+            direct = getattr(scoring, fname)(a, {}, md, c)
+            got = inst.rule(a, {}, md, c)
+            A((direct is None and got is None) or same(got, direct),
+              f"{pid}: خروجی rule باید بایت‌به‌بایت {fname}() باشد")
+
+    # ── adapter == فراخوانی مستقیم: ۸ شاهد در دو جهت ──
+    for pid, eid, fname, ctx_only in EVIDENCE_RULES:
+        rec = reg.by_id(pid)
+        A(rec is not None and "odin.judge.evidence@1" in rec.manifest.provides,
+          f"{pid}: ثبت‌شده با قرارداد evidence@1")
+        inst = rec.factory(info["context"])
+        A(isinstance(inst, EvidenceRuleAdapter) and inst.evidence_id == eid,
+          f"{pid}: evidence_id باید {eid} باشد")
+        fn = getattr(scoring, fname)
+        for direction in ("BUY", "SELL"):
+            direct = fn(ctx_wed) if ctx_only else fn(a, ctx_wed, direction)
+            got = inst.rule(a, ctx_wed, direction)
+            A(same(got, direct),
+              f"{pid}: خروجی rule({direction}) باید بایت‌به‌بایت {fname}() باشد")
+
+    # ── fallback بدون registry: delegation ساده (رفتار فاز ۲/۳a) ──
+    from src.judge.scoring import judge_all
+    jp_plain = JudgePlugin()                      # بدون context/registry
+    A(jp_plain.judge_all([], {}, ctx_wed) == judge_all([], {}, ctx_wed) == [],
+      "JudgePlugin بدون registry باید ساده delegate کند")
+
+
+def test_judge_registry_parity() -> None:
+    """طلاییِ کلانِ فاز ۴: باتری کامل سناریوها از مسیر rule-plugin ==
+    فایل طلاییِ مسیر مستقیم (tests/golden/judge_rules_golden.json) —
+    بایت‌به‌بایت، شامل متن‌های فارسی، ترتیب وتوها/شاهدها، امتیازها،
+    ریاضی SL/TP، CAPPED و رکوردهای ژورنال."""
+    gen = _load_judge_golden_module()
+    golden_path = ROOT / "tests" / "golden" / "judge_rules_golden.json"
+    A(golden_path.exists(), "فایل طلایی داور وجود ندارد")
+    golden = json.loads(golden_path.read_text(encoding="utf-8"))
+
+    reg, info = build_default_registry(CFG)
+    jp = JudgePlugin(info["context"])             # registry-aware
+
+    def j_sym(a, sym_cfg, md, ctx):
+        # judge_symbol از مسیر پلاگین: judge_all تک‌نمادی همان معنا را دارد
+        # (sym_cfg={} و datasets.get(symbol)=md — دقیقاً مثل judge_all)
+        return jp.judge_all([a], {a.symbol: md}, ctx)[0]
+
+    plugin_bat = gen.build_battery(judge_symbol_fn=j_sym,
+                                   judge_all_fn=jp.judge_all)
+    if plugin_bat != golden:
+        diff = [k for k in sorted(set(plugin_bat) | set(golden))
+                if plugin_bat.get(k) != golden.get(k)]
+        raise AssertionError(
+            f"باتریِ مسیر rule-plugin با طلایی فرق دارد — گروه‌های: {diff}")
+    A(True, "باتری کامل داوری از مسیر registry == مسیر مستقیم (بایت‌به‌بایت)")
+
+    # نمونهٔ lifecycle: judge-core از طریق _Caps-style initialize هم همان است
+    lm = LifecycleManager(context=info["context"])
+    rec = reg.by_id("judge-core")
+    A(lm.initialize(rec) is None and rec.state is PluginState.INITIALIZED,
+      "initialize پلاگین judge-core باید سالم باشد")
+    A(isinstance(rec.instance, JudgePlugin), "نمونهٔ judge-core = JudgePlugin")
 
 
 def test_delegation_network() -> None:
@@ -416,7 +562,8 @@ def test_report_dispatcher() -> None:
 # ══════════════════════════════════════════════════════════════
 def main() -> int:
     tests = [test_registration, test_enable_disable, test_select_market_provider,
-             test_golden_pure, test_delegation_network,
+             test_golden_pure, test_judge_rule_plugins, test_judge_registry_parity,
+             test_delegation_network,
              test_golden_journal_alerts, test_report_dispatcher]
     fails = []
     for t in tests:
@@ -433,7 +580,8 @@ def main() -> int:
         return 1
     print(f"✅ PLUGIN TESTS OK — {COUNT} بررسی پاس؛ هر adapter خروجیِ فراخوانی "
           f"مستقیم را عیناً بازتولید می‌کند (ثبت/فعال‌سازی/انتخاب منبع/خالص/"
-          f"delegate/ژورنال+هشدار/رندر)")
+          f"delegate/ژورنال+هشدار/رندر) + قواعد داور: ۱۵ rule-plugin و باتری "
+          f"کامل سناریوها از مسیر registry بایت‌به‌بایت == طلایی")
     return 0
 
 
