@@ -75,6 +75,12 @@ jobs:
       - name: Config validation
         run: python tests/check_config.py
 
+      # فاز ۱ معماری پلاگین: تست واحد هستهٔ src/core/ — آفلاین و سریع (<۱s).
+      # هسته در این فاز به engine وصل نیست؛ این step از همان روز اول جلوی
+      # پوسیدگی قراردادها/registry/resolver را می‌گیرد.
+      - name: Core plugin-skeleton unit tests (آفلاین)
+        run: python tests/test_core.py
+
       # تست‌های JS اپ اندروید — چرا اینجا هم؟ چون job «test» روی ubuntu اجرا
       # می‌شود و سریع است؛ این‌طور یک کامیتِ «فقط ویندوزی» هم نمی‌تواند
       # پاریتی تم یا رانش نسخهٔ اندروید را بی‌صدا بشکند.
