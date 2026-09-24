@@ -447,9 +447,12 @@
       if (ib !== null && iq !== null) {
         var misaligned = direction === 'BUY' ? (ib > iq) : (ib < iq);
         if (misaligned) {
+          // S3/C1 (تصویب مالک): متنِ جهت‌آگاهانه — در SELL ناهم‌راستی یعنی
+          // پایه «قوی‌تر» است (آینهٔ بایت‌به‌بایتِ carry.py)
+          var rel = direction === 'BUY' ? 'ضعیف‌تر' : 'قوی‌تر';
           return noneV(KEY_CARRY, NAME_CARRY,
             'جریانِ قدرت خلاف جهت carry است — در رتبه‌بندی، '
-            + base + ' ضعیف‌تر از ' + quote + ' است؛ صرفِ نرخ به‌تنهایی '
+            + base + ' ' + rel + ' از ' + quote + ' است؛ صرفِ نرخ به‌تنهایی '
             + 'کافی نیست', false);
         }
       }

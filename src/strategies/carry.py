@@ -99,9 +99,14 @@ def evaluate(a: Any, md: Optional[Any] = None, scfg: Optional[dict] = None,
         if ib is not None and iq is not None:
             misaligned = (ib > iq) if direction == "BUY" else (ib < iq)
             if misaligned:
+                # S3/C1 (تصویب مالک ۲۰۲۶-۰۹-۲۴): اصلاحِ جهت‌آگاهانهٔ متن —
+                # در SELL ناهم‌راستی یعنی پایه «قوی‌تر» است (ib<iq)؛ متنِ S1
+                # برای هر دو جهت «ضعیف‌تر» می‌گفت که برای SELL نادرست بود.
+                # میخِ متأثر: golden سناریوی carry_rank_sell_bad (بازضبطِ مستند).
+                rel = "ضعیف‌تر" if direction == "BUY" else "قوی‌تر"
                 return none(KEY, NAME_FA,
                             f"جریانِ قدرت خلاف جهت carry است — در رتبه‌بندی، "
-                            f"{base} ضعیف‌تر از {quote} است؛ صرفِ نرخ به‌تنهایی "
+                            f"{base} {rel} از {quote} است؛ صرفِ نرخ به‌تنهایی "
                             f"کافی نیست", proposes=False)
 
     # ۴) هم‌جهتی فاندامنتال — رأی اخبار (اگر snapshot موجود باشد)
