@@ -23,6 +23,7 @@ from . import app_paths
 from .config import load_config
 from .core.bus import EventBus, Events
 from .core.lifecycle import LifecycleManager, PluginState
+from .core.pipeline import STAGES, PipelineRunner, StageResult
 from .fa import fa_num
 from .judge.scoring import JudgeContext      # نوعِ مشترکِ ctx داور (قراردادِ فراخوانی)
 from .plugins import build_default_registry
@@ -374,6 +375,16 @@ def run_cycle(cfg: Optional[dict] = None, on_log: LogFn = _noop,
     Returns:
         dict با کلیدهای: ok, report, errors, telegram, elapsed, vetoes,
                          calendar_ok, news_count, judgments, signals, simulated
+
+    فاز ۳b: بدنهٔ چرخه روی PipelineRunner اجرا می‌شود — همان ۱۱ مرحلهٔ
+    نام‌دار با همان ترتیب مو‌به‌موی قبلی (STAGES در فاز ۱ از همین کد
+    رونویسی شد). early-exit امروز = StageResult(stop=True) در journal_pre.
+    رویدادهای stage.start/stage.done افزودنی‌اند (بدون listener صفر اثر)؛
+    ۱۲ رویداد استاندارد قبلی سرِ همان نقطه‌های خود منتشر می‌شوند.
+    خطای پیش‌بینی‌نشدهٔ هر مرحله → قرنطینه (unavailable + plugin.failed +
+    لاگ صادقانه) و ادامهٔ چرخه — codification همان Failure Isolation؛
+    همهٔ مسیرهای قابل‌دسترسِ امروز از قبل guard داخلی دارند، پس طلاییِ
+    tests/test_engine_switch.py بدون تغییر سبز می‌ماند.
     """
     t0 = time.time()
     cfg = cfg or load_config()
@@ -385,243 +396,299 @@ def run_cycle(cfg: Optional[dict] = None, on_log: LogFn = _noop,
     def log(msg: str) -> None:
         on_log(f"[{datetime.now():%H:%M:%S}] {msg}")
 
-    BUS.emit(Events.CYCLE_START, {"simulated": now_override is not None})
-    mkt = _collect_market(cfg, log)
-    BUS.emit(Events.MARKET_COLLECTED,
-             {"analyses": len(mkt["analyses"]), "errors": mkt["errors"]})
-    now = now_override or datetime.now(timezone.utc)
-    simulated = now_override is not None
-    if simulated:
-        log(f"⚠️ حالت شبیه‌سازی: زمان فرضی {now:%Y-%m-%d %H:%M} UTC "
-            f"(دادهٔ بازار واقعی است، ساعت داور عوض شده)")
+    # ── context مشترک بین مراحل (CycleContext وعده‌داده‌شده در فاز ۱) ──
+    C: dict = {"mkt": None, "now": None, "simulated": False, "journal": None,
+               "stats": None, "resolved": [], "cal_snap": None, "news_snap": None,
+               "vetoes": {}, "jcfg": {}, "judgments": [], "signals": [],
+               "judge_summary": "", "report": "", "sent_signals": [],
+               "fired_alerts": []}
 
-    # ── 📔 ژورنال: بستن خودکار سیگنال‌های باز از روی کندل‌ها ──
-    # عمداً *قبل* از بررسی موفقیت داده آمده: اگر منبع داده کاملاً قطع باشد هم
-    # سیگنال‌های باز باید منقضی/بسته شوند، وگرنه ژورنال برای همیشه می‌خوابد
-    # و کارنامه خوش‌بینانه می‌ماند.
-    # ⚠️ در حالت شبیه‌سازی (--as-of) هرگز نتیجه ثبت نمی‌شود: زمان فرضی برای
-    # «دیدن» است، نه برای نوشتن در سند صداقت. فقط آمارِ موجود خوانده می‌شود.
-    journal, stats, resolved = None, None, []
-    if (cfg.get("journal") or {}).get("enabled", True):
-        if caps.journal is None:                      # سخت‌گیری فاز ۷
-            log("[!] پلاگین ژورنال در دسترس نیست — ژورنال این چرخه رد شد (unavailable)")
-        else:
-            journal = caps.journal.open()
-            if simulated:
-                log("[i] حالت شبیه‌سازی: ژورنال فقط خوانده می‌شود، نتیجه‌ای ثبت نمی‌شود")
-            try:
-                if not simulated:
-                    resolved = caps.journal.resolve_open_signals(
-                        journal, mkt["datasets"], now=now, cfg=cfg, on_log=log)
-            except Exception as e:
-                log(f"[!] پیگیری ژورنال ناموفق: {str(e)[:90]}")
-            try:
-                stats = caps.journal.compute_stats(journal.load(), now)
-            except Exception as e:
-                log(f"[!] محاسبهٔ آمار ژورنال ناموفق: {str(e)[:90]}")
-    else:
-        log("[i] ژورنال در تنظیمات غیرفعال است")
-    result["resolved"] = [{"symbol": e.symbol, "direction": e.direction,
-                           "outcome": e.outcome, "r": e.r} for e in resolved]
-    result["stats"] = stats
-    BUS.emit(Events.JOURNAL_RESOLVED, {"resolved": len(resolved)})
-    if stats is not None and journal is not None:
-        result["journal_report"] = _safe_render(
-            caps, "stats", {"stats": stats, "open_entries": journal.open_entries(),
-                            "now": now}, log)
+    runner = PipelineRunner(registry=caps.reg, bus=BUS, log=log, stages=STAGES)
 
-    if not mkt["analyses"]:
-        result["errors"] = max(mkt["errors"], 1)
-        return result
+    # ── ۱) collect_market ─────────────────────────────────────
+    def stage_collect_market(_ctx):
+        C["mkt"] = _collect_market(cfg, log)
+        BUS.emit(Events.MARKET_COLLECTED,
+                 {"analyses": len(C["mkt"]["analyses"]), "errors": C["mkt"]["errors"]})
 
-    cal_snap, news_snap = _collect_fundamental(cfg, log)
-    BUS.emit(Events.FUNDAMENTAL_COLLECTED,
-             {"calendar_ok": bool(cal_snap and cal_snap.ok),
-              "news_items": len(news_snap.items) if news_snap else 0})
-    vetoes = _compute_vetoes(cfg, cal_snap, mkt["analyses"], now, log)
-    BUS.emit(Events.VETOES_COMPUTED, {"vetoes": sorted(vetoes)})
+    # ── ۲) journal_pre (عمداً *قبل* از بررسی موفقیت داده + early-exit) ──
+    def stage_journal_pre(_ctx):
+        mkt = C["mkt"]
+        C["now"] = now_override or datetime.now(timezone.utc)
+        C["simulated"] = now_override is not None
+        if C["simulated"]:
+            log(f"⚠️ حالت شبیه‌سازی: زمان فرضی {C['now']:%Y-%m-%d %H:%M} UTC "
+                f"(دادهٔ بازار واقعی است، ساعت داور عوض شده)")
 
-    # ── ⚖️ داور امتیازدهی (مرحله ۳) ───────────────────────────
-    # فاز ۷: judge-core به judge.enabled bind است — وقتی خاموش است پلاگین
-    # غایب است ولی jcfg هنوز لازم است (min_score برای رندر/ضداسپم).
-    # cfg["judge"] در load_config با همان DEFAULTS ادغام شده (src/config.py)
-    # → fallback بایت‌به‌بایت یکسان است.
-    jcfg = (caps.judge.judge_config(cfg) if caps.judge is not None
-            else (cfg.get("judge") or {}))
-    judgments, signals, judge_summary = [], [], ""
-    if jcfg.get("enabled", True):
-        if caps.judge is None or caps.session is None:   # سخت‌گیری فاز ۷
-            log("[!] پلاگین داور/سشن در دسترس نیست — قضاوتی در این چرخه انجام نشد (unavailable)")
-        else:
-            ctx = JudgeContext(
-                jcfg=jcfg, acfg=cfg["analysis"], symbols_cfg=cfg["symbols"],
-                ranking=mkt["ranking"], tv_map=mkt["tv_map"],
-                cal_snap=cal_snap, news_snap=news_snap, now=now,
-                status=caps.session.market_status(now),
-                # منبع حقیقتِ پنجرهٔ وتو همان تنظیم مرحله ۲ است، نه یک عدد دوم
-                event_veto_minutes=float((cfg.get("fundamental") or {})
-                                         .get("veto_minutes_before", 30)),
-            )
-            judgments = caps.judge.judge_all(mkt["analyses"], mkt["datasets"], ctx)
-            signals = [j.signal for j in judgments if j.signal]
-            BUS.emit(Events.JUDGE_DONE,
-                     {"judgments": len(judgments), "signals": len(signals)})
-            for _sg in signals:
-                BUS.emit(Events.SIGNAL_CREATED,
-                         {"symbol": _sg.symbol, "direction": _sg.direction,
-                          "score": _sg.score})
-            log(f"⚖️ داور: {len(signals)} سیگنال صادر شد 🎯" if signals
-                else "⚖️ داور: هیچ سیگنالی صادر نشد (دلیل هر نماد در گزارش هست)")
-            judge_summary = _safe_render(
-                caps, "judge_summary",
-                {"judgments": judgments,
-                 "min_score": int(jcfg.get("min_score", 7)),
-                 "now": now}, log)
-    else:
-        log("[i] داور امتیازدهی در تنظیمات غیرفعال است")
-
-    journal_line = ""
-    if stats is not None:
-        o = stats.overall
-        journal_line = (
-            f"📊 کارنامه تا الان: بسته {fa_num(o.closed)} "
-            f"(برد {fa_num(o.wins)} / باخت {fa_num(o.losses)} / منقضی {fa_num(o.expired)})"
-            f" | نرخ برد {_pct(o.hit_rate)} | میانگین R {_rfmt(o.avg_r)}"
-            f" | باز {fa_num(stats.open_count)}"
-            + (f" | بسته‌شدهٔ این چرخه: {fa_num(len(resolved))}" if resolved else ""))
-
-    report = _safe_render(caps, "console", {
-        "analyses": mkt["analyses"], "ranking": mkt["ranking"],
-        "source_name": mkt["source_name"],
-        "tv_map": mkt["tv_map"], "tv_tf": mkt["tv_tf"],
-        "cal_snap": cal_snap, "news_snap": news_snap,
-        "symbols_cfg": cfg["symbols"], "vetoes": vetoes,
-        "cal_horizon": _horizon_hours(cfg), "judge_summary": judge_summary,
-        "now": now, "simulated": simulated, "journal_line": journal_line,
-    }, log)
-    BUS.emit(Events.REPORT_RENDERED, {"kind": "console", "length": len(report)})
-    result.update(report=report, errors=mkt["errors"], ok=True, vetoes=vetoes,
-                  calendar_ok=bool(cal_snap and cal_snap.ok),
-                  news_count=len(news_snap.items) if news_snap else 0,
-                  judgments=len(judgments), simulated=simulated)
-
-    # ── ارسال سیگنال‌ها: جدا از گزارش، چون قابل اقدام‌اند ──────
-    sent_signals = []
-    if signals and simulated:
-        log(f"⚠️ حالت شبیه‌سازی: {len(signals)} سیگنال ساخته شد ولی به تلگرام "
-            f"ارسال نمی‌شود و در ژورنال ثبت نمی‌شود (فقط نمایشی است)")
-        for sig in signals:
-            sent_signals.append({"symbol": sig.symbol, "direction": sig.direction,
-                                 "score": sig.score, "max_score": sig.max_score,
-                                 "sent": False, "simulated": True,
-                                 "text": _safe_render(caps, "signal", {"s": sig}, log),
-                                 "entry": sig.entry, "sl": sig.sl, "tp": sig.tp})
-    elif signals:
-        state = _load_signal_state()
-        for sig in signals:
-            go, why = should_send_signal(state, sig, jcfg, now=now)
-            text = _safe_render(caps, "signal", {"s": sig}, log)
-            sent = False
-            if go:
-                sent, _msg = _send_telegram(cfg, text, log,
-                                            label=f"🎯 سیگنال {sig.symbol}")
-                if sent:
-                    state[f"{sig.symbol}|{sig.direction}"] = {
-                        "ts": datetime.now(timezone.utc).isoformat(),
-                        "score": sig.score,
-                    }
+        # ── 📔 ژورنال: بستن خودکار سیگنال‌های باز از روی کندل‌ها ──
+        # عمداً *قبل* از بررسی موفقیت داده آمده: اگر منبع داده کاملاً قطع باشد هم
+        # سیگنال‌های باز باید منقضی/بسته شوند، وگرنه ژورنال برای همیشه می‌خوابد
+        # و کارنامه خوش‌بینانه می‌ماند.
+        # ⚠️ در حالت شبیه‌سازی (--as-of) هرگز نتیجه ثبت نمی‌شود: زمان فرضی برای
+        # «دیدن» است، نه برای نوشتن در سند صداقت. فقط آمارِ موجود خوانده می‌شود.
+        journal, stats, resolved = None, None, []
+        if (cfg.get("journal") or {}).get("enabled", True):
+            if caps.journal is None:                      # سخت‌گیری فاز ۷
+                log("[!] پلاگین ژورنال در دسترس نیست — ژورنال این چرخه رد شد (unavailable)")
             else:
-                log(f"[i] سیگنال {sig.symbol} ({sig.direction}) ارسال نشد — {why}")
-            BUS.emit(Events.SIGNAL_SENT, {"symbol": sig.symbol, "sent": sent})
-            journal_signal(sig, sent)      # پایهٔ ژورنال مرحله ۴
-            sent_signals.append({"symbol": sig.symbol, "direction": sig.direction,
-                                 "score": sig.score, "max_score": sig.max_score,
-                                 "sent": sent, "text": text,
-                                 "entry": sig.entry, "sl": sig.sl, "tp": sig.tp,
-                                 # v0.19.0 — فیلدهای کارت سیگنال (popup/اشتراک تصویر/نمودار)
-                                 "pip": sig.pip, "is_gold": bool(getattr(sig, "is_gold", False)),
-                                 "rr": sig.rr, "stars": getattr(sig, "stars", 0),
-                                 "session_fa": getattr(sig, "session_fa", ""),
-                                 "fa_name": getattr(sig, "fa_name", ""),
-                                 "now": now.isoformat()})
-        _save_signal_state(state)
-    result["signals"] = sent_signals
+                journal = caps.journal.open()
+                if C["simulated"]:
+                    log("[i] حالت شبیه‌سازی: ژورنال فقط خوانده می‌شود، نتیجه‌ای ثبت نمی‌شود")
+                try:
+                    if not C["simulated"]:
+                        resolved = caps.journal.resolve_open_signals(
+                            journal, mkt["datasets"], now=C["now"], cfg=cfg, on_log=log)
+                except Exception as e:
+                    log(f"[!] پیگیری ژورنال ناموفق: {str(e)[:90]}")
+                try:
+                    stats = caps.journal.compute_stats(journal.load(), C["now"])
+                except Exception as e:
+                    log(f"[!] محاسبهٔ آمار ژورنال ناموفق: {str(e)[:90]}")
+        else:
+            log("[i] ژورنال در تنظیمات غیرفعال است")
+        C["journal"], C["stats"], C["resolved"] = journal, stats, resolved
+        result["resolved"] = [{"symbol": e.symbol, "direction": e.direction,
+                               "outcome": e.outcome, "r": e.r} for e in resolved]
+        result["stats"] = stats
+        BUS.emit(Events.JOURNAL_RESOLVED, {"resolved": len(resolved)})
+        if stats is not None and journal is not None:
+            result["journal_report"] = _safe_render(
+                caps, "stats", {"stats": stats, "open_entries": journal.open_entries(),
+                                "now": C["now"]}, log)
 
-    # ── هشدارهای قیمت (v0.19.0 — همزاد js/alerts.js) ──────────
-    fired_alerts = []
-    try:
-        fired_alerts = caps.alerts.check_alerts(mkt.get("analyses") or [], now=now)
-        for fa_ in fired_alerts:
-            _sym = fa_["symbol"]
-            _dir = "بالاتر از" if fa_["dir"] == "above" else "پایین‌تر از"
-            log(f"هشدار قیمت: {_sym} به {fa_['_price']} رسید ({_dir} {fa_['price']})")
-            _txt = (f"هشدار قیمت — {_sym}\n"
-                    f"{_sym} به سطح {fa_['price']} رسید ({_dir})\n"
-                    f"قیمت فعلی: {fa_['_price']} — ساعت {datetime.now(timezone.utc).astimezone():%H:%M}")
-            _send_telegram(cfg, _txt, log, label=f"هشدار قیمت {_sym}")
-        if fired_alerts and on_alert is not None:
-            on_alert(fired_alerts)
-    except Exception as e:
-        log(f"[!] بررسی هشدار قیمت ناموفق: {str(e)[:100]}")
-    result["alerts_fired"] = fired_alerts
-    BUS.emit(Events.ALERTS_FIRED, {"fired": len(fired_alerts)})
+        if not mkt["analyses"]:
+            result["errors"] = max(mkt["errors"], 1)
+            return StageResult(stage="journal_pre", stop=True)   # early-exit امروز
 
-    # ── کش نمودار (v0.19.0) — برای ChartDialog پنل، مثل chart.<SYM> اندروید ──
-    try:
-        import json as _json
-        _cdir = app_paths.data_dir()
-        _cdir.mkdir(parents=True, exist_ok=True)
-        for _sym, _md in (mkt.get("datasets") or {}).items():
-            _rows = {"h1": [], "h4": []}
-            for _tf in ("h1", "h4"):
-                _df = getattr(_md, _tf, None)
-                if _df is None or len(_df) == 0:
-                    continue
-                _tail = _df.tail(360 if _tf == "h1" else 140)
-                for _ts, _row in _tail.iterrows():
-                    _rows[_tf].append({
-                        "t": int(_ts.timestamp() * 1000),
-                        "o": float(_row["Open"]), "h": float(_row["High"]),
-                        "l": float(_row["Low"]), "c": float(_row["Close"])})
-            (_cdir / f"chart_{_sym}.json").write_text(
-                _json.dumps(_rows, separators=(",", ":")), encoding="utf-8")
-    except Exception as e:
-        log(f"[i] ذخیرهٔ کش نمودار ناموفق: {str(e)[:80]}")
+    # ── ۳) collect_fundamental ────────────────────────────────
+    def stage_collect_fundamental(_ctx):
+        C["cal_snap"], C["news_snap"] = _collect_fundamental(cfg, log)
+        BUS.emit(Events.FUNDAMENTAL_COLLECTED,
+                 {"calendar_ok": bool(C["cal_snap"] and C["cal_snap"].ok),
+                  "news_items": len(C["news_snap"].items) if C["news_snap"] else 0})
 
-    # ── دادهٔ ساختاریافته برای داشبورد پنل ───────────────────
-    result["ranking"] = list(mkt["ranking"])
-    upcoming = []
-    if cal_snap is not None and cal_snap.ok:
-        for e in caps.calendar.upcoming_events(cal_snap, now,
-                                               hours=_horizon_hours(cfg), limit=6):
-            upcoming.append({"title_fa": e.title_fa, "country_fa": e.country_fa,
-                             "country": e.country, "impact": e.impact,
-                             "when": e.when.isoformat(),
-                             "minutes": int(round(e.minutes_from(now)))})
-    result["upcoming"] = upcoming
-    result["symbols_summary"] = [
-        {"symbol": a.symbol, "verdict": a.verdict, "trend": a.trend,
-         "adx": round(a.adx, 1), "rsi": round(a.rsi, 1), "price": a.price,
-         "pip": a.pip, "support": a.support, "resistance": a.resistance}
-        for a in mkt["analyses"]]
+    # ── ۴) compute_vetoes ─────────────────────────────────────
+    def stage_compute_vetoes(_ctx):
+        C["vetoes"] = _compute_vetoes(cfg, C["cal_snap"], C["mkt"]["analyses"],
+                                      C["now"], log)
+        BUS.emit(Events.VETOES_COMPUTED, {"vetoes": sorted(C["vetoes"])})
 
-    # بخش فاندامنتال به‌صورت مستقل (برای تب جداگانه در پنل)
-    fund_parts = []
-    if cal_snap is not None:
-        fund_parts.append(_safe_render(
-            caps, "calendar", {"snap": cal_snap, "symbols_cfg": cfg["symbols"],
-                               "now": now, "horizon_hours": _horizon_hours(cfg)}, log))
-    if news_snap is not None:
-        fund_parts.append(_safe_render(caps, "news", {"snap": news_snap}, log))
-    result["fundamental_report"] = "\n".join(fund_parts)
+    # ── ۵) judge ──────────────────────────────────────────────
+    def stage_judge(_ctx):
+        # فاز ۷: judge-core به judge.enabled bind است — وقتی خاموش است پلاگین
+        # غایب است ولی jcfg هنوز لازم است (min_score برای رندر/ضداسپم).
+        # cfg["judge"] در load_config با همان DEFAULTS ادغام شده (src/config.py)
+        # → fallback بایت‌به‌بایت یکسان است.
+        jcfg = (caps.judge.judge_config(cfg) if caps.judge is not None
+                else (cfg.get("judge") or {}))
+        C["jcfg"] = jcfg
+        judgments, signals, judge_summary = [], [], ""
+        if jcfg.get("enabled", True):
+            if caps.judge is None or caps.session is None:   # سخت‌گیری فاز ۷
+                log("[!] پلاگین داور/سشن در دسترس نیست — قضاوتی در این چرخه انجام نشد (unavailable)")
+            else:
+                ctx = JudgeContext(
+                    jcfg=jcfg, acfg=cfg["analysis"], symbols_cfg=cfg["symbols"],
+                    ranking=C["mkt"]["ranking"], tv_map=C["mkt"]["tv_map"],
+                    cal_snap=C["cal_snap"], news_snap=C["news_snap"], now=C["now"],
+                    status=caps.session.market_status(C["now"]),
+                    # منبع حقیقتِ پنجرهٔ وتو همان تنظیم مرحلهٔ ۲ است، نه یک عدد دوم
+                    event_veto_minutes=float((cfg.get("fundamental") or {})
+                                             .get("veto_minutes_before", 30)),
+                )
+                judgments = caps.judge.judge_all(C["mkt"]["analyses"], C["mkt"]["datasets"], ctx)
+                signals = [j.signal for j in judgments if j.signal]
+                BUS.emit(Events.JUDGE_DONE,
+                         {"judgments": len(judgments), "signals": len(signals)})
+                for _sg in signals:
+                    BUS.emit(Events.SIGNAL_CREATED,
+                             {"symbol": _sg.symbol, "direction": _sg.direction,
+                              "score": _sg.score})
+                log(f"⚖️ داور: {len(signals)} سیگنال صادر شد 🎯" if signals
+                    else "⚖️ داور: هیچ سیگنالی صادر نشد (دلیل هر نماد در گزارش هست)")
+                judge_summary = _safe_render(
+                    caps, "judge_summary",
+                    {"judgments": judgments,
+                     "min_score": int(jcfg.get("min_score", 7)),
+                     "now": C["now"]}, log)
+        else:
+            log("[i] داور امتیازدهی در تنظیمات غیرفعال است")
+        C["judgments"], C["signals"], C["judge_summary"] = judgments, signals, judge_summary
 
-    _archive(report)
-    result["telegram"] = _send_telegram(cfg, report, log)
-    BUS.emit(Events.TELEGRAM_SENT, {"label": "گزارش", "ok": result["telegram"][0]})
-    result["elapsed"] = time.time() - t0
-    log(f"🏁 چرخه تحلیل کامل شد ({result['elapsed']:.0f} ثانیه"
-        + (f" — {len(vetoes)} نماد وتو شد" if vetoes else "") + ")")
-    BUS.emit(Events.CYCLE_END, {"ok": True, "signals": len(sent_signals)})
+    # ── ۶) render ─────────────────────────────────────────────
+    def stage_render(_ctx):
+        journal_line = ""
+        if C["stats"] is not None:
+            o = C["stats"].overall
+            journal_line = (
+                f"📊 کارنامه تا الان: بسته {fa_num(o.closed)} "
+                f"(برد {fa_num(o.wins)} / باخت {fa_num(o.losses)} / منقضی {fa_num(o.expired)})"
+                f" | نرخ برد {_pct(o.hit_rate)} | میانگین R {_rfmt(o.avg_r)}"
+                f" | باز {fa_num(C['stats'].open_count)}"
+                + (f" | بسته‌شدهٔ این چرخه: {fa_num(len(C['resolved']))}" if C["resolved"] else ""))
+
+        C["report"] = _safe_render(caps, "console", {
+            "analyses": C["mkt"]["analyses"], "ranking": C["mkt"]["ranking"],
+            "source_name": C["mkt"]["source_name"],
+            "tv_map": C["mkt"]["tv_map"], "tv_tf": C["mkt"]["tv_tf"],
+            "cal_snap": C["cal_snap"], "news_snap": C["news_snap"],
+            "symbols_cfg": cfg["symbols"], "vetoes": C["vetoes"],
+            "cal_horizon": _horizon_hours(cfg), "judge_summary": C["judge_summary"],
+            "now": C["now"], "simulated": C["simulated"], "journal_line": journal_line,
+        }, log)
+        BUS.emit(Events.REPORT_RENDERED, {"kind": "console", "length": len(C["report"])})
+        result.update(report=C["report"], errors=C["mkt"]["errors"], ok=True,
+                      vetoes=C["vetoes"],
+                      calendar_ok=bool(C["cal_snap"] and C["cal_snap"].ok),
+                      news_count=len(C["news_snap"].items) if C["news_snap"] else 0,
+                      judgments=len(C["judgments"]), simulated=C["simulated"])
+
+    # ── ۷) dispatch_signals ───────────────────────────────────
+    def stage_dispatch_signals(_ctx):
+        # ارسال سیگنال‌ها: جدا از گزارش، چون قابل اقدام‌اند
+        sent_signals = C["sent_signals"]
+        signals = C["signals"]
+        if signals and C["simulated"]:
+            log(f"⚠️ حالت شبیه‌سازی: {len(signals)} سیگنال ساخته شد ولی به تلگرام "
+                f"ارسال نمی‌شود و در ژورنال ثبت نمی‌شود (فقط نمایشی است)")
+            for sig in signals:
+                sent_signals.append({"symbol": sig.symbol, "direction": sig.direction,
+                                     "score": sig.score, "max_score": sig.max_score,
+                                     "sent": False, "simulated": True,
+                                     "text": _safe_render(caps, "signal", {"s": sig}, log),
+                                     "entry": sig.entry, "sl": sig.sl, "tp": sig.tp})
+        elif signals:
+            state = _load_signal_state()
+            for sig in signals:
+                go, why = should_send_signal(state, sig, C["jcfg"], now=C["now"])
+                text = _safe_render(caps, "signal", {"s": sig}, log)
+                sent = False
+                if go:
+                    sent, _msg = _send_telegram(cfg, text, log,
+                                                label=f"🎯 سیگنال {sig.symbol}")
+                    if sent:
+                        state[f"{sig.symbol}|{sig.direction}"] = {
+                            "ts": datetime.now(timezone.utc).isoformat(),
+                            "score": sig.score,
+                        }
+                else:
+                    log(f"[i] سیگنال {sig.symbol} ({sig.direction}) ارسال نشد — {why}")
+                BUS.emit(Events.SIGNAL_SENT, {"symbol": sig.symbol, "sent": sent})
+                journal_signal(sig, sent)      # پایهٔ ژورنال مرحله ۴
+                sent_signals.append({"symbol": sig.symbol, "direction": sig.direction,
+                                     "score": sig.score, "max_score": sig.max_score,
+                                     "sent": sent, "text": text,
+                                     "entry": sig.entry, "sl": sig.sl, "tp": sig.tp,
+                                     # v0.19.0 — فیلدهای کارت سیگنال (popup/اشتراک تصویر/نمودار)
+                                     "pip": sig.pip, "is_gold": bool(getattr(sig, "is_gold", False)),
+                                     "rr": sig.rr, "stars": getattr(sig, "stars", 0),
+                                     "session_fa": getattr(sig, "session_fa", ""),
+                                     "fa_name": getattr(sig, "fa_name", ""),
+                                     "now": C["now"].isoformat()})
+            _save_signal_state(state)
+        result["signals"] = sent_signals
+
+    # ── ۸) price_alerts ───────────────────────────────────────
+    def stage_price_alerts(_ctx):
+        fired_alerts = []
+        try:
+            fired_alerts = caps.alerts.check_alerts(C["mkt"].get("analyses") or [], now=C["now"])
+            for fa_ in fired_alerts:
+                _sym = fa_["symbol"]
+                _dir = "بالاتر از" if fa_["dir"] == "above" else "پایین‌تر از"
+                log(f"هشدار قیمت: {_sym} به {fa_['_price']} رسید ({_dir} {fa_['price']})")
+                _txt = (f"هشدار قیمت — {_sym}\n"
+                        f"{_sym} به سطح {fa_['price']} رسید ({_dir})\n"
+                        f"قیمت فعلی: {fa_['_price']} — ساعت {datetime.now(timezone.utc).astimezone():%H:%M}")
+                _send_telegram(cfg, _txt, log, label=f"هشدار قیمت {_sym}")
+            if fired_alerts and on_alert is not None:
+                on_alert(fired_alerts)
+        except Exception as e:
+            log(f"[!] بررسی هشدار قیمت ناموفق: {str(e)[:100]}")
+        C["fired_alerts"] = fired_alerts
+        result["alerts_fired"] = fired_alerts
+        BUS.emit(Events.ALERTS_FIRED, {"fired": len(fired_alerts)})
+
+    # ── ۹) chart_cache ────────────────────────────────────────
+    def stage_chart_cache(_ctx):
+        # کش نمودار (v0.19.0) — برای ChartDialog پنل، مثل chart.<SYM> اندروید
+        try:
+            import json as _json
+            _cdir = app_paths.data_dir()
+            _cdir.mkdir(parents=True, exist_ok=True)
+            for _sym, _md in (C["mkt"].get("datasets") or {}).items():
+                _rows = {"h1": [], "h4": []}
+                for _tf in ("h1", "h4"):
+                    _df = getattr(_md, _tf, None)
+                    if _df is None or len(_df) == 0:
+                        continue
+                    _tail = _df.tail(360 if _tf == "h1" else 140)
+                    for _ts, _row in _tail.iterrows():
+                        _rows[_tf].append({
+                            "t": int(_ts.timestamp() * 1000),
+                            "o": float(_row["Open"]), "h": float(_row["High"]),
+                            "l": float(_row["Low"]), "c": float(_row["Close"])})
+                (_cdir / f"chart_{_sym}.json").write_text(
+                    _json.dumps(_rows, separators=(",", ":")), encoding="utf-8")
+        except Exception as e:
+            log(f"[i] ذخیرهٔ کش نمودار ناموفق: {str(e)[:80]}")
+
+    # ── ۱۰) dashboard ─────────────────────────────────────────
+    def stage_dashboard(_ctx):
+        # دادهٔ ساختاریافته برای داشبورد پنل
+        result["ranking"] = list(C["mkt"]["ranking"])
+        upcoming = []
+        if C["cal_snap"] is not None and C["cal_snap"].ok:
+            for e in caps.calendar.upcoming_events(C["cal_snap"], C["now"],
+                                                   hours=_horizon_hours(cfg), limit=6):
+                upcoming.append({"title_fa": e.title_fa, "country_fa": e.country_fa,
+                                 "country": e.country, "impact": e.impact,
+                                 "when": e.when.isoformat(),
+                                 "minutes": int(round(e.minutes_from(C["now"])))})
+        result["upcoming"] = upcoming
+        result["symbols_summary"] = [
+            {"symbol": a.symbol, "verdict": a.verdict, "trend": a.trend,
+             "adx": round(a.adx, 1), "rsi": round(a.rsi, 1), "price": a.price,
+             "pip": a.pip, "support": a.support, "resistance": a.resistance}
+            for a in C["mkt"]["analyses"]]
+
+        # بخش فاندامنتال به‌صورت مستقل (برای تب جداگانه در پنل)
+        fund_parts = []
+        if C["cal_snap"] is not None:
+            fund_parts.append(_safe_render(
+                caps, "calendar", {"snap": C["cal_snap"], "symbols_cfg": cfg["symbols"],
+                                   "now": C["now"], "horizon_hours": _horizon_hours(cfg)}, log))
+        if C["news_snap"] is not None:
+            fund_parts.append(_safe_render(caps, "news", {"snap": C["news_snap"]}, log))
+        result["fundamental_report"] = "\n".join(fund_parts)
+
+    # ── ۱۱) archive_notify ────────────────────────────────────
+    def stage_archive_notify(_ctx):
+        _archive(C["report"])
+        result["telegram"] = _send_telegram(cfg, C["report"], log)
+        BUS.emit(Events.TELEGRAM_SENT, {"label": "گزارش", "ok": result["telegram"][0]})
+        result["elapsed"] = time.time() - t0
+        log(f"🏁 چرخه تحلیل کامل شد ({result['elapsed']:.0f} ثانیه"
+            + (f" — {len(C['vetoes'])} نماد وتو شد" if C["vetoes"] else "") + ")")
+        BUS.emit(Events.CYCLE_END, {"ok": True, "signals": len(C["sent_signals"])})
+
+    # ── ثبت مراحل با ترتیب قطعی و اجرای pipeline ───────────────
+    for _prio, (_name, _fn) in enumerate((
+            ("collect_market", stage_collect_market),
+            ("journal_pre", stage_journal_pre),
+            ("collect_fundamental", stage_collect_fundamental),
+            ("compute_vetoes", stage_compute_vetoes),
+            ("judge", stage_judge),
+            ("render", stage_render),
+            ("dispatch_signals", stage_dispatch_signals),
+            ("price_alerts", stage_price_alerts),
+            ("chart_cache", stage_chart_cache),
+            ("dashboard", stage_dashboard),
+            ("archive_notify", stage_archive_notify)), start=1):
+        runner.add(_name, _fn, priority=10 * _prio)
+
+    BUS.emit(Events.CYCLE_START, {"simulated": now_override is not None})
+    runner.run(C)          # early-exit → stop در journal_pre (بقیه اجرا نمی‌شوند)
     return result
 
 

@@ -104,6 +104,12 @@ jobs:
       - name: Judge-rules behavior pins + golden battery (آفلاین)
         run: python tests/test_judge_rules.py
 
+      # فاز ۳b معماری پلاگین: run_cycle روی PipelineRunner — ترتیب قطعیِ
+      # ۱۱ مرحله + رویدادهای stage.* + early-exit = stop در journal_pre.
+      # (طلاییِ رفتاریِ خودِ چرخه در step بالا سبز می‌ماند — بدون تغییر.)
+      - name: Pipeline-switch stage events + stop semantics (آفلاین)
+        run: python tests/test_pipeline_switch.py
+
       # تست‌های JS اپ اندروید — چرا اینجا هم؟ چون job «test» روی ubuntu اجرا
       # می‌شود و سریع است؛ این‌طور یک کامیتِ «فقط ویندوزی» هم نمی‌تواند
       # پاریتی تم یا رانش نسخهٔ اندروید را بی‌صدا بشکند.
