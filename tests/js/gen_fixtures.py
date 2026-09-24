@@ -524,6 +524,7 @@ def judgment_dump(j) -> dict:
                "risk_pips": s.risk_pips, "reward_pips": s.reward_pips, "rr": s.rr,
                "is_gold": s.is_gold, "session_fa": s.session_fa, "warnings": s.warnings,
                "sl_capped": s.sl_capped, "direction_fa": s.direction_fa,
+               "strategies": s.strategies,
                "journal": s.to_journal(sent=True)}
     return {"symbol": j.symbol, "direction": j.direction, "score": j.score,
             "max_score": j.max_score, "reject_reason": j.reject_reason,
@@ -534,7 +535,7 @@ def judgment_dump(j) -> dict:
                            "max_points": e.max_points, "detail_fa": e.detail_fa,
                            "ok": e.ok, "unavailable": e.unavailable, "icon": e.icon}
                           for e in j.evidences],
-            "warnings": j.warnings, "signal": sig}
+            "warnings": j.warnings, "strategies": j.strategies, "signal": sig}
 
 
 def gen_judge_fixtures(cfg: dict, now_ms: int) -> None:
@@ -554,7 +555,9 @@ def gen_judge_fixtures(cfg: dict, now_ms: int) -> None:
             jcfg=jcfg, acfg=cfg["analysis"], symbols_cfg=cfg["symbols"],
             ranking=ranking, tv_map=tv_map, cal_snap=cal_snap, news_snap=news_snap,
             now=now, status=market_status(now),
-            event_veto_minutes=float((cfg.get("fundamental") or {}).get("veto_minutes_before", 30)))
+            event_veto_minutes=float((cfg.get("fundamental") or {}).get("veto_minutes_before", 30)),
+            # S3: دروازهٔ توافق — min_agree از config (پاریتی دو موتور)
+            strategies_cfg=cfg.get("strategies") or {})
         judgments = judge_all(analyses, datasets, ctx)
         out[tag] = {"nowMs": ms, "judgments": [judgment_dump(j) for j in judgments]}
         sigs = [j for j in judgments if j.signal]
@@ -590,7 +593,8 @@ def gen_strategy_fixtures(cfg: dict, now_ms: int) -> None:
             jcfg=jcfg, acfg=cfg["analysis"], symbols_cfg=cfg["symbols"],
             ranking=ranking, tv_map=tv_map, cal_snap=cal_snap, news_snap=news_snap,
             now=now, status=market_status(now),
-            event_veto_minutes=float((cfg.get("fundamental") or {}).get("veto_minutes_before", 30)))
+            event_veto_minutes=float((cfg.get("fundamental") or {}).get("veto_minutes_before", 30)),
+            strategies_cfg=cfg.get("strategies") or {})
         rows = []
         for a in analyses:
             verdicts = {}

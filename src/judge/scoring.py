@@ -163,6 +163,11 @@ class Signal:
     warnings: list[str] = field(default_factory=list)
     sl_capped: bool = False
     sid: str = ""             # شناسهٔ یکتای ژورنال (مرحله ۴ نتیجه را به آن گره می‌زند)
+    # S3 (v0.26): verdict کامل همهٔ استراتژی‌های فعال (dict) — موافق‌ها و
+    # مخالف‌ها، برای صداقتِ پیام («چرا این سیگنال صادر شد» حالا استراتژی هم
+    # دارد). ژورنال فقط کلیدِ موافق‌ها را نگه می‌دارد (فشرده و کافی برای
+    # «نرخ برد به تفکیک استراتژی» در آینده).
+    strategies: list = field(default_factory=list)
 
     @property
     def direction_fa(self) -> str:
@@ -194,6 +199,11 @@ class Signal:
             "max_score": self.max_score,
             "session": self.session_fa,
             "evidences": [f"{e.key}:{e.points}/{e.max_points}" for e in self.evidences],
+            # S3: کلیدِ استراتژی‌های هم‌جهت (رکوردهای قدیمیِ ژورنال این کلید را
+            # ندارند — tracker/stats فقط کلیدهای شناخته‌شده را می‌خوانند، پس
+            # append-only و backward-compatible می‌ماند)
+            "strategies": [v["key"] for v in self.strategies
+                           if v.get("direction") == self.direction],
             "sent": sent,
         }
 
@@ -211,10 +221,16 @@ class Judgment:
     vetoes: list[Veto] = field(default_factory=list)
     warnings: list[str] = field(default_factory=list)
     signal: Optional[Signal] = None
-    reject_reason: str = ""        # NO_SETUP | VETO | LOW_SCORE | CAPPED | DISABLED
+    reject_reason: str = ""        # NO_SETUP | VETO | LOW_SCORE | NO_STRATEGY | CAPPED | DISABLED
     reject_detail: str = ""
     price: float = 0.0
     pip: float = 0.0001
+    # S3 (v0.26): verdict استراتژی‌ها (dict — همان shape طلاییِ دو زبان).
+    # فقط وقتی پر می‌شود که دروازهٔ توافق اجرا شده باشد (strategy_rules
+    # تزریق شده و امتیاز از آستانه گذشته) — ردشدگی‌های VETO/NO_SETUP/
+    # LOW_SCORE عمداً استراتژی‌ها را ارزیابی نمی‌کنند (ارزیابیِ زودهنگام
+    # در گزارش «نظرِ بی‌مورد» نشان می‌داد).
+    strategies: list = field(default_factory=list)
 
     @property
     def status_fa(self) -> str:
@@ -224,6 +240,7 @@ class Judgment:
             "VETO": "🚫 وتو شد",
             "LOW_SCORE": "⏳ امتیاز ناکافی",
             "NO_SETUP": "❔ ستاپی شکل نگرفته",
+            "NO_STRATEGY": "🎯 استراتژی موافق نیست",
             "CAPPED": "🔢 به سقف تعداد سیگنال رسید",
             "DISABLED": "⚙️ داور خاموش است",
         }.get(self.reject_reason, "—")
@@ -245,6 +262,10 @@ class JudgeContext:
     # پنجرهٔ وتوی رویداد پراثر — از fundamental.veto_minutes_before مرحله ۲ می‌آید
     # تا دو موتور یک عدد را دو جور تفسیر نکنند
     event_veto_minutes: float = 30.0
+    # S3 (v0.26): تنظیمات دروازهٔ توافق استراتژی‌ها — فقط min_agree از اینجا
+    # خوانده می‌شود (scfg هر استراتژی در adapter خودش bind شده، مثل فاز ۴).
+    # پیش‌فرض خالی = min_agree ۱ (همان config.yaml).
+    strategies_cfg: dict = field(default_factory=dict)
 
 
 # ══════════════════════════════════════════════════════════════
@@ -658,10 +679,55 @@ def _no_setup_reason(a: SymbolAnalysis, ctx: JudgeContext) -> str:
             f"(برای ستاپ فروش باید بالای ۵۵ باشد)")
 
 
+# ══════════════════════════════════════════════════════════════
+#  دروازهٔ توافق استراتژی‌ها (S3 — v0.26؛ تصمیم مالک: D1=R2, D3=fail-closed)
+# ══════════════════════════════════════════════════════════════
+_STRAT_DIR_FA = {"BUY": "خرید", "SELL": "فروش", "NONE": "بی‌نظر"}
+
+
+def _strategy_verdicts(a: SymbolAnalysis, md: Optional[MarketData],
+                       ctx: JudgeContext, strategy_rules: list) -> list:
+    """ارزیابی صادقانهٔ همهٔ استراتژی‌های تزریق‌شده → فهرست dict.
+
+    Failure Isolation (قاعدهٔ موجود): استراتژیِ خطاداده = «نظر ندارد»
+    (NONE با دلیل صادقانه) — هرگز کرش، هرگز دادهٔ جعلی. خروجی dict است
+    (نه StrategyVerdict) تا دو موتور shape یکسانِ سریال‌شده داشته باشند.
+    """
+    out: list = []
+    for rule in strategy_rules:
+        key = str(getattr(rule, "key", "") or "strategy")
+        try:
+            v = rule.evaluate(a, md, ctx)
+            out.append(v.to_dict() if hasattr(v, "to_dict") else dict(v))
+        except Exception:
+            out.append({"key": key, "name_fa": "استراتژیِ خطاداده",
+                        "direction": "NONE", "strength": 0.0, "proposes": True,
+                        "reasons_fa": ["ارزیابی خطا داد؛ نظر صادقانه‌ای نداریم"],
+                        "detail_fa": f"{key}: ارزیابی خطا داد"})
+    return out
+
+
+def _no_strategy_reason(direction: str, verdicts: list, min_agree: int,
+                        n_total: int, n_prop: int) -> str:
+    """دلیل فارسیِ ردِ NO_STRATEGY — صادقانه و کامل (D2/D3)."""
+    if not verdicts:
+        return ("هیچ استراتژیِ فعالی در دسترس نیست — سیگنال بدون پشتوانهٔ "
+                "استراتژی صادر نمی‌شود (دروازهٔ توافق، صادقانه)")
+    dir_fa = _STRAT_DIR_FA.get(direction, direction)
+    parts = ["«" + str(v.get("name_fa", v.get("key", "?"))) + "» "
+             + _STRAT_DIR_FA.get(v.get("direction"), str(v.get("direction")))
+             for v in verdicts]
+    return (f"توافقِ استراتژی‌ها کافی نیست — هم‌جهت با {dir_fa}: "
+            f"{fa_num(n_total)} (پیشنهاددهنده: {fa_num(n_prop)}) از "
+            f"{fa_num(len(verdicts))}؛ حداقل لازم: {fa_num(min_agree)} هم‌جهت "
+            f"+ {fa_num(1)} پیشنهاددهنده. " + "؛ ".join(parts))
+
+
 def judge_symbol(a: SymbolAnalysis, sym_cfg: dict, md: Optional[MarketData],
                  ctx: JudgeContext, veto_rules: Optional[list] = None,
                  evidence_rules: Optional[list] = None,
-                 risk_fn: Optional[Callable] = None) -> Judgment:
+                 risk_fn: Optional[Callable] = None,
+                 strategy_rules: Optional[list] = None) -> Judgment:
     """داوری کامل یک نماد. هرگز استثنا پرتاب نمی‌کند.
 
     veto_rules / evidence_rules / risk_fn (فاز ۴): تزریق *اختیاری* قواعد —
@@ -671,6 +737,10 @@ def judge_symbol(a: SymbolAnalysis, sym_cfg: dict, md: Optional[MarketData],
     می‌کند؛ طلایی‌های tests/test_plugins.py برابری بایت‌به‌بایت دو مسیر را
     اثبات می‌کنند. scoring عمداً core/plugins را import نمی‌کند — قواعد فقط
     callableاند (استقلال لایهٔ فیچر از چارچوب).
+
+    strategy_rules (S3 — v0.26): همان الگو برای دروازهٔ توافق — فهرستِ
+    providerهای odin.strategy@1 (evaluate(a, md, ctx)). None = دروازه خاموش
+    (بایت‌به‌بایت رفتار v0.25)؛ فهرستِ خالی = fail-closed صادقانه (D3).
     """
     j = Judgment(symbol=a.symbol, fa_name=a.fa_name, direction=None,
                  max_score=11, price=a.price, pip=a.pip)
@@ -711,6 +781,24 @@ def judge_symbol(a: SymbolAnalysis, sym_cfg: dict, md: Optional[MarketData],
                            f"پس سیگنال صادر نمی‌شود")
         return j
 
+    # ۵ب) دروازهٔ توافق استراتژی‌ها (S3 — v0.26)
+    # strategy_rules=None → بایت‌به‌بایت رفتار v0.25 (مسیر مستقیم/ارثی).
+    # فهرست خالی (همهٔ استراتژی‌ها خاموش) → fail-closed با دلیلِ صادقانه (D3).
+    # min_agree<=0 → دروازه خاموش (opt-out صریحِ کاربر) ولی استراتژی‌ها
+    # صادقانه ارزیابی و نمایش داده می‌شوند. ترتیب رد: LOW_SCORE مقدم است —
+    # پروندهٔ امتیازِ کم همان LOW_SCORE می‌ماند (کمترین جابه‌جاییِ آمار).
+    if strategy_rules is not None:
+        j.strategies = _strategy_verdicts(a, md, ctx, strategy_rules)
+        min_agree = int((getattr(ctx, "strategies_cfg", None) or {}).get("min_agree", 1))
+        if min_agree > 0:
+            agreeing = [v for v in j.strategies if v.get("direction") == j.direction]
+            n_prop = sum(1 for v in agreeing if v.get("proposes"))
+            if n_prop < 1 or len(agreeing) < min_agree:
+                j.reject_reason = "NO_STRATEGY"
+                j.reject_detail = _no_strategy_reason(
+                    j.direction, j.strategies, min_agree, len(agreeing), n_prop)
+                return j
+
     # ۶) ساخت سیگنال
     rcfg = ctx.jcfg["risk"]
     _levels = compute_levels if risk_fn is None else risk_fn
@@ -738,6 +826,7 @@ def judge_symbol(a: SymbolAnalysis, sym_cfg: dict, md: Optional[MarketData],
         rr=float(rcfg.get("reward_risk", 2.0)),
         is_gold=bool(pip >= 0.5), session_fa=ctx.status.label, now=ctx.now,
         evidences=j.evidences, warnings=j.warnings, sl_capped=capped,
+        strategies=j.strategies,
     )
     return j
 
@@ -745,15 +834,17 @@ def judge_symbol(a: SymbolAnalysis, sym_cfg: dict, md: Optional[MarketData],
 def judge_all(analyses: list[SymbolAnalysis], datasets: dict, ctx: JudgeContext,
               veto_rules: Optional[list] = None,
               evidence_rules: Optional[list] = None,
-              risk_fn: Optional[Callable] = None) -> list[Judgment]:
+              risk_fn: Optional[Callable] = None,
+              strategy_rules: Optional[list] = None) -> list[Judgment]:
     """داوری همهٔ نمادها + اعمال سقف تعداد سیگنال در هر چرخه.
 
-    پارامترهای قواعد، pass-through به judge_symbol اند (فاز ۴) —
+    پارامترهای قواعد، pass-through به judge_symbol اند (فاز ۴ + S3) —
     None = رفتار بایت‌به‌بایتِ امروز.
     """
     out = [judge_symbol(a, {}, datasets.get(a.symbol), ctx,
                         veto_rules=veto_rules, evidence_rules=evidence_rules,
-                        risk_fn=risk_fn) for a in analyses]
+                        risk_fn=risk_fn, strategy_rules=strategy_rules)
+           for a in analyses]
     cap = int(ctx.jcfg.get("max_signals_per_cycle", 3))
     ready = sorted([j for j in out if j.signal], key=lambda j: -j.score)
     for j in ready[cap:]:

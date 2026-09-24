@@ -67,6 +67,21 @@ def render_signal(s: Signal, include_footer: bool = True) -> str:
         for e in missing:
             lines.append(f"{e.icon} {e.label_fa} (۰ از {fa_num(e.max_points)}) — {e.detail_fa}")
 
+    # S3 (v0.26): پشتوانهٔ استراتژی — موافق‌ها با قدرت، بقیه با دلیلِ کوتاه
+    # (صادقانه: کاربر باید بداند کدام استراتژی پشت سیگنال است و کدام‌ها
+    # نظر ندادند). فهرست خالی = دروازه خاموش (min_agree=0) یا مسیر ارثی.
+    if s.strategies:
+        lines.append("")
+        lines.append("🎯 پشتوانهٔ استراتژی:")
+        for v in s.strategies:
+            if v.get("direction") == s.direction:
+                strength = fa_num(f'{float(v.get("strength", 0.0)):.2f}').replace(".", "٫")
+                suffix = "" if v.get("proposes") else " (فقط توافق)"
+                lines.append(f"   ✅ {v['name_fa']} — قدرت {strength}{suffix}")
+            else:
+                why = (v.get("reasons_fa") or ["بی‌نظر"])[0]
+                lines.append(f"   ➖ {v['name_fa']} — {why}")
+
     if s.warnings:
         lines.append("")
         lines.append("⚠️ هشدارها")
@@ -113,6 +128,9 @@ def _reason_short(j: Judgment, min_score: int = 7) -> str:
                 f"آستانهٔ {fa_num(min_score)} کم داشت")
     if j.reject_reason == "NO_SETUP":
         return j.reject_detail or "ستاپی شکل نگرفته"
+    if j.reject_reason == "NO_STRATEGY":
+        n = sum(1 for v in j.strategies if v.get("direction") == j.direction)
+        return f"استراتژی موافق نیست ({fa_num(n)} هم‌جهت)"
     if j.reject_reason == "CAPPED":
         return "به سقف تعداد سیگنال در این چرخه رسید"
     if j.reject_reason == "DISABLED":
@@ -150,9 +168,10 @@ def render_judge_summary(judgments: list[Judgment], min_score: int = 7,
         lines.append("   سرنوشت بقیهٔ نمادها:")
         for j in rejected:
             score = (f"{fa_num(j.score)}/{fa_num(j.max_score)}"
-                     if j.reject_reason in ("LOW_SCORE", "CAPPED") else "—")
+                     if j.reject_reason in ("LOW_SCORE", "CAPPED", "NO_STRATEGY")
+                     else "—")
             lines.append(f"   • {j.symbol:<7} {score:>7}  {_reason_short(j, min_score)}")
-            if j.reject_reason == "NO_SETUP" and j.reject_detail:
+            if j.reject_reason in ("NO_SETUP", "NO_STRATEGY") and j.reject_detail:
                 lines.append(f"       ↳ {j.reject_detail}")
             elif j.reject_reason == "LOW_SCORE":
                 got = [e.label_fa for e in j.evidences if e.points > 0]
@@ -169,5 +188,7 @@ def render_no_signals_note(judgments: list[Judgment]) -> str:
     vet = sum(1 for j in judgments if j.reject_reason == "VETO")
     low = sum(1 for j in judgments if j.reject_reason == "LOW_SCORE")
     nos = sum(1 for j in judgments if j.reject_reason == "NO_SETUP")
+    nstr = sum(1 for j in judgments if j.reject_reason == "NO_STRATEGY")
     return (f"⛔ سیگنالی صادر نشد — {fa_num(vet)} وتو، {fa_num(low)} امتیاز ناکافی، "
+            f"{fa_num(nstr)} بدون توافق استراتژی، "
             f"{fa_num(nos)} بدون ستاپ (از {fa_num(len(judgments))} نماد)")

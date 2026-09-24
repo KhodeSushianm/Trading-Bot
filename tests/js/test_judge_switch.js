@@ -93,9 +93,13 @@ function testVetoPins() {
   A(t.weekend_off_saturday.evidences[7].points === 0
     && t.weekend_off_saturday.evidences[7].detail_fa === 'شنبه — بازار فارکس بسته است 🔒',
     'شاهد سشنِ بازار بسته: ۰ با دلیل صادقانه');
-  A(t.range_off_low_adx.vetoes.length === 0 && t.range_off_low_adx.signal !== null
+  // S3 (بازضبطِ مستند): پینِ toggle سرِ جایش است (وتو غایب) ولی ADX=14
+  // زیر آستانهٔ trend_pullback است → دروازهٔ توافق صادقانه رد می‌کند
+  // (آینهٔ اصلاحِ مستند در test_judge_rules.py)
+  A(t.range_off_low_adx.vetoes.length === 0
+    && t.range_off_low_adx.reject_reason === 'NO_STRATEGY'
     && t.range_off_low_adx.evidences[0].points === 1,
-    'veto.range_market=false → ADX پایین وتو ندارد؛ روند متوسط = ۱ امتیاز');
+    'veto.range_market=false → ADX پایین وتو ندارد؛ S3: دروازهٔ توافق رد می‌کند');
   A(BAT.veto_clean.length === 0, 'ستاپ سالم → بدون وتو');
 }
 
@@ -191,7 +195,9 @@ function testJudgePathPins() {
   A(cp.map((j) => j.symbol).join(',') === 'EURUSD,GBPUSD,USDJPY', 'capped: نمادها به ترتیب ورودی');
   A(cp[0].signal !== null && cp[1].reject_reason === 'CAPPED' && cp[2].reject_reason === 'CAPPED',
     'بهترین می‌ماند، بقیه CAPPED');
-  A(cp[1].score === 10 && cp[2].score === 8, 'امتیازهای capped (۱۰ و ۸ — همان پایتون)');
+  // S3 (بازضبطِ مستند): a3 برای ماندن در intentِ «سه آماده» rsi=38 گرفت
+  // (منطقهٔ tp) → momentum +1 → ۸→۹ (همان پایتون)
+  A(cp[1].score === 10 && cp[2].score === 9, 'امتیازهای capped (۱۰ و ۹ — همان پایتون)');
   A(cp[1].reject_detail === 'امتیاز ۱۰ از ۱۱ کافی بود، ولی سقف ۱ سیگنال در هر چرخه پر شده — بهترین‌ها اولویت دارند',
     'متن CAPPED (همان متن پایتون)');
 
@@ -302,7 +308,7 @@ function testRegistryRulesWhenPresent() {
     throw new Error('باتریِ مسیر rule-plugin با مسیر مستقیم/طلایی فرق دارد — '
       + firstDiffPath(pluginBat, BAT));
   }
-  A(true, 'باتری کامل ۵۸ سناریویی از مسیر registry == مسیر مستقیم (بایت‌به‌بایت)');
+  A(true, 'باتری کامل ۶۶ سناریویی از مسیر registry == مسیر مستقیم (بایت‌به‌بایت)');
 
   // ── veto-off: مسیر پلاگین (binding) == مسیر مستقیم (guard بدنه) ──
   const b3 = O.buildDefaultRegistry(cfgOff, 'android');
@@ -313,7 +319,10 @@ function testRegistryRulesWhenPresent() {
     jcfg: { veto: Object.assign(JSON.parse(JSON.stringify(O.CONFIG.judge.veto)), { weekend: false }) }
   });
   const viaPlugin = jp3.judgeAll([a], { EURUSD: md }, ctxSatOff)[0];
-  const viaDirect = O.judgeAll([a], { EURUSD: md }, ctxSatOff)[0];
+  // S3: مسیر مستقیم هم strategyRules می‌گیرد — registry از S3 استراتژی‌ها
+  // را هم تزریق می‌کند؛ برابری دو مسیر فقط با تزریقِ متناظر معنا دارد
+  const viaDirect = O.judgeAll([a], { EURUSD: md }, ctxSatOff,
+    undefined, undefined, undefined, gen.defaultStrategyRules(O))[0];
   A(stable(gen.judgmentDump(O, viaPlugin)) === stable(gen.judgmentDump(O, viaDirect)),
     'veto.weekend=false: مسیر پلاگین == مسیر مستقیم (شنبه سیگنال می‌دهد)');
   A(viaPlugin.signal !== null && viaPlugin.vetoes.length === 0,
@@ -333,15 +342,71 @@ function testRegistryRulesWhenPresent() {
       { weekend: false, high_impact_event: false, timeframe_conflict: false, range_market: false, volatility_spike: false, breaking_news: false }) }
   });
   const allPlugin = jp4.judgeAll([a], { EURUSD: md }, ctxAll)[0];
-  const allDirect = O.judgeAll([a], { EURUSD: md }, ctxAll)[0];
+  const allDirect = O.judgeAll([a], { EURUSD: md }, ctxAll,
+    undefined, undefined, undefined, gen.defaultStrategyRules(O))[0];
   A(stable(gen.judgmentDump(O, allPlugin)) === stable(gen.judgmentDump(O, allDirect)),
     'همه‌خاموش: مسیر پلاگین == مسیر مستقیم (قواعد پیش‌فرض بی‌صدا برنگشتند)');
 }
 
 // ══════════════════════════════════════════════════════════════
+function testStrategyGatePins() {
+  // S3: پین‌های خوانای دروازهٔ توافق — آینهٔ test_strategy_gate پایتون
+  const g = BAT.strategy_gate;
+
+  A(g.no_agreement.reject_reason === 'NO_STRATEGY' && g.no_agreement.signal === null
+    && g.no_agreement.score >= 7,
+    'امتیاز ≥ ۷ ولی صفر استراتژیِ هم‌جهت → NO_STRATEGY (دروازه مستقل از امتیاز)');
+  A(g.no_agreement.status_fa === '🎯 استراتژی موافق نیست', 'status_fa دروازه');
+  A(g.no_agreement.strategies.map((v) => v.direction).join(',') === 'NONE,NONE,NONE',
+    'هر سه استراتژی صادقانه NONE و ثبت شدند');
+
+  A(g.carry_only.reject_reason === 'NO_STRATEGY'
+    && g.carry_only.reject_detail.indexOf('(پیشنهاددهنده: ۰)') >= 0,
+    'تنها-carry: n_prop=0 → رد (D1=R2) + جزئیاتِ شمارِ پیشنهاددهنده');
+  const cv = g.carry_only.strategies.filter((v) => v.key === 'carry')[0];
+  A(cv.direction === 'BUY' && cv.proposes === false,
+    'carry هم‌جهت ولی proposes=false — فقط توافق');
+
+  A(g.min_agree_2.reject_reason === 'NO_STRATEGY'
+    && g.min_agree_2.reject_detail.indexOf('حداقل لازم: ۲') >= 0,
+    'min_agree=2 از ctx.strategiesCfg خوانده می‌شود');
+
+  A(g.fail_closed_empty.reject_reason === 'NO_STRATEGY'
+    && g.fail_closed_empty.strategies.length === 0
+    && g.fail_closed_empty.reject_detail.indexOf('هیچ استراتژیِ فعالی در دسترس نیست') === 0,
+    'فهرست خالی → fail-closed صادقانه (D3)');
+
+  A(g.broken_rule_isolated.signal !== null && g.broken_rule_isolated.strategies.length === 2
+    && g.broken_rule_isolated.strategies[0].name_fa === 'استراتژیِ خطاداده'
+    && g.broken_rule_isolated.signal.journal.strategies.join(',') === 'trend_pullback',
+    'قاعدهٔ خطاداده مانعِ سیگنال نیست (Failure Isolation) + placeholder + ژورنالِ موافق');
+
+  A(g.broken_rule_only.reject_reason === 'NO_STRATEGY'
+    && g.broken_rule_only.strategies[0].name_fa === 'استراتژیِ خطاداده',
+    'فقط قاعدهٔ خطاداده → ردِ صادقانه');
+
+  A(g.opt_out_min_agree_0.signal !== null && g.opt_out_min_agree_0.strategies.length === 3
+    && g.opt_out_min_agree_0.signal.journal.strategies.length === 0,
+    'min_agree=0 → دروازه خاموش (opt-out) + ارزیابی صادقانه باقی است');
+
+  A(g.pass_full.signal !== null
+    && g.pass_full.signal.journal.strategies.join(',') === 'trend_pullback',
+    'مسیر سالم: سیگنال + کلیدِ موافق در ژورنال');
+  const tv = g.pass_full.strategies.filter((v) => v.key === 'trend_pullback')[0];
+  A(tv.direction === 'BUY' && tv.proposes === true && tv.strength > 0 && tv.strength <= 1
+    && tv.name_fa === 'روند + پولبک',
+    'verdict کاملِ استراتژیِ موافق (نام/جهت/قدرت/proposes)');
+
+  // LOW_SCORE مقدم بر دروازه است و استراتژی‌ها را ارزیابی نمی‌کند
+  A(BAT.judge_low_score.low_score.reject_reason === 'LOW_SCORE'
+    && BAT.judge_low_score.low_score.strategies.length === 0,
+    'LOW_SCORE مقدم بر NO_STRATEGY (کمترین جابه‌جاییِ آمار)');
+}
+
+// ══════════════════════════════════════════════════════════════
 function main() {
   const tests = [testGoldenBattery, testVetoPins, testEvidencePins,
-    testJudgePathPins, testRegistryRulesWhenPresent];
+    testJudgePathPins, testStrategyGatePins, testRegistryRulesWhenPresent];
   const fails = [];
   tests.forEach((t) => {
     try { t(); } catch (e) { fails.push(t.name + ': ' + (e && e.message || e)); }
@@ -352,7 +417,8 @@ function main() {
     process.exit(1);
   }
   console.log('✅ JUDGE-SWITCH TESTS OK — ' + COUNT + ' بررسی پاس؛ میخ‌های رفتاری '
-    + 'داور JS (۵۸ سناریوی طلایی + پین‌های متنی/امتیازی + بخش مشروط registry) سبز‌اند');
+    + 'داور JS (۶۶ سناریوی طلایی + پین‌های متنی/امتیازی + دروازهٔ توافق S3 '
+    + '+ بخش مشروط registry) سبز‌اند');
   process.exit(0);
 }
 

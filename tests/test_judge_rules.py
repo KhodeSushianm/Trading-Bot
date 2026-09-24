@@ -312,8 +312,14 @@ def test_veto_toggles_and_clean() -> None:
       and j["evidences"][-1]["detail_fa"] == "شنبه — بازار فارکس بسته است 🔒",
       "شاهد سشن در بازار بسته: ۰ امتیاز با دلیل صادقانه")
     j2 = BAT["veto_toggles"]["range_off_low_adx"]
-    A(j2["vetoes"] == [] and j2["signal"] is not None,
-      "veto.range_market:false → ADX پایین وتو نمی‌آورد (رفتار فعلی)")
+    # S3 (بازضبطِ مستند): پینِ toggle سرِ جایش است (vetoes==[]) ولی این
+    # سناریو دیگر سیگنال نمی‌دهد — ADX=14 زیر آستانهٔ trend_pullback (۲۰)
+    # است، پس دروازهٔ توافق صادقانه رد می‌کند. موضوعِ پینِ toggle، «وتو
+    # برداشته شده» است نه «سیگنال صادر شده».
+    A(j2["vetoes"] == [],
+      "veto.range_market:false → ADX پایین وتو نمی‌آورد (رفتار toggle حفظ شد)")
+    A(j2["reject_reason"] == "NO_STRATEGY" and j2["score"] == 10,
+      "S3: روندِ بی‌ADX → دروازهٔ توافق رد می‌کند (امتیاز محاسبه شده باقی است)")
     A(j2["evidences"][0]["points"] == 1,
       "روند با ADX متوسط → شاهد trend یک امتیاز (نه دو)")
     A(BAT["veto_clean"] == [], "ستاپ سالم → هیچ وتویی فعال نیست")
@@ -416,8 +422,11 @@ def test_capped() -> None:
           f"{j['symbol']}: CAPPED و سیگنال حذف شد")
         A(j["status_fa"] == "🔢 به سقف تعداد سیگنال رسید", f"{j['symbol']}: status_fa")
     A(js[1]["reject_detail"] == "امتیاز ۱۰ از ۱۱ کافی بود، ولی سقف ۱ سیگنال در هر چرخه پر شده — بهترین‌ها اولویت دارند", "متن CAPPED عوض شد")
-    A((js[1]["score"], js[2]["score"]) == (10, 8),
-      "امتیازهای CAPPED حفظ می‌شود (۱۰ و ۸)")
+    # S3 (بازضبطِ مستند): a3 از rsi=55 به 38 رفت تا در منطقهٔ پولبکِ
+    # trend_pullback بماند و «سه سیگنال آماده، سقف ۱» preserved بماند —
+    # momentum یک امتیاز گرفت: ۸→۹. ترتیبِ cap (۱۱>۱۰>۹) همان است.
+    A((js[1]["score"], js[2]["score"]) == (10, 9),
+      "امتیازهای CAPPED حفظ می‌شود (۱۰ و ۹ — S3: a3 داخل منطقهٔ tp)")
 
 
 def test_judge_all_mixed() -> None:
@@ -470,11 +479,108 @@ def test_risk_math() -> None:
 
 
 # ══════════════════════════════════════════════════════════════
+#  S3 (v0.26) — دروازهٔ توافق استراتژی‌ها
+# ══════════════════════════════════════════════════════════════
+def test_strategy_gate() -> None:
+    """پین‌های خوانای دروازهٔ توافق — گروه strategy_gate طلایی."""
+    g = BAT["strategy_gate"]
+
+    j = g["no_agreement"]
+    A(j["reject_reason"] == "NO_STRATEGY" and j["signal"] is None,
+      "امتیاز ≥ ۷ ولی صفر استراتژیِ هم‌جهت → NO_STRATEGY (دروازه مستقل از امتیاز)")
+    A(j["score"] >= 7, "سناریوی no_agreement باید امتیازش کافی باشد (وگرنه پین بی‌معناست)")
+    A(j["status_fa"] == "🎯 استراتژی موافق نیست", "status_fa دروازهٔ استراتژی")
+    A(j["reject_detail"].startswith("توافقِ استراتژی‌ها کافی نیست"),
+      "متن دقیقِ ردِ دروازه")
+    A([v["direction"] for v in j["strategies"]] == ["NONE", "NONE", "NONE"],
+      "هر سه استراتژی صادقانه NONE دادند و ثبت شدند")
+
+    j = g["carry_only"]
+    A(j["reject_reason"] == "NO_STRATEGY",
+      "تنها-carry: n_total=1 ≥ min_agree ولی n_prop=0 → رد (D1=R2 پین)")
+    A("(پیشنهاددهنده: ۰)" in j["reject_detail"], "جزئیات باید شمارِ پیشنهاددهنده را بگوید")
+    cv = [v for v in j["strategies"] if v["key"] == "carry"][0]
+    A(cv["direction"] == "BUY" and cv["proposes"] is False,
+      "carry هم‌جهت است ولی proposes=False — فقط توافق")
+
+    j = g["min_agree_2"]
+    A(j["reject_reason"] == "NO_STRATEGY" and "حداقل لازم: ۲" in j["reject_detail"],
+      "min_agree=2 از ctx.strategies_cfg خوانده می‌شود (پینِ config)")
+
+    j = g["fail_closed_empty"]
+    A(j["reject_reason"] == "NO_STRATEGY" and j["strategies"] == [],
+      "فهرست خالی (همه خاموش) → fail-closed بدون verdict (D3)")
+    A(j["reject_detail"].startswith("هیچ استراتژیِ فعالی در دسترس نیست"),
+      "متن صادقانهٔ fail-closed")
+
+    j = g["broken_rule_isolated"]
+    A(j["signal"] is not None and len(j["strategies"]) == 2,
+      "قاعدهٔ خطاداده مانعِ سیگنال نیست (Failure Isolation) — placeholder + tp")
+    A(j["strategies"][0]["name_fa"] == "استراتژیِ خطاداده"
+      and j["strategies"][0]["direction"] == "NONE",
+      "placeholder صادقانه برای استراتژیِ خطاداده")
+    A(j["signal"]["journal"]["strategies"] == ["trend_pullback"],
+      "ژورنال فقط کلیدِ موافق‌ها را نگه می‌دارد")
+
+    j = g["broken_rule_only"]
+    A(j["reject_reason"] == "NO_STRATEGY"
+      and j["strategies"][0]["name_fa"] == "استراتژیِ خطاداده",
+      "فقط قاعدهٔ خطاداده → هیچ نظرِ واقعی نیست → ردِ صادقانه")
+
+    j = g["opt_out_min_agree_0"]
+    A(j["signal"] is not None, "min_agree=0 → دروازه خاموش (opt-out صریحِ کاربر)")
+    A(len(j["strategies"]) == 3
+      and j["signal"]["journal"]["strategies"] == [],
+      "opt-out هم صادقانه ارزیابی/نمایش می‌دهد؛ ژورنالِ موافق‌ها خالی")
+
+    j = g["pass_full"]
+    A(j["signal"] is not None, "مسیرِ سالم: tp توافق می‌کند → سیگنال")
+    A(j["signal"]["journal"]["strategies"] == ["trend_pullback"],
+      "کلیدِ موافق در ژورنال")
+    tv = [v for v in j["strategies"] if v["key"] == "trend_pullback"][0]
+    A(tv["direction"] == "BUY" and tv["proposes"] is True
+      and 0.0 < tv["strength"] <= 1.0 and tv["name_fa"] == "روند + پولبک",
+      "verdict استراتژیِ موافق کامل ثبت می‌شود (نام/جهت/قدرت/proposes)")
+
+
+def test_gate_order_and_legacy() -> None:
+    """ترتیبِ رد (LOW_SCORE مقدم) + مسیرِ strategy_rules=None == رفتار v0.25."""
+    # LOW_SCORE قبل از دروازه بررسی می‌شود → استراتژی‌ها اصلاً ارزیابی
+    # نمی‌شوند (j.strategies خالی) — کمترین جابه‌جایی در آمارِ کاربر
+    low = BAT["judge_low_score"]["low_score"]
+    A(low["reject_reason"] == "LOW_SCORE" and low["strategies"] == [],
+      "LOW_SCORE مقدم بر NO_STRATEGY است و استراتژی‌ها را ارزیابی نمی‌کند")
+    for name in ("veto_single", "veto_multi"):
+        for j in BAT[name].values() if isinstance(BAT[name], dict) else BAT[name]:
+            A(j["strategies"] == [], f"{name}: ردِ پیش‌دروازه‌ای strategies خالی")
+    for j in BAT["judge_no_setup"].values():
+        A(j["strategies"] == [], "NO_SETUP: ردِ پیش‌دروازه‌ای strategies خالی")
+
+    # مسیر None (ارثی/v0.25): دروازه خاموش — همان mock سناریوی no_agreement
+    # باید سیگنال بدهد (بدون دروازه) و strategies خالی بماند
+    md = gen.make_md(last_dir="bull")
+    a = gen.make_analysis(rsi=25.0)
+    ctx = gen.make_ctx(cal=gen.clean_cal(), news=gen.good_news())
+    j_legacy = gen.judge_symbol(a, {}, md, ctx)                       # strategy_rules=None
+    j_gated = gen.judge_symbol(a, {}, md, ctx,
+                               strategy_rules=gen.DEFAULT_STRATEGY_RULES)
+    A(j_legacy.signal is not None and j_legacy.strategies == [],
+      "None = بایت‌به‌بایت رفتار v0.25: سیگنال صادر، بدون دروازه")
+    A(j_gated.signal is None and j_gated.reject_reason == "NO_STRATEGY",
+      "تزریق قواعد = دروازه فعال (همان ورودی، سرنوشتِ متفاوتِ مستند)")
+    A((j_legacy.score, j_legacy.max_score) == (j_gated.score, j_gated.max_score)
+      and [e.points for e in j_legacy.evidences]
+      == [e.points for e in j_gated.evidences],
+      "دروازه جدول امتیاز را عوض نمی‌کند — فقط لایهٔ رد است")
+
+
+# ══════════════════════════════════════════════════════════════
 def main() -> int:
     tests = [test_golden_battery, test_veto_single, test_veto_order,
              test_veto_toggles_and_clean, test_evidence_branches,
              test_judge_full_paths, test_low_score, test_no_setup,
-             test_capped, test_judge_all_mixed, test_risk_math]
+             test_capped, test_judge_all_mixed, test_risk_math,
+             test_strategy_gate, test_gate_order_and_legacy]
     fails = []
     for t in tests:
         try:
@@ -489,8 +595,8 @@ def main() -> int:
             print("  •", f)
         return 1
     print(f"✅ JUDGE-RULES TESTS OK — {COUNT} بررسی پاس؛ میخ‌های رفتاری داور "
-          f"(۷ وتو + ۳۸ شاخهٔ شاهد + داوری کامل + CAPPED + ریاضی ریسک) "
-          f"+ طلاییِ باتری سناریوها سبز‌اند")
+          f"(۷ وتو + ۳۸ شاخهٔ شاهد + داوری کامل + CAPPED + ریاضی ریسک "
+          f"+ دروازهٔ توافق استراتژی‌ها S3) + طلاییِ باتری سناریوها سبز‌اند")
     return 0
 
 

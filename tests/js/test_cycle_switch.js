@@ -11,7 +11,7 @@
  *     سوییچ فعال — چون bus و registry رفتاری *افزودنی* بدون listener هستند
  *     (دقیقاً همان الگویی که در فاز ۳a پایتون جواب داد).
  *
- * طلاییِ ۸ سناریو: tests/js/golden/cycle_core_golden.json (با
+ * طلاییِ ۹ سناریو: tests/js/golden/cycle_core_golden.json (با
  * tests/js/golden/gen_cycle_golden.js ضبط شده — FakeDate ثابت، لایسنس تریال،
  * ODINNative ساختگی، seamهای fetcher پچ‌شده؛ کندل‌ها با فرمول‌های همان
  * gen_engine_golden.py پایتون → EURUSD BUY 8/11 در هر دو موتور).
@@ -86,6 +86,24 @@ async function testInlinePins() {
     'سیگنال در ژورنال ثبت شد (kind=signal, sent=true)');
   A(s1.storage['chart.EURUSD'] && s1.storage['chart.EURUSD'].bars === 260,
     'کش نمودار EURUSD با ۲۶۰ کندل نوشته شد');
+
+  // ۱ب) S3 — دروازهٔ توافق در سطح سرویس: min_agree=4 (دست‌یافتنی‌نیست) →
+  // سیگنالِ آمادهٔ EURUSD صادقانه NO_STRATEGY می‌شود: بدون اعلان، بدون
+  // ژورنال؛ state/لاگ باقی‌اند (نگهبان یا سبز معنادار یا قرمز پرسروصدا).
+  const s1g = await gen.runScenario('svc_gated_no_strategy');
+  A(s1g.cycleDone.length === 1 && s1g.stopBg === 0,
+    'چرخهٔ دروازه‌دار: زمان‌بندی سالم (bgCycleDone یک‌بار)');
+  A(s1g.notify.length === 0,
+    'دروازه: اعلانِ سیگنال صادر نشد (بی‌صدا هم نیست — state/لاگ می‌گوید)');
+  const stg = s1g.storage['state.last'];
+  const eurg = stg && stg.judgments.filter((j) => j.symbol === 'EURUSD')[0];
+  A(eurg && eurg.reject_reason === 'NO_STRATEGY' && eurg.hasSignal === false
+    && eurg.score >= 7,
+    'EURUSD: امتیاز ≥ آستانه ولی بدون توافقِ استراتژی → NO_STRATEGY');
+  A(!Array.isArray(s1g.storage['journal.jsonl']),
+    'بدون سیگنال → رکوردی در ژورنال نیست (حلقهٔ صداقت دست‌نخورده)');
+  A(hasLog(s1g, 'هیچ سیگنالی صادر نشد'),
+    'لاگِ صادقانهٔ «هیچ سیگنالی صادر نشد» در چرخهٔ دروازه‌دار');
 
   // ۲) قطعی داده — early-exit صادقانه
   const s2 = await gen.runScenario('data_outage');
@@ -292,7 +310,7 @@ async function main() {
     process.exit(1);
   }
   console.log('✅ CYCLE-SWITCH TESTS OK — ' + COUNT + ' بررسی پاس؛ میخ‌های رفتاری موتور JS '
-    + '(۸ سناریوی طلایی svcTick/cycleCore/runPipeline + پین‌های inline'
+    + '(۹ سناریوی طلایی svcTick/cycleCore/runPipeline + پین‌های inline'
     + ' + بخش‌های مشروط bus/registry) سبز‌اند');
   process.exit(0);
 }

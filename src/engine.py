@@ -495,6 +495,8 @@ def run_cycle(cfg: Optional[dict] = None, on_log: LogFn = _noop,
                     # منبع حقیقتِ پنجرهٔ وتو همان تنظیم مرحلهٔ ۲ است، نه یک عدد دوم
                     event_veto_minutes=float((cfg.get("fundamental") or {})
                                              .get("veto_minutes_before", 30)),
+                    # S3: دروازهٔ توافق فقط min_agree را از اینجا می‌خواند
+                    strategies_cfg=cfg.get("strategies") or {},
                 )
                 judgments = caps.judge.judge_all(C["mkt"]["analyses"], C["mkt"]["datasets"], ctx)
                 signals = [j.signal for j in judgments if j.signal]

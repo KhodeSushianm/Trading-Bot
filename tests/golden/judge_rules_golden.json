@@ -505,6 +505,9 @@
      "sent": true,
      "session": "لندن + نیویورک (هم‌پوشانی — بهترین نقدینگی ⭐)",
      "sl": 1.1483,
+     "strategies": [
+      "trend_pullback"
+     ],
      "symbol": "EURUSD",
      "tp": 1.1504,
      "ts": "2026-09-23T14:00:00+00:00"
@@ -521,11 +524,85 @@
     "sl": 1.1483,
     "sl_capped": false,
     "stars": 5,
+    "strategies": [
+     {
+      "detail_fa": "روند + پولبک: پیشنهاد BUY — روند صعودی + پولبک + تأیید ادامه",
+      "direction": "BUY",
+      "key": "trend_pullback",
+      "name_fa": "روند + پولبک",
+      "proposes": true,
+      "reasons_fa": [
+       "روند صعودی با جهت غالب تأییدشده (H4+H1 هم‌جهت، ADX=۳۲)",
+       "پولبک شناسایی شد — RSI=۳۸ در منطقهٔ ۳۰–۴۵",
+       "تأیید ادامهٔ حرکت — RSI در حال برگشت و کندل آخر ۱ ساعته در جهت روند بسته شده"
+      ],
+      "strength": 0.84
+     },
+     {
+      "detail_fa": "شکست لندن: بیرونِ پنجرهٔ شکستِ لندن (۷:۰۰ تا ۱۱:۰۰ UTC — الان ساعت ۱۴:۰۰)",
+      "direction": "NONE",
+      "key": "london_breakout",
+      "name_fa": "شکست لندن",
+      "proposes": true,
+      "reasons_fa": [
+       "بیرونِ پنجرهٔ شکستِ لندن (۷:۰۰ تا ۱۱:۰۰ UTC — الان ساعت ۱۴:۰۰)"
+      ],
+      "strength": 0.0
+     },
+     {
+      "detail_fa": "کری (نرخ بهره): اختلاف نرخ EUR/USD (-۱.۳۸٪) زیر آستانهٔ ۱.۵٪ است — صرفِ carry ناچیز",
+      "direction": "NONE",
+      "key": "carry",
+      "name_fa": "کری (نرخ بهره)",
+      "proposes": false,
+      "reasons_fa": [
+       "اختلاف نرخ EUR/USD (-۱.۳۸٪) زیر آستانهٔ ۱.۵٪ است — صرفِ carry ناچیز"
+      ],
+      "strength": 0.0
+     }
+    ],
     "symbol": "EURUSD",
     "tp": 1.1503999999999999,
     "warnings": []
    },
    "status_fa": "✅ سیگنال صادر شد",
+   "strategies": [
+    {
+     "detail_fa": "روند + پولبک: پیشنهاد BUY — روند صعودی + پولبک + تأیید ادامه",
+     "direction": "BUY",
+     "key": "trend_pullback",
+     "name_fa": "روند + پولبک",
+     "proposes": true,
+     "reasons_fa": [
+      "روند صعودی با جهت غالب تأییدشده (H4+H1 هم‌جهت، ADX=۳۲)",
+      "پولبک شناسایی شد — RSI=۳۸ در منطقهٔ ۳۰–۴۵",
+      "تأیید ادامهٔ حرکت — RSI در حال برگشت و کندل آخر ۱ ساعته در جهت روند بسته شده"
+     ],
+     "strength": 0.84
+    },
+    {
+     "detail_fa": "شکست لندن: بیرونِ پنجرهٔ شکستِ لندن (۷:۰۰ تا ۱۱:۰۰ UTC — الان ساعت ۱۴:۰۰)",
+     "direction": "NONE",
+     "key": "london_breakout",
+     "name_fa": "شکست لندن",
+     "proposes": true,
+     "reasons_fa": [
+      "بیرونِ پنجرهٔ شکستِ لندن (۷:۰۰ تا ۱۱:۰۰ UTC — الان ساعت ۱۴:۰۰)"
+     ],
+     "strength": 0.0
+    },
+    {
+     "detail_fa": "کری (نرخ بهره): اختلاف نرخ EUR/USD (-۱.۳۸٪) زیر آستانهٔ ۱.۵٪ است — صرفِ carry ناچیز",
+     "direction": "NONE",
+     "key": "carry",
+     "name_fa": "کری (نرخ بهره)",
+     "proposes": false,
+     "reasons_fa": [
+      "اختلاف نرخ EUR/USD (-۱.۳۸٪) زیر آستانهٔ ۱.۵٪ است — صرفِ carry ناچیز"
+     ],
+     "strength": 0.0
+    }
+   ],
    "symbol": "EURUSD",
    "vetoes": [],
    "warnings": []
@@ -542,6 +619,7 @@
    "score": 0,
    "signal": null,
    "status_fa": "🚫 وتو شد",
+   "strategies": [],
    "symbol": "GBPUSD",
    "vetoes": [
     {
@@ -564,6 +642,7 @@
    "score": 0,
    "signal": null,
    "status_fa": "❔ ستاپی شکل نگرفته",
+   "strategies": [],
    "symbol": "USDJPY",
    "vetoes": [],
    "warnings": []
@@ -661,6 +740,7 @@
    "score": 5,
    "signal": null,
    "status_fa": "⏳ امتیاز ناکافی",
+   "strategies": [],
    "symbol": "AUDUSD",
    "vetoes": [],
    "warnings": []
@@ -790,6 +870,9 @@
      "sent": true,
      "session": "لندن + نیویورک (هم‌پوشانی — بهترین نقدینگی ⭐)",
      "sl": 1.1483,
+     "strategies": [
+      "trend_pullback"
+     ],
      "symbol": "EURUSD",
      "tp": 1.1504,
      "ts": "2026-09-23T14:00:00+00:00"
@@ -806,11 +889,85 @@
     "sl": 1.1483,
     "sl_capped": false,
     "stars": 5,
+    "strategies": [
+     {
+      "detail_fa": "روند + پولبک: پیشنهاد BUY — روند صعودی + پولبک + تأیید ادامه",
+      "direction": "BUY",
+      "key": "trend_pullback",
+      "name_fa": "روند + پولبک",
+      "proposes": true,
+      "reasons_fa": [
+       "روند صعودی با جهت غالب تأییدشده (H4+H1 هم‌جهت، ADX=۳۲)",
+       "پولبک شناسایی شد — RSI=۳۸ در منطقهٔ ۳۰–۴۵",
+       "تأیید ادامهٔ حرکت — RSI در حال برگشت و کندل آخر ۱ ساعته در جهت روند بسته شده"
+      ],
+      "strength": 0.84
+     },
+     {
+      "detail_fa": "شکست لندن: بیرونِ پنجرهٔ شکستِ لندن (۷:۰۰ تا ۱۱:۰۰ UTC — الان ساعت ۱۴:۰۰)",
+      "direction": "NONE",
+      "key": "london_breakout",
+      "name_fa": "شکست لندن",
+      "proposes": true,
+      "reasons_fa": [
+       "بیرونِ پنجرهٔ شکستِ لندن (۷:۰۰ تا ۱۱:۰۰ UTC — الان ساعت ۱۴:۰۰)"
+      ],
+      "strength": 0.0
+     },
+     {
+      "detail_fa": "کری (نرخ بهره): اختلاف نرخ EUR/USD (-۱.۳۸٪) زیر آستانهٔ ۱.۵٪ است — صرفِ carry ناچیز",
+      "direction": "NONE",
+      "key": "carry",
+      "name_fa": "کری (نرخ بهره)",
+      "proposes": false,
+      "reasons_fa": [
+       "اختلاف نرخ EUR/USD (-۱.۳۸٪) زیر آستانهٔ ۱.۵٪ است — صرفِ carry ناچیز"
+      ],
+      "strength": 0.0
+     }
+    ],
     "symbol": "EURUSD",
     "tp": 1.1503999999999999,
     "warnings": []
    },
    "status_fa": "✅ سیگنال صادر شد",
+   "strategies": [
+    {
+     "detail_fa": "روند + پولبک: پیشنهاد BUY — روند صعودی + پولبک + تأیید ادامه",
+     "direction": "BUY",
+     "key": "trend_pullback",
+     "name_fa": "روند + پولبک",
+     "proposes": true,
+     "reasons_fa": [
+      "روند صعودی با جهت غالب تأییدشده (H4+H1 هم‌جهت، ADX=۳۲)",
+      "پولبک شناسایی شد — RSI=۳۸ در منطقهٔ ۳۰–۴۵",
+      "تأیید ادامهٔ حرکت — RSI در حال برگشت و کندل آخر ۱ ساعته در جهت روند بسته شده"
+     ],
+     "strength": 0.84
+    },
+    {
+     "detail_fa": "شکست لندن: بیرونِ پنجرهٔ شکستِ لندن (۷:۰۰ تا ۱۱:۰۰ UTC — الان ساعت ۱۴:۰۰)",
+     "direction": "NONE",
+     "key": "london_breakout",
+     "name_fa": "شکست لندن",
+     "proposes": true,
+     "reasons_fa": [
+      "بیرونِ پنجرهٔ شکستِ لندن (۷:۰۰ تا ۱۱:۰۰ UTC — الان ساعت ۱۴:۰۰)"
+     ],
+     "strength": 0.0
+    },
+    {
+     "detail_fa": "کری (نرخ بهره): اختلاف نرخ EUR/USD (-۱.۳۸٪) زیر آستانهٔ ۱.۵٪ است — صرفِ carry ناچیز",
+     "direction": "NONE",
+     "key": "carry",
+     "name_fa": "کری (نرخ بهره)",
+     "proposes": false,
+     "reasons_fa": [
+      "اختلاف نرخ EUR/USD (-۱.۳۸٪) زیر آستانهٔ ۱.۵٪ است — صرفِ carry ناچیز"
+     ],
+     "strength": 0.0
+    }
+   ],
    "symbol": "EURUSD",
    "vetoes": [],
    "warnings": []
@@ -908,6 +1065,43 @@
    "score": 10,
    "signal": null,
    "status_fa": "🔢 به سقف تعداد سیگنال رسید",
+   "strategies": [
+    {
+     "detail_fa": "روند + پولبک: پیشنهاد BUY — روند صعودی + پولبک + تأیید ادامه",
+     "direction": "BUY",
+     "key": "trend_pullback",
+     "name_fa": "روند + پولبک",
+     "proposes": true,
+     "reasons_fa": [
+      "روند صعودی با جهت غالب تأییدشده (H4+H1 هم‌جهت، ADX=۳۲)",
+      "پولبک شناسایی شد — RSI=۳۸ در منطقهٔ ۳۰–۴۵",
+      "تأیید ادامهٔ حرکت — RSI در حال برگشت و کندل آخر ۱ ساعته در جهت روند بسته شده"
+     ],
+     "strength": 0.84
+    },
+    {
+     "detail_fa": "شکست لندن: بیرونِ پنجرهٔ شکستِ لندن (۷:۰۰ تا ۱۱:۰۰ UTC — الان ساعت ۱۴:۰۰)",
+     "direction": "NONE",
+     "key": "london_breakout",
+     "name_fa": "شکست لندن",
+     "proposes": true,
+     "reasons_fa": [
+      "بیرونِ پنجرهٔ شکستِ لندن (۷:۰۰ تا ۱۱:۰۰ UTC — الان ساعت ۱۴:۰۰)"
+     ],
+     "strength": 0.0
+    },
+    {
+     "detail_fa": "کری (نرخ بهره): اختلاف نرخ GBP/USD (-۰.۱۳٪) زیر آستانهٔ ۱.۵٪ است — صرفِ carry ناچیز",
+     "direction": "NONE",
+     "key": "carry",
+     "name_fa": "کری (نرخ بهره)",
+     "proposes": false,
+     "reasons_fa": [
+      "اختلاف نرخ GBP/USD (-۰.۱۳٪) زیر آستانهٔ ۱.۵٪ است — صرفِ carry ناچیز"
+     ],
+     "strength": 0.0
+    }
+   ],
    "symbol": "GBPUSD",
    "vetoes": [],
    "warnings": []
@@ -946,13 +1140,13 @@
      "unavailable": false
     },
     {
-     "detail_fa": "RSI=55 بالای ۵۰ است — مومنتوم، ورود را تایید نمی‌کند",
-     "icon": "➖",
+     "detail_fa": "RSI=38 و رو به بالا ↗️ — پولبک در حال برگشت است (بهترین نقطهٔ ورود)",
+     "icon": "✅",
      "key": "momentum",
      "label_fa": "تایید مومنتوم (RSI)",
      "max_points": 1,
-     "ok": false,
-     "points": 0,
+     "ok": true,
+     "points": 1,
      "unavailable": false
     },
     {
@@ -1000,11 +1194,48 @@
    "max_score": 11,
    "pip": 0.01,
    "price": 150.0,
-   "reject_detail": "امتیاز ۸ از ۱۱ کافی بود، ولی سقف ۱ سیگنال در هر چرخه پر شده — بهترین‌ها اولویت دارند",
+   "reject_detail": "امتیاز ۹ از ۱۱ کافی بود، ولی سقف ۱ سیگنال در هر چرخه پر شده — بهترین‌ها اولویت دارند",
    "reject_reason": "CAPPED",
-   "score": 8,
+   "score": 9,
    "signal": null,
    "status_fa": "🔢 به سقف تعداد سیگنال رسید",
+   "strategies": [
+    {
+     "detail_fa": "روند + پولبک: پیشنهاد BUY — روند صعودی + پولبک + تأیید ادامه",
+     "direction": "BUY",
+     "key": "trend_pullback",
+     "name_fa": "روند + پولبک",
+     "proposes": true,
+     "reasons_fa": [
+      "روند صعودی با جهت غالب تأییدشده (H4+H1 هم‌جهت، ADX=۳۲)",
+      "پولبک شناسایی شد — RSI=۳۸ در منطقهٔ ۳۰–۴۵",
+      "تأیید ادامهٔ حرکت — RSI در حال برگشت و کندل آخر ۱ ساعته در جهت روند بسته شده"
+     ],
+     "strength": 0.84
+    },
+    {
+     "detail_fa": "شکست لندن: بیرونِ پنجرهٔ شکستِ لندن (۷:۰۰ تا ۱۱:۰۰ UTC — الان ساعت ۱۴:۰۰)",
+     "direction": "NONE",
+     "key": "london_breakout",
+     "name_fa": "شکست لندن",
+     "proposes": true,
+     "reasons_fa": [
+      "بیرونِ پنجرهٔ شکستِ لندن (۷:۰۰ تا ۱۱:۰۰ UTC — الان ساعت ۱۴:۰۰)"
+     ],
+     "strength": 0.0
+    },
+    {
+     "detail_fa": "کری (نرخ بهره): اخبارِ فاندامنتال از جهتِ carry پشتیبانی نمی‌کنند (رأی خلاف) — هم‌جهتی شرط است",
+     "direction": "NONE",
+     "key": "carry",
+     "name_fa": "کری (نرخ بهره)",
+     "proposes": false,
+     "reasons_fa": [
+      "اخبارِ فاندامنتال از جهتِ carry پشتیبانی نمی‌کنند (رأی خلاف) — هم‌جهتی شرط است"
+     ],
+     "strength": 0.0
+    }
+   ],
    "symbol": "USDJPY",
    "vetoes": [],
    "warnings": [
@@ -1136,6 +1367,9 @@
      "sent": true,
      "session": "لندن + نیویورک (هم‌پوشانی — بهترین نقدینگی ⭐)",
      "sl": 1.1483,
+     "strategies": [
+      "trend_pullback"
+     ],
      "symbol": "EURUSD",
      "tp": 1.1504,
      "ts": "2026-09-23T14:00:00+00:00"
@@ -1152,11 +1386,85 @@
     "sl": 1.1483,
     "sl_capped": false,
     "stars": 5,
+    "strategies": [
+     {
+      "detail_fa": "روند + پولبک: پیشنهاد BUY — روند صعودی + پولبک + تأیید ادامه",
+      "direction": "BUY",
+      "key": "trend_pullback",
+      "name_fa": "روند + پولبک",
+      "proposes": true,
+      "reasons_fa": [
+       "روند صعودی با جهت غالب تأییدشده (H4+H1 هم‌جهت، ADX=۳۲)",
+       "پولبک شناسایی شد — RSI=۳۸ در منطقهٔ ۳۰–۴۵",
+       "تأیید ادامهٔ حرکت — RSI در حال برگشت و کندل آخر ۱ ساعته در جهت روند بسته شده"
+      ],
+      "strength": 0.84
+     },
+     {
+      "detail_fa": "شکست لندن: بیرونِ پنجرهٔ شکستِ لندن (۷:۰۰ تا ۱۱:۰۰ UTC — الان ساعت ۱۴:۰۰)",
+      "direction": "NONE",
+      "key": "london_breakout",
+      "name_fa": "شکست لندن",
+      "proposes": true,
+      "reasons_fa": [
+       "بیرونِ پنجرهٔ شکستِ لندن (۷:۰۰ تا ۱۱:۰۰ UTC — الان ساعت ۱۴:۰۰)"
+      ],
+      "strength": 0.0
+     },
+     {
+      "detail_fa": "کری (نرخ بهره): اختلاف نرخ EUR/USD (-۱.۳۸٪) زیر آستانهٔ ۱.۵٪ است — صرفِ carry ناچیز",
+      "direction": "NONE",
+      "key": "carry",
+      "name_fa": "کری (نرخ بهره)",
+      "proposes": false,
+      "reasons_fa": [
+       "اختلاف نرخ EUR/USD (-۱.۳۸٪) زیر آستانهٔ ۱.۵٪ است — صرفِ carry ناچیز"
+      ],
+      "strength": 0.0
+     }
+    ],
     "symbol": "EURUSD",
     "tp": 1.1503999999999999,
     "warnings": []
    },
    "status_fa": "✅ سیگنال صادر شد",
+   "strategies": [
+    {
+     "detail_fa": "روند + پولبک: پیشنهاد BUY — روند صعودی + پولبک + تأیید ادامه",
+     "direction": "BUY",
+     "key": "trend_pullback",
+     "name_fa": "روند + پولبک",
+     "proposes": true,
+     "reasons_fa": [
+      "روند صعودی با جهت غالب تأییدشده (H4+H1 هم‌جهت، ADX=۳۲)",
+      "پولبک شناسایی شد — RSI=۳۸ در منطقهٔ ۳۰–۴۵",
+      "تأیید ادامهٔ حرکت — RSI در حال برگشت و کندل آخر ۱ ساعته در جهت روند بسته شده"
+     ],
+     "strength": 0.84
+    },
+    {
+     "detail_fa": "شکست لندن: بیرونِ پنجرهٔ شکستِ لندن (۷:۰۰ تا ۱۱:۰۰ UTC — الان ساعت ۱۴:۰۰)",
+     "direction": "NONE",
+     "key": "london_breakout",
+     "name_fa": "شکست لندن",
+     "proposes": true,
+     "reasons_fa": [
+      "بیرونِ پنجرهٔ شکستِ لندن (۷:۰۰ تا ۱۱:۰۰ UTC — الان ساعت ۱۴:۰۰)"
+     ],
+     "strength": 0.0
+    },
+    {
+     "detail_fa": "کری (نرخ بهره): اختلاف نرخ EUR/USD (-۱.۳۸٪) زیر آستانهٔ ۱.۵٪ است — صرفِ carry ناچیز",
+     "direction": "NONE",
+     "key": "carry",
+     "name_fa": "کری (نرخ بهره)",
+     "proposes": false,
+     "reasons_fa": [
+      "اختلاف نرخ EUR/USD (-۱.۳۸٪) زیر آستانهٔ ۱.۵٪ است — صرفِ carry ناچیز"
+     ],
+     "strength": 0.0
+    }
+   ],
    "symbol": "EURUSD",
    "vetoes": [],
    "warnings": []
@@ -1284,6 +1592,9 @@
      "sent": true,
      "session": "لندن + نیویورک (هم‌پوشانی — بهترین نقدینگی ⭐)",
      "sl": 1.1497,
+     "strategies": [
+      "trend_pullback"
+     ],
      "symbol": "EURUSD",
      "tp": 1.1476,
      "ts": "2026-09-23T14:00:00+00:00"
@@ -1300,11 +1611,85 @@
     "sl": 1.1497,
     "sl_capped": false,
     "stars": 5,
+    "strategies": [
+     {
+      "detail_fa": "روند + پولبک: پیشنهاد SELL — روند نزولی + پولبک + تأیید ادامه",
+      "direction": "SELL",
+      "key": "trend_pullback",
+      "name_fa": "روند + پولبک",
+      "proposes": true,
+      "reasons_fa": [
+       "روند نزولی با جهت غالب تأییدشده (H4+H1 هم‌جهت، ADX=۳۲)",
+       "پولبک شناسایی شد — RSI=۶۲ در منطقهٔ ۵۵–۷۰",
+       "تأیید ادامهٔ حرکت — RSI در حال برگشت و کندل آخر ۱ ساعته در جهت روند بسته شده"
+      ],
+      "strength": 0.84
+     },
+     {
+      "detail_fa": "شکست لندن: بیرونِ پنجرهٔ شکستِ لندن (۷:۰۰ تا ۱۱:۰۰ UTC — الان ساعت ۱۴:۰۰)",
+      "direction": "NONE",
+      "key": "london_breakout",
+      "name_fa": "شکست لندن",
+      "proposes": true,
+      "reasons_fa": [
+       "بیرونِ پنجرهٔ شکستِ لندن (۷:۰۰ تا ۱۱:۰۰ UTC — الان ساعت ۱۴:۰۰)"
+      ],
+      "strength": 0.0
+     },
+     {
+      "detail_fa": "کری (نرخ بهره): اختلاف نرخ EUR/USD (-۱.۳۸٪) زیر آستانهٔ ۱.۵٪ است — صرفِ carry ناچیز",
+      "direction": "NONE",
+      "key": "carry",
+      "name_fa": "کری (نرخ بهره)",
+      "proposes": false,
+      "reasons_fa": [
+       "اختلاف نرخ EUR/USD (-۱.۳۸٪) زیر آستانهٔ ۱.۵٪ است — صرفِ carry ناچیز"
+      ],
+      "strength": 0.0
+     }
+    ],
     "symbol": "EURUSD",
     "tp": 1.1476000000000002,
     "warnings": []
    },
    "status_fa": "✅ سیگنال صادر شد",
+   "strategies": [
+    {
+     "detail_fa": "روند + پولبک: پیشنهاد SELL — روند نزولی + پولبک + تأیید ادامه",
+     "direction": "SELL",
+     "key": "trend_pullback",
+     "name_fa": "روند + پولبک",
+     "proposes": true,
+     "reasons_fa": [
+      "روند نزولی با جهت غالب تأییدشده (H4+H1 هم‌جهت، ADX=۳۲)",
+      "پولبک شناسایی شد — RSI=۶۲ در منطقهٔ ۵۵–۷۰",
+      "تأیید ادامهٔ حرکت — RSI در حال برگشت و کندل آخر ۱ ساعته در جهت روند بسته شده"
+     ],
+     "strength": 0.84
+    },
+    {
+     "detail_fa": "شکست لندن: بیرونِ پنجرهٔ شکستِ لندن (۷:۰۰ تا ۱۱:۰۰ UTC — الان ساعت ۱۴:۰۰)",
+     "direction": "NONE",
+     "key": "london_breakout",
+     "name_fa": "شکست لندن",
+     "proposes": true,
+     "reasons_fa": [
+      "بیرونِ پنجرهٔ شکستِ لندن (۷:۰۰ تا ۱۱:۰۰ UTC — الان ساعت ۱۴:۰۰)"
+     ],
+     "strength": 0.0
+    },
+    {
+     "detail_fa": "کری (نرخ بهره): اختلاف نرخ EUR/USD (-۱.۳۸٪) زیر آستانهٔ ۱.۵٪ است — صرفِ carry ناچیز",
+     "direction": "NONE",
+     "key": "carry",
+     "name_fa": "کری (نرخ بهره)",
+     "proposes": false,
+     "reasons_fa": [
+      "اختلاف نرخ EUR/USD (-۱.۳۸٪) زیر آستانهٔ ۱.۵٪ است — صرفِ carry ناچیز"
+     ],
+     "strength": 0.0
+    }
+   ],
    "symbol": "EURUSD",
    "vetoes": [],
    "warnings": []
@@ -1404,6 +1789,7 @@
    "score": 5,
    "signal": null,
    "status_fa": "⏳ امتیاز ناکافی",
+   "strategies": [],
    "symbol": "EURUSD",
    "vetoes": [],
    "warnings": [
@@ -1425,6 +1811,7 @@
    "score": 0,
    "signal": null,
    "status_fa": "❔ ستاپی شکل نگرفته",
+   "strategies": [],
    "symbol": "EURUSD",
    "vetoes": [],
    "warnings": []
@@ -1441,6 +1828,7 @@
    "score": 0,
    "signal": null,
    "status_fa": "❔ ستاپی شکل نگرفته",
+   "strategies": [],
    "symbol": "EURUSD",
    "vetoes": [],
    "warnings": []
@@ -1457,6 +1845,7 @@
    "score": 0,
    "signal": null,
    "status_fa": "❔ ستاپی شکل نگرفته",
+   "strategies": [],
    "symbol": "EURUSD",
    "vetoes": [],
    "warnings": []
@@ -1473,6 +1862,7 @@
    "score": 0,
    "signal": null,
    "status_fa": "❔ ستاپی شکل نگرفته",
+   "strategies": [],
    "symbol": "EURUSD",
    "vetoes": [],
    "warnings": []
@@ -1489,6 +1879,7 @@
    "score": 0,
    "signal": null,
    "status_fa": "❔ ستاپی شکل نگرفته",
+   "strategies": [],
    "symbol": "EURUSD",
    "vetoes": [],
    "warnings": []
@@ -1532,6 +1923,1263 @@
    "tp": 1.1474000000000002
   }
  },
+ "strategy_gate": {
+  "broken_rule_isolated": {
+   "direction": "BUY",
+   "evidences": [
+    {
+     "detail_fa": "روند صعودی 📈 و تایم‌فریم ۱ ساعته هم تایید می‌کند؛ ADX=32 → روند قوی",
+     "icon": "✅",
+     "key": "trend",
+     "label_fa": "هم‌راستایی روند ۴ ساعته و ۱ ساعته",
+     "max_points": 2,
+     "ok": true,
+     "points": 2,
+     "unavailable": false
+    },
+    {
+     "detail_fa": "حمایت 1.1486 در فاصلهٔ ۰.۴ برابر ATR — قیمت چسبیده به سطح است (واکنش تازه)",
+     "icon": "✅",
+     "key": "level",
+     "label_fa": "واکنش به سطح کلیدی (حمایت)",
+     "max_points": 2,
+     "ok": true,
+     "points": 2,
+     "unavailable": false
+    },
+    {
+     "detail_fa": "هیچ رویداد پراثری تا ۶ ساعت آینده روی EUR/USD نیست — مسیر برای معامله باز است",
+     "icon": "✅",
+     "key": "fundamental",
+     "label_fa": "پنجرهٔ فاندامنتال پاک",
+     "max_points": 2,
+     "ok": true,
+     "points": 2,
+     "unavailable": false
+    },
+    {
+     "detail_fa": "RSI=38 و رو به بالا ↗️ — پولبک در حال برگشت است (بهترین نقطهٔ ورود)",
+     "icon": "✅",
+     "key": "momentum",
+     "label_fa": "تایید مومنتوم (RSI)",
+     "max_points": 1,
+     "ok": true,
+     "points": 1,
+     "unavailable": false
+    },
+    {
+     "detail_fa": "رتبهٔ EUR: ۱ از ۴ | رتبهٔ USD: ۳ از ۴ → جریان قدرت به نفع خرید است ✅",
+     "icon": "✅",
+     "key": "strength",
+     "label_fa": "هم‌جهتی جریان قدرت ارزها",
+     "max_points": 1,
+     "ok": true,
+     "points": 1,
+     "unavailable": false
+    },
+    {
+     "detail_fa": "اخبار جهت خرید را تایید می‌کند (+۲ رأی): «Euro rallies as ECB turns hawkish»؛ «Dollar slides on soft US data»",
+     "icon": "✅",
+     "key": "news",
+     "label_fa": "تایید خبری",
+     "max_points": 1,
+     "ok": true,
+     "points": 1,
+     "unavailable": false
+    },
+    {
+     "detail_fa": "امتیاز تکنیکال رسمی تریدینگ‌ویو «BUY» است (۱۳ خرید/۴ فروش/۹ خنثی) — هم‌جهت با ما ✅",
+     "icon": "✅",
+     "key": "tv",
+     "label_fa": "هم‌جهتی با تریدینگ‌ویو",
+     "max_points": 1,
+     "ok": true,
+     "points": 1,
+     "unavailable": false
+    },
+    {
+     "detail_fa": "سشن لندن + نیویورک (هم‌پوشانی — بهترین نقدینگی ⭐) — بیشترین نقدینگی و کمترین اسپرد هفته",
+     "icon": "✅",
+     "key": "session",
+     "label_fa": "زمان‌بندی مناسب (سشن)",
+     "max_points": 1,
+     "ok": true,
+     "points": 1,
+     "unavailable": false
+    }
+   ],
+   "fa_name": "یورو به دلار آمریکا",
+   "max_score": 11,
+   "pip": 0.0001,
+   "price": 1.149,
+   "reject_detail": "",
+   "reject_reason": "",
+   "score": 11,
+   "signal": {
+    "atr": 0.001,
+    "direction": "BUY",
+    "direction_fa": "خرید 🟢",
+    "entry": 1.149,
+    "fa_name": "یورو به دلار آمریکا",
+    "is_gold": false,
+    "journal": {
+     "atr": 0.001,
+     "direction": "BUY",
+     "entry": 1.149,
+     "evidences": [
+      "trend:2/2",
+      "level:2/2",
+      "fundamental:2/2",
+      "momentum:1/1",
+      "strength:1/1",
+      "news:1/1",
+      "tv:1/1",
+      "session:1/1"
+     ],
+     "id": "EURUSD-BUY-20260923140000-1.149",
+     "kind": "signal",
+     "max_score": 11,
+     "pip": 0.0001,
+     "reward_pips": 14.0,
+     "risk_pips": 7.0,
+     "rr": 2.0,
+     "score": 11,
+     "sent": true,
+     "session": "لندن + نیویورک (هم‌پوشانی — بهترین نقدینگی ⭐)",
+     "sl": 1.1483,
+     "strategies": [
+      "trend_pullback"
+     ],
+     "symbol": "EURUSD",
+     "tp": 1.1504,
+     "ts": "2026-09-23T14:00:00+00:00"
+    },
+    "max_score": 11,
+    "now": "2026-09-23T14:00:00+00:00",
+    "pip": 0.0001,
+    "reward_pips": 13.999999999998458,
+    "risk_pips": 6.999999999999229,
+    "rr": 2.0,
+    "score": 11,
+    "session_fa": "لندن + نیویورک (هم‌پوشانی — بهترین نقدینگی ⭐)",
+    "sid": "EURUSD-BUY-20260923140000-1.149",
+    "sl": 1.1483,
+    "sl_capped": false,
+    "stars": 5,
+    "strategies": [
+     {
+      "detail_fa": "trend_pullback: ارزیابی خطا داد",
+      "direction": "NONE",
+      "key": "trend_pullback",
+      "name_fa": "استراتژیِ خطاداده",
+      "proposes": true,
+      "reasons_fa": [
+       "ارزیابی خطا داد؛ نظر صادقانه‌ای نداریم"
+      ],
+      "strength": 0.0
+     },
+     {
+      "detail_fa": "روند + پولبک: پیشنهاد BUY — روند صعودی + پولبک + تأیید ادامه",
+      "direction": "BUY",
+      "key": "trend_pullback",
+      "name_fa": "روند + پولبک",
+      "proposes": true,
+      "reasons_fa": [
+       "روند صعودی با جهت غالب تأییدشده (H4+H1 هم‌جهت، ADX=۳۲)",
+       "پولبک شناسایی شد — RSI=۳۸ در منطقهٔ ۳۰–۴۵",
+       "تأیید ادامهٔ حرکت — RSI در حال برگشت و کندل آخر ۱ ساعته در جهت روند بسته شده"
+      ],
+      "strength": 0.84
+     }
+    ],
+    "symbol": "EURUSD",
+    "tp": 1.1503999999999999,
+    "warnings": []
+   },
+   "status_fa": "✅ سیگنال صادر شد",
+   "strategies": [
+    {
+     "detail_fa": "trend_pullback: ارزیابی خطا داد",
+     "direction": "NONE",
+     "key": "trend_pullback",
+     "name_fa": "استراتژیِ خطاداده",
+     "proposes": true,
+     "reasons_fa": [
+      "ارزیابی خطا داد؛ نظر صادقانه‌ای نداریم"
+     ],
+     "strength": 0.0
+    },
+    {
+     "detail_fa": "روند + پولبک: پیشنهاد BUY — روند صعودی + پولبک + تأیید ادامه",
+     "direction": "BUY",
+     "key": "trend_pullback",
+     "name_fa": "روند + پولبک",
+     "proposes": true,
+     "reasons_fa": [
+      "روند صعودی با جهت غالب تأییدشده (H4+H1 هم‌جهت، ADX=۳۲)",
+      "پولبک شناسایی شد — RSI=۳۸ در منطقهٔ ۳۰–۴۵",
+      "تأیید ادامهٔ حرکت — RSI در حال برگشت و کندل آخر ۱ ساعته در جهت روند بسته شده"
+     ],
+     "strength": 0.84
+    }
+   ],
+   "symbol": "EURUSD",
+   "vetoes": [],
+   "warnings": []
+  },
+  "broken_rule_only": {
+   "direction": "BUY",
+   "evidences": [
+    {
+     "detail_fa": "روند صعودی 📈 و تایم‌فریم ۱ ساعته هم تایید می‌کند؛ ADX=32 → روند قوی",
+     "icon": "✅",
+     "key": "trend",
+     "label_fa": "هم‌راستایی روند ۴ ساعته و ۱ ساعته",
+     "max_points": 2,
+     "ok": true,
+     "points": 2,
+     "unavailable": false
+    },
+    {
+     "detail_fa": "حمایت 1.1486 در فاصلهٔ ۰.۴ برابر ATR — قیمت چسبیده به سطح است (واکنش تازه)",
+     "icon": "✅",
+     "key": "level",
+     "label_fa": "واکنش به سطح کلیدی (حمایت)",
+     "max_points": 2,
+     "ok": true,
+     "points": 2,
+     "unavailable": false
+    },
+    {
+     "detail_fa": "هیچ رویداد پراثری تا ۶ ساعت آینده روی EUR/USD نیست — مسیر برای معامله باز است",
+     "icon": "✅",
+     "key": "fundamental",
+     "label_fa": "پنجرهٔ فاندامنتال پاک",
+     "max_points": 2,
+     "ok": true,
+     "points": 2,
+     "unavailable": false
+    },
+    {
+     "detail_fa": "RSI=38 و رو به بالا ↗️ — پولبک در حال برگشت است (بهترین نقطهٔ ورود)",
+     "icon": "✅",
+     "key": "momentum",
+     "label_fa": "تایید مومنتوم (RSI)",
+     "max_points": 1,
+     "ok": true,
+     "points": 1,
+     "unavailable": false
+    },
+    {
+     "detail_fa": "رتبهٔ EUR: ۱ از ۴ | رتبهٔ USD: ۳ از ۴ → جریان قدرت به نفع خرید است ✅",
+     "icon": "✅",
+     "key": "strength",
+     "label_fa": "هم‌جهتی جریان قدرت ارزها",
+     "max_points": 1,
+     "ok": true,
+     "points": 1,
+     "unavailable": false
+    },
+    {
+     "detail_fa": "اخبار جهت خرید را تایید می‌کند (+۲ رأی): «Euro rallies as ECB turns hawkish»؛ «Dollar slides on soft US data»",
+     "icon": "✅",
+     "key": "news",
+     "label_fa": "تایید خبری",
+     "max_points": 1,
+     "ok": true,
+     "points": 1,
+     "unavailable": false
+    },
+    {
+     "detail_fa": "امتیاز تکنیکال رسمی تریدینگ‌ویو «BUY» است (۱۳ خرید/۴ فروش/۹ خنثی) — هم‌جهت با ما ✅",
+     "icon": "✅",
+     "key": "tv",
+     "label_fa": "هم‌جهتی با تریدینگ‌ویو",
+     "max_points": 1,
+     "ok": true,
+     "points": 1,
+     "unavailable": false
+    },
+    {
+     "detail_fa": "سشن لندن + نیویورک (هم‌پوشانی — بهترین نقدینگی ⭐) — بیشترین نقدینگی و کمترین اسپرد هفته",
+     "icon": "✅",
+     "key": "session",
+     "label_fa": "زمان‌بندی مناسب (سشن)",
+     "max_points": 1,
+     "ok": true,
+     "points": 1,
+     "unavailable": false
+    }
+   ],
+   "fa_name": "یورو به دلار آمریکا",
+   "max_score": 11,
+   "pip": 0.0001,
+   "price": 1.149,
+   "reject_detail": "توافقِ استراتژی‌ها کافی نیست — هم‌جهت با خرید: ۰ (پیشنهاددهنده: ۰) از ۱؛ حداقل لازم: ۱ هم‌جهت + ۱ پیشنهاددهنده. «استراتژیِ خطاداده» بی‌نظر",
+   "reject_reason": "NO_STRATEGY",
+   "score": 11,
+   "signal": null,
+   "status_fa": "🎯 استراتژی موافق نیست",
+   "strategies": [
+    {
+     "detail_fa": "trend_pullback: ارزیابی خطا داد",
+     "direction": "NONE",
+     "key": "trend_pullback",
+     "name_fa": "استراتژیِ خطاداده",
+     "proposes": true,
+     "reasons_fa": [
+      "ارزیابی خطا داد؛ نظر صادقانه‌ای نداریم"
+     ],
+     "strength": 0.0
+    }
+   ],
+   "symbol": "EURUSD",
+   "vetoes": [],
+   "warnings": []
+  },
+  "carry_only": {
+   "direction": "BUY",
+   "evidences": [
+    {
+     "detail_fa": "روند صعودی 📈 و تایم‌فریم ۱ ساعته هم تایید می‌کند؛ ADX=32 → روند قوی",
+     "icon": "✅",
+     "key": "trend",
+     "label_fa": "هم‌راستایی روند ۴ ساعته و ۱ ساعته",
+     "max_points": 2,
+     "ok": true,
+     "points": 2,
+     "unavailable": false
+    },
+    {
+     "detail_fa": "حمایت 149.96 در فاصلهٔ ۰.۴ برابر ATR — قیمت چسبیده به سطح است (واکنش تازه)",
+     "icon": "✅",
+     "key": "level",
+     "label_fa": "واکنش به سطح کلیدی (حمایت)",
+     "max_points": 2,
+     "ok": true,
+     "points": 2,
+     "unavailable": false
+    },
+    {
+     "detail_fa": "هیچ رویداد پراثری تا ۶ ساعت آینده روی USD/JPY نیست — مسیر برای معامله باز است",
+     "icon": "✅",
+     "key": "fundamental",
+     "label_fa": "پنجرهٔ فاندامنتال پاک",
+     "max_points": 2,
+     "ok": true,
+     "points": 2,
+     "unavailable": false
+    },
+    {
+     "detail_fa": "RSI=25 در اشباع فروش است — هنوز تایید برگشت نیامده؛ ممکن است «کف‌گیری» ادامه داشته باشد",
+     "icon": "➖",
+     "key": "momentum",
+     "label_fa": "تایید مومنتوم (RSI)",
+     "max_points": 1,
+     "ok": false,
+     "points": 0,
+     "unavailable": false
+    },
+    {
+     "detail_fa": "رتبهٔ USD: ۳ از ۴ | رتبهٔ JPY: ۴ از ۴ → جریان قدرت به نفع خرید است ✅",
+     "icon": "✅",
+     "key": "strength",
+     "label_fa": "هم‌جهتی جریان قدرت ارزها",
+     "max_points": 1,
+     "ok": true,
+     "points": 1,
+     "unavailable": false
+    },
+    {
+     "detail_fa": "موتور اخبار در دسترس نبود — این مدرک بررسی نشد",
+     "icon": "❔",
+     "key": "news",
+     "label_fa": "تایید خبری",
+     "max_points": 1,
+     "ok": false,
+     "points": 0,
+     "unavailable": true
+    },
+    {
+     "detail_fa": "تاییدیهٔ تریدینگ‌ویو در دسترس نبود",
+     "icon": "❔",
+     "key": "tv",
+     "label_fa": "هم‌جهتی با تریدینگ‌ویو",
+     "max_points": 1,
+     "ok": false,
+     "points": 0,
+     "unavailable": true
+    },
+    {
+     "detail_fa": "سشن لندن + نیویورک (هم‌پوشانی — بهترین نقدینگی ⭐) — بیشترین نقدینگی و کمترین اسپرد هفته",
+     "icon": "✅",
+     "key": "session",
+     "label_fa": "زمان‌بندی مناسب (سشن)",
+     "max_points": 1,
+     "ok": true,
+     "points": 1,
+     "unavailable": false
+    }
+   ],
+   "fa_name": "دلار به ین ژاپن",
+   "max_score": 11,
+   "pip": 0.01,
+   "price": 150.0,
+   "reject_detail": "توافقِ استراتژی‌ها کافی نیست — هم‌جهت با خرید: ۱ (پیشنهاددهنده: ۰) از ۳؛ حداقل لازم: ۱ هم‌جهت + ۱ پیشنهاددهنده. «روند + پولبک» بی‌نظر؛ «شکست لندن» بی‌نظر؛ «کری (نرخ بهره)» خرید",
+   "reject_reason": "NO_STRATEGY",
+   "score": 8,
+   "signal": null,
+   "status_fa": "🎯 استراتژی موافق نیست",
+   "strategies": [
+    {
+     "detail_fa": "روند + پولبک: پولبک معتبر نیست — RSI=۲۵ بیرونِ منطقهٔ ۳۰–۴۵ برای ستاپ خرید است",
+     "direction": "NONE",
+     "key": "trend_pullback",
+     "name_fa": "روند + پولبک",
+     "proposes": true,
+     "reasons_fa": [
+      "پولبک معتبر نیست — RSI=۲۵ بیرونِ منطقهٔ ۳۰–۴۵ برای ستاپ خرید است"
+     ],
+     "strength": 0.0
+    },
+    {
+     "detail_fa": "شکست لندن: بیرونِ پنجرهٔ شکستِ لندن (۷:۰۰ تا ۱۱:۰۰ UTC — الان ساعت ۱۴:۰۰)",
+     "direction": "NONE",
+     "key": "london_breakout",
+     "name_fa": "شکست لندن",
+     "proposes": true,
+     "reasons_fa": [
+      "بیرونِ پنجرهٔ شکستِ لندن (۷:۰۰ تا ۱۱:۰۰ UTC — الان ساعت ۱۴:۰۰)"
+     ],
+     "strength": 0.0
+    },
+    {
+     "detail_fa": "کری (نرخ بهره): سوگیری BUY — صرفِ نرخ +۲.۶۳٪ (USD در برابر JPY)",
+     "direction": "BUY",
+     "key": "carry",
+     "name_fa": "کری (نرخ بهره)",
+     "proposes": false,
+     "reasons_fa": [
+      "اختلاف نرخ: USD=۳.۸۸٪ در برابر JPY=۱.۲۵٪ → +۲.۶۳٪ به نفع خرید جفت",
+      "وضعیت سیاست پولی، جریانِ قدرت و اخبار با جهت carry هم‌جهت‌اند (یا داده‌شان نبود — صادقانه رد نشدند)",
+      "نرخ‌ها از جدولِ config (as_of 2026-09) — به‌روزرسانی دستی لازم دارد"
+     ],
+     "strength": 0.8766666666666666
+    }
+   ],
+   "symbol": "USDJPY",
+   "vetoes": [],
+   "warnings": []
+  },
+  "fail_closed_empty": {
+   "direction": "BUY",
+   "evidences": [
+    {
+     "detail_fa": "روند صعودی 📈 و تایم‌فریم ۱ ساعته هم تایید می‌کند؛ ADX=32 → روند قوی",
+     "icon": "✅",
+     "key": "trend",
+     "label_fa": "هم‌راستایی روند ۴ ساعته و ۱ ساعته",
+     "max_points": 2,
+     "ok": true,
+     "points": 2,
+     "unavailable": false
+    },
+    {
+     "detail_fa": "حمایت 1.1486 در فاصلهٔ ۰.۴ برابر ATR — قیمت چسبیده به سطح است (واکنش تازه)",
+     "icon": "✅",
+     "key": "level",
+     "label_fa": "واکنش به سطح کلیدی (حمایت)",
+     "max_points": 2,
+     "ok": true,
+     "points": 2,
+     "unavailable": false
+    },
+    {
+     "detail_fa": "هیچ رویداد پراثری تا ۶ ساعت آینده روی EUR/USD نیست — مسیر برای معامله باز است",
+     "icon": "✅",
+     "key": "fundamental",
+     "label_fa": "پنجرهٔ فاندامنتال پاک",
+     "max_points": 2,
+     "ok": true,
+     "points": 2,
+     "unavailable": false
+    },
+    {
+     "detail_fa": "RSI=38 و رو به بالا ↗️ — پولبک در حال برگشت است (بهترین نقطهٔ ورود)",
+     "icon": "✅",
+     "key": "momentum",
+     "label_fa": "تایید مومنتوم (RSI)",
+     "max_points": 1,
+     "ok": true,
+     "points": 1,
+     "unavailable": false
+    },
+    {
+     "detail_fa": "رتبهٔ EUR: ۱ از ۴ | رتبهٔ USD: ۳ از ۴ → جریان قدرت به نفع خرید است ✅",
+     "icon": "✅",
+     "key": "strength",
+     "label_fa": "هم‌جهتی جریان قدرت ارزها",
+     "max_points": 1,
+     "ok": true,
+     "points": 1,
+     "unavailable": false
+    },
+    {
+     "detail_fa": "اخبار جهت خرید را تایید می‌کند (+۲ رأی): «Euro rallies as ECB turns hawkish»؛ «Dollar slides on soft US data»",
+     "icon": "✅",
+     "key": "news",
+     "label_fa": "تایید خبری",
+     "max_points": 1,
+     "ok": true,
+     "points": 1,
+     "unavailable": false
+    },
+    {
+     "detail_fa": "امتیاز تکنیکال رسمی تریدینگ‌ویو «BUY» است (۱۳ خرید/۴ فروش/۹ خنثی) — هم‌جهت با ما ✅",
+     "icon": "✅",
+     "key": "tv",
+     "label_fa": "هم‌جهتی با تریدینگ‌ویو",
+     "max_points": 1,
+     "ok": true,
+     "points": 1,
+     "unavailable": false
+    },
+    {
+     "detail_fa": "سشن لندن + نیویورک (هم‌پوشانی — بهترین نقدینگی ⭐) — بیشترین نقدینگی و کمترین اسپرد هفته",
+     "icon": "✅",
+     "key": "session",
+     "label_fa": "زمان‌بندی مناسب (سشن)",
+     "max_points": 1,
+     "ok": true,
+     "points": 1,
+     "unavailable": false
+    }
+   ],
+   "fa_name": "یورو به دلار آمریکا",
+   "max_score": 11,
+   "pip": 0.0001,
+   "price": 1.149,
+   "reject_detail": "هیچ استراتژیِ فعالی در دسترس نیست — سیگنال بدون پشتوانهٔ استراتژی صادر نمی‌شود (دروازهٔ توافق، صادقانه)",
+   "reject_reason": "NO_STRATEGY",
+   "score": 11,
+   "signal": null,
+   "status_fa": "🎯 استراتژی موافق نیست",
+   "strategies": [],
+   "symbol": "EURUSD",
+   "vetoes": [],
+   "warnings": []
+  },
+  "min_agree_2": {
+   "direction": "BUY",
+   "evidences": [
+    {
+     "detail_fa": "روند صعودی 📈 و تایم‌فریم ۱ ساعته هم تایید می‌کند؛ ADX=32 → روند قوی",
+     "icon": "✅",
+     "key": "trend",
+     "label_fa": "هم‌راستایی روند ۴ ساعته و ۱ ساعته",
+     "max_points": 2,
+     "ok": true,
+     "points": 2,
+     "unavailable": false
+    },
+    {
+     "detail_fa": "حمایت 1.1486 در فاصلهٔ ۰.۴ برابر ATR — قیمت چسبیده به سطح است (واکنش تازه)",
+     "icon": "✅",
+     "key": "level",
+     "label_fa": "واکنش به سطح کلیدی (حمایت)",
+     "max_points": 2,
+     "ok": true,
+     "points": 2,
+     "unavailable": false
+    },
+    {
+     "detail_fa": "هیچ رویداد پراثری تا ۶ ساعت آینده روی EUR/USD نیست — مسیر برای معامله باز است",
+     "icon": "✅",
+     "key": "fundamental",
+     "label_fa": "پنجرهٔ فاندامنتال پاک",
+     "max_points": 2,
+     "ok": true,
+     "points": 2,
+     "unavailable": false
+    },
+    {
+     "detail_fa": "RSI=38 و رو به بالا ↗️ — پولبک در حال برگشت است (بهترین نقطهٔ ورود)",
+     "icon": "✅",
+     "key": "momentum",
+     "label_fa": "تایید مومنتوم (RSI)",
+     "max_points": 1,
+     "ok": true,
+     "points": 1,
+     "unavailable": false
+    },
+    {
+     "detail_fa": "رتبهٔ EUR: ۱ از ۴ | رتبهٔ USD: ۳ از ۴ → جریان قدرت به نفع خرید است ✅",
+     "icon": "✅",
+     "key": "strength",
+     "label_fa": "هم‌جهتی جریان قدرت ارزها",
+     "max_points": 1,
+     "ok": true,
+     "points": 1,
+     "unavailable": false
+    },
+    {
+     "detail_fa": "اخبار جهت خرید را تایید می‌کند (+۲ رأی): «Euro rallies as ECB turns hawkish»؛ «Dollar slides on soft US data»",
+     "icon": "✅",
+     "key": "news",
+     "label_fa": "تایید خبری",
+     "max_points": 1,
+     "ok": true,
+     "points": 1,
+     "unavailable": false
+    },
+    {
+     "detail_fa": "امتیاز تکنیکال رسمی تریدینگ‌ویو «BUY» است (۱۳ خرید/۴ فروش/۹ خنثی) — هم‌جهت با ما ✅",
+     "icon": "✅",
+     "key": "tv",
+     "label_fa": "هم‌جهتی با تریدینگ‌ویو",
+     "max_points": 1,
+     "ok": true,
+     "points": 1,
+     "unavailable": false
+    },
+    {
+     "detail_fa": "سشن لندن + نیویورک (هم‌پوشانی — بهترین نقدینگی ⭐) — بیشترین نقدینگی و کمترین اسپرد هفته",
+     "icon": "✅",
+     "key": "session",
+     "label_fa": "زمان‌بندی مناسب (سشن)",
+     "max_points": 1,
+     "ok": true,
+     "points": 1,
+     "unavailable": false
+    }
+   ],
+   "fa_name": "یورو به دلار آمریکا",
+   "max_score": 11,
+   "pip": 0.0001,
+   "price": 1.149,
+   "reject_detail": "توافقِ استراتژی‌ها کافی نیست — هم‌جهت با خرید: ۱ (پیشنهاددهنده: ۱) از ۳؛ حداقل لازم: ۲ هم‌جهت + ۱ پیشنهاددهنده. «روند + پولبک» خرید؛ «شکست لندن» بی‌نظر؛ «کری (نرخ بهره)» بی‌نظر",
+   "reject_reason": "NO_STRATEGY",
+   "score": 11,
+   "signal": null,
+   "status_fa": "🎯 استراتژی موافق نیست",
+   "strategies": [
+    {
+     "detail_fa": "روند + پولبک: پیشنهاد BUY — روند صعودی + پولبک + تأیید ادامه",
+     "direction": "BUY",
+     "key": "trend_pullback",
+     "name_fa": "روند + پولبک",
+     "proposes": true,
+     "reasons_fa": [
+      "روند صعودی با جهت غالب تأییدشده (H4+H1 هم‌جهت، ADX=۳۲)",
+      "پولبک شناسایی شد — RSI=۳۸ در منطقهٔ ۳۰–۴۵",
+      "تأیید ادامهٔ حرکت — RSI در حال برگشت و کندل آخر ۱ ساعته در جهت روند بسته شده"
+     ],
+     "strength": 0.84
+    },
+    {
+     "detail_fa": "شکست لندن: بیرونِ پنجرهٔ شکستِ لندن (۷:۰۰ تا ۱۱:۰۰ UTC — الان ساعت ۱۴:۰۰)",
+     "direction": "NONE",
+     "key": "london_breakout",
+     "name_fa": "شکست لندن",
+     "proposes": true,
+     "reasons_fa": [
+      "بیرونِ پنجرهٔ شکستِ لندن (۷:۰۰ تا ۱۱:۰۰ UTC — الان ساعت ۱۴:۰۰)"
+     ],
+     "strength": 0.0
+    },
+    {
+     "detail_fa": "کری (نرخ بهره): اختلاف نرخ EUR/USD (-۱.۳۸٪) زیر آستانهٔ ۱.۵٪ است — صرفِ carry ناچیز",
+     "direction": "NONE",
+     "key": "carry",
+     "name_fa": "کری (نرخ بهره)",
+     "proposes": false,
+     "reasons_fa": [
+      "اختلاف نرخ EUR/USD (-۱.۳۸٪) زیر آستانهٔ ۱.۵٪ است — صرفِ carry ناچیز"
+     ],
+     "strength": 0.0
+    }
+   ],
+   "symbol": "EURUSD",
+   "vetoes": [],
+   "warnings": []
+  },
+  "no_agreement": {
+   "direction": "BUY",
+   "evidences": [
+    {
+     "detail_fa": "روند صعودی 📈 و تایم‌فریم ۱ ساعته هم تایید می‌کند؛ ADX=32 → روند قوی",
+     "icon": "✅",
+     "key": "trend",
+     "label_fa": "هم‌راستایی روند ۴ ساعته و ۱ ساعته",
+     "max_points": 2,
+     "ok": true,
+     "points": 2,
+     "unavailable": false
+    },
+    {
+     "detail_fa": "حمایت 1.1486 در فاصلهٔ ۰.۴ برابر ATR — قیمت چسبیده به سطح است (واکنش تازه)",
+     "icon": "✅",
+     "key": "level",
+     "label_fa": "واکنش به سطح کلیدی (حمایت)",
+     "max_points": 2,
+     "ok": true,
+     "points": 2,
+     "unavailable": false
+    },
+    {
+     "detail_fa": "هیچ رویداد پراثری تا ۶ ساعت آینده روی EUR/USD نیست — مسیر برای معامله باز است",
+     "icon": "✅",
+     "key": "fundamental",
+     "label_fa": "پنجرهٔ فاندامنتال پاک",
+     "max_points": 2,
+     "ok": true,
+     "points": 2,
+     "unavailable": false
+    },
+    {
+     "detail_fa": "RSI=25 در اشباع فروش است — هنوز تایید برگشت نیامده؛ ممکن است «کف‌گیری» ادامه داشته باشد",
+     "icon": "➖",
+     "key": "momentum",
+     "label_fa": "تایید مومنتوم (RSI)",
+     "max_points": 1,
+     "ok": false,
+     "points": 0,
+     "unavailable": false
+    },
+    {
+     "detail_fa": "رتبهٔ EUR: ۱ از ۴ | رتبهٔ USD: ۳ از ۴ → جریان قدرت به نفع خرید است ✅",
+     "icon": "✅",
+     "key": "strength",
+     "label_fa": "هم‌جهتی جریان قدرت ارزها",
+     "max_points": 1,
+     "ok": true,
+     "points": 1,
+     "unavailable": false
+    },
+    {
+     "detail_fa": "اخبار جهت خرید را تایید می‌کند (+۲ رأی): «Euro rallies as ECB turns hawkish»؛ «Dollar slides on soft US data»",
+     "icon": "✅",
+     "key": "news",
+     "label_fa": "تایید خبری",
+     "max_points": 1,
+     "ok": true,
+     "points": 1,
+     "unavailable": false
+    },
+    {
+     "detail_fa": "امتیاز تکنیکال رسمی تریدینگ‌ویو «BUY» است (۱۳ خرید/۴ فروش/۹ خنثی) — هم‌جهت با ما ✅",
+     "icon": "✅",
+     "key": "tv",
+     "label_fa": "هم‌جهتی با تریدینگ‌ویو",
+     "max_points": 1,
+     "ok": true,
+     "points": 1,
+     "unavailable": false
+    },
+    {
+     "detail_fa": "سشن لندن + نیویورک (هم‌پوشانی — بهترین نقدینگی ⭐) — بیشترین نقدینگی و کمترین اسپرد هفته",
+     "icon": "✅",
+     "key": "session",
+     "label_fa": "زمان‌بندی مناسب (سشن)",
+     "max_points": 1,
+     "ok": true,
+     "points": 1,
+     "unavailable": false
+    }
+   ],
+   "fa_name": "یورو به دلار آمریکا",
+   "max_score": 11,
+   "pip": 0.0001,
+   "price": 1.149,
+   "reject_detail": "توافقِ استراتژی‌ها کافی نیست — هم‌جهت با خرید: ۰ (پیشنهاددهنده: ۰) از ۳؛ حداقل لازم: ۱ هم‌جهت + ۱ پیشنهاددهنده. «روند + پولبک» بی‌نظر؛ «شکست لندن» بی‌نظر؛ «کری (نرخ بهره)» بی‌نظر",
+   "reject_reason": "NO_STRATEGY",
+   "score": 10,
+   "signal": null,
+   "status_fa": "🎯 استراتژی موافق نیست",
+   "strategies": [
+    {
+     "detail_fa": "روند + پولبک: پولبک معتبر نیست — RSI=۲۵ بیرونِ منطقهٔ ۳۰–۴۵ برای ستاپ خرید است",
+     "direction": "NONE",
+     "key": "trend_pullback",
+     "name_fa": "روند + پولبک",
+     "proposes": true,
+     "reasons_fa": [
+      "پولبک معتبر نیست — RSI=۲۵ بیرونِ منطقهٔ ۳۰–۴۵ برای ستاپ خرید است"
+     ],
+     "strength": 0.0
+    },
+    {
+     "detail_fa": "شکست لندن: بیرونِ پنجرهٔ شکستِ لندن (۷:۰۰ تا ۱۱:۰۰ UTC — الان ساعت ۱۴:۰۰)",
+     "direction": "NONE",
+     "key": "london_breakout",
+     "name_fa": "شکست لندن",
+     "proposes": true,
+     "reasons_fa": [
+      "بیرونِ پنجرهٔ شکستِ لندن (۷:۰۰ تا ۱۱:۰۰ UTC — الان ساعت ۱۴:۰۰)"
+     ],
+     "strength": 0.0
+    },
+    {
+     "detail_fa": "کری (نرخ بهره): اختلاف نرخ EUR/USD (-۱.۳۸٪) زیر آستانهٔ ۱.۵٪ است — صرفِ carry ناچیز",
+     "direction": "NONE",
+     "key": "carry",
+     "name_fa": "کری (نرخ بهره)",
+     "proposes": false,
+     "reasons_fa": [
+      "اختلاف نرخ EUR/USD (-۱.۳۸٪) زیر آستانهٔ ۱.۵٪ است — صرفِ carry ناچیز"
+     ],
+     "strength": 0.0
+    }
+   ],
+   "symbol": "EURUSD",
+   "vetoes": [],
+   "warnings": []
+  },
+  "opt_out_min_agree_0": {
+   "direction": "BUY",
+   "evidences": [
+    {
+     "detail_fa": "روند صعودی 📈 و تایم‌فریم ۱ ساعته هم تایید می‌کند؛ ADX=32 → روند قوی",
+     "icon": "✅",
+     "key": "trend",
+     "label_fa": "هم‌راستایی روند ۴ ساعته و ۱ ساعته",
+     "max_points": 2,
+     "ok": true,
+     "points": 2,
+     "unavailable": false
+    },
+    {
+     "detail_fa": "حمایت 1.1486 در فاصلهٔ ۰.۴ برابر ATR — قیمت چسبیده به سطح است (واکنش تازه)",
+     "icon": "✅",
+     "key": "level",
+     "label_fa": "واکنش به سطح کلیدی (حمایت)",
+     "max_points": 2,
+     "ok": true,
+     "points": 2,
+     "unavailable": false
+    },
+    {
+     "detail_fa": "هیچ رویداد پراثری تا ۶ ساعت آینده روی EUR/USD نیست — مسیر برای معامله باز است",
+     "icon": "✅",
+     "key": "fundamental",
+     "label_fa": "پنجرهٔ فاندامنتال پاک",
+     "max_points": 2,
+     "ok": true,
+     "points": 2,
+     "unavailable": false
+    },
+    {
+     "detail_fa": "RSI=25 در اشباع فروش است — هنوز تایید برگشت نیامده؛ ممکن است «کف‌گیری» ادامه داشته باشد",
+     "icon": "➖",
+     "key": "momentum",
+     "label_fa": "تایید مومنتوم (RSI)",
+     "max_points": 1,
+     "ok": false,
+     "points": 0,
+     "unavailable": false
+    },
+    {
+     "detail_fa": "رتبهٔ EUR: ۱ از ۴ | رتبهٔ USD: ۳ از ۴ → جریان قدرت به نفع خرید است ✅",
+     "icon": "✅",
+     "key": "strength",
+     "label_fa": "هم‌جهتی جریان قدرت ارزها",
+     "max_points": 1,
+     "ok": true,
+     "points": 1,
+     "unavailable": false
+    },
+    {
+     "detail_fa": "اخبار جهت خرید را تایید می‌کند (+۲ رأی): «Euro rallies as ECB turns hawkish»؛ «Dollar slides on soft US data»",
+     "icon": "✅",
+     "key": "news",
+     "label_fa": "تایید خبری",
+     "max_points": 1,
+     "ok": true,
+     "points": 1,
+     "unavailable": false
+    },
+    {
+     "detail_fa": "امتیاز تکنیکال رسمی تریدینگ‌ویو «BUY» است (۱۳ خرید/۴ فروش/۹ خنثی) — هم‌جهت با ما ✅",
+     "icon": "✅",
+     "key": "tv",
+     "label_fa": "هم‌جهتی با تریدینگ‌ویو",
+     "max_points": 1,
+     "ok": true,
+     "points": 1,
+     "unavailable": false
+    },
+    {
+     "detail_fa": "سشن لندن + نیویورک (هم‌پوشانی — بهترین نقدینگی ⭐) — بیشترین نقدینگی و کمترین اسپرد هفته",
+     "icon": "✅",
+     "key": "session",
+     "label_fa": "زمان‌بندی مناسب (سشن)",
+     "max_points": 1,
+     "ok": true,
+     "points": 1,
+     "unavailable": false
+    }
+   ],
+   "fa_name": "یورو به دلار آمریکا",
+   "max_score": 11,
+   "pip": 0.0001,
+   "price": 1.149,
+   "reject_detail": "",
+   "reject_reason": "",
+   "score": 10,
+   "signal": {
+    "atr": 0.001,
+    "direction": "BUY",
+    "direction_fa": "خرید 🟢",
+    "entry": 1.149,
+    "fa_name": "یورو به دلار آمریکا",
+    "is_gold": false,
+    "journal": {
+     "atr": 0.001,
+     "direction": "BUY",
+     "entry": 1.149,
+     "evidences": [
+      "trend:2/2",
+      "level:2/2",
+      "fundamental:2/2",
+      "momentum:0/1",
+      "strength:1/1",
+      "news:1/1",
+      "tv:1/1",
+      "session:1/1"
+     ],
+     "id": "EURUSD-BUY-20260923140000-1.149",
+     "kind": "signal",
+     "max_score": 11,
+     "pip": 0.0001,
+     "reward_pips": 14.0,
+     "risk_pips": 7.0,
+     "rr": 2.0,
+     "score": 10,
+     "sent": true,
+     "session": "لندن + نیویورک (هم‌پوشانی — بهترین نقدینگی ⭐)",
+     "sl": 1.1483,
+     "strategies": [],
+     "symbol": "EURUSD",
+     "tp": 1.1504,
+     "ts": "2026-09-23T14:00:00+00:00"
+    },
+    "max_score": 11,
+    "now": "2026-09-23T14:00:00+00:00",
+    "pip": 0.0001,
+    "reward_pips": 13.999999999998458,
+    "risk_pips": 6.999999999999229,
+    "rr": 2.0,
+    "score": 10,
+    "session_fa": "لندن + نیویورک (هم‌پوشانی — بهترین نقدینگی ⭐)",
+    "sid": "EURUSD-BUY-20260923140000-1.149",
+    "sl": 1.1483,
+    "sl_capped": false,
+    "stars": 5,
+    "strategies": [
+     {
+      "detail_fa": "روند + پولبک: پولبک معتبر نیست — RSI=۲۵ بیرونِ منطقهٔ ۳۰–۴۵ برای ستاپ خرید است",
+      "direction": "NONE",
+      "key": "trend_pullback",
+      "name_fa": "روند + پولبک",
+      "proposes": true,
+      "reasons_fa": [
+       "پولبک معتبر نیست — RSI=۲۵ بیرونِ منطقهٔ ۳۰–۴۵ برای ستاپ خرید است"
+      ],
+      "strength": 0.0
+     },
+     {
+      "detail_fa": "شکست لندن: بیرونِ پنجرهٔ شکستِ لندن (۷:۰۰ تا ۱۱:۰۰ UTC — الان ساعت ۱۴:۰۰)",
+      "direction": "NONE",
+      "key": "london_breakout",
+      "name_fa": "شکست لندن",
+      "proposes": true,
+      "reasons_fa": [
+       "بیرونِ پنجرهٔ شکستِ لندن (۷:۰۰ تا ۱۱:۰۰ UTC — الان ساعت ۱۴:۰۰)"
+      ],
+      "strength": 0.0
+     },
+     {
+      "detail_fa": "کری (نرخ بهره): اختلاف نرخ EUR/USD (-۱.۳۸٪) زیر آستانهٔ ۱.۵٪ است — صرفِ carry ناچیز",
+      "direction": "NONE",
+      "key": "carry",
+      "name_fa": "کری (نرخ بهره)",
+      "proposes": false,
+      "reasons_fa": [
+       "اختلاف نرخ EUR/USD (-۱.۳۸٪) زیر آستانهٔ ۱.۵٪ است — صرفِ carry ناچیز"
+      ],
+      "strength": 0.0
+     }
+    ],
+    "symbol": "EURUSD",
+    "tp": 1.1503999999999999,
+    "warnings": []
+   },
+   "status_fa": "✅ سیگنال صادر شد",
+   "strategies": [
+    {
+     "detail_fa": "روند + پولبک: پولبک معتبر نیست — RSI=۲۵ بیرونِ منطقهٔ ۳۰–۴۵ برای ستاپ خرید است",
+     "direction": "NONE",
+     "key": "trend_pullback",
+     "name_fa": "روند + پولبک",
+     "proposes": true,
+     "reasons_fa": [
+      "پولبک معتبر نیست — RSI=۲۵ بیرونِ منطقهٔ ۳۰–۴۵ برای ستاپ خرید است"
+     ],
+     "strength": 0.0
+    },
+    {
+     "detail_fa": "شکست لندن: بیرونِ پنجرهٔ شکستِ لندن (۷:۰۰ تا ۱۱:۰۰ UTC — الان ساعت ۱۴:۰۰)",
+     "direction": "NONE",
+     "key": "london_breakout",
+     "name_fa": "شکست لندن",
+     "proposes": true,
+     "reasons_fa": [
+      "بیرونِ پنجرهٔ شکستِ لندن (۷:۰۰ تا ۱۱:۰۰ UTC — الان ساعت ۱۴:۰۰)"
+     ],
+     "strength": 0.0
+    },
+    {
+     "detail_fa": "کری (نرخ بهره): اختلاف نرخ EUR/USD (-۱.۳۸٪) زیر آستانهٔ ۱.۵٪ است — صرفِ carry ناچیز",
+     "direction": "NONE",
+     "key": "carry",
+     "name_fa": "کری (نرخ بهره)",
+     "proposes": false,
+     "reasons_fa": [
+      "اختلاف نرخ EUR/USD (-۱.۳۸٪) زیر آستانهٔ ۱.۵٪ است — صرفِ carry ناچیز"
+     ],
+     "strength": 0.0
+    }
+   ],
+   "symbol": "EURUSD",
+   "vetoes": [],
+   "warnings": []
+  },
+  "pass_full": {
+   "direction": "BUY",
+   "evidences": [
+    {
+     "detail_fa": "روند صعودی 📈 و تایم‌فریم ۱ ساعته هم تایید می‌کند؛ ADX=32 → روند قوی",
+     "icon": "✅",
+     "key": "trend",
+     "label_fa": "هم‌راستایی روند ۴ ساعته و ۱ ساعته",
+     "max_points": 2,
+     "ok": true,
+     "points": 2,
+     "unavailable": false
+    },
+    {
+     "detail_fa": "حمایت 1.1486 در فاصلهٔ ۰.۴ برابر ATR — قیمت چسبیده به سطح است (واکنش تازه)",
+     "icon": "✅",
+     "key": "level",
+     "label_fa": "واکنش به سطح کلیدی (حمایت)",
+     "max_points": 2,
+     "ok": true,
+     "points": 2,
+     "unavailable": false
+    },
+    {
+     "detail_fa": "هیچ رویداد پراثری تا ۶ ساعت آینده روی EUR/USD نیست — مسیر برای معامله باز است",
+     "icon": "✅",
+     "key": "fundamental",
+     "label_fa": "پنجرهٔ فاندامنتال پاک",
+     "max_points": 2,
+     "ok": true,
+     "points": 2,
+     "unavailable": false
+    },
+    {
+     "detail_fa": "RSI=38 و رو به بالا ↗️ — پولبک در حال برگشت است (بهترین نقطهٔ ورود)",
+     "icon": "✅",
+     "key": "momentum",
+     "label_fa": "تایید مومنتوم (RSI)",
+     "max_points": 1,
+     "ok": true,
+     "points": 1,
+     "unavailable": false
+    },
+    {
+     "detail_fa": "رتبهٔ EUR: ۱ از ۴ | رتبهٔ USD: ۳ از ۴ → جریان قدرت به نفع خرید است ✅",
+     "icon": "✅",
+     "key": "strength",
+     "label_fa": "هم‌جهتی جریان قدرت ارزها",
+     "max_points": 1,
+     "ok": true,
+     "points": 1,
+     "unavailable": false
+    },
+    {
+     "detail_fa": "اخبار جهت خرید را تایید می‌کند (+۲ رأی): «Euro rallies as ECB turns hawkish»؛ «Dollar slides on soft US data»",
+     "icon": "✅",
+     "key": "news",
+     "label_fa": "تایید خبری",
+     "max_points": 1,
+     "ok": true,
+     "points": 1,
+     "unavailable": false
+    },
+    {
+     "detail_fa": "امتیاز تکنیکال رسمی تریدینگ‌ویو «BUY» است (۱۳ خرید/۴ فروش/۹ خنثی) — هم‌جهت با ما ✅",
+     "icon": "✅",
+     "key": "tv",
+     "label_fa": "هم‌جهتی با تریدینگ‌ویو",
+     "max_points": 1,
+     "ok": true,
+     "points": 1,
+     "unavailable": false
+    },
+    {
+     "detail_fa": "سشن لندن + نیویورک (هم‌پوشانی — بهترین نقدینگی ⭐) — بیشترین نقدینگی و کمترین اسپرد هفته",
+     "icon": "✅",
+     "key": "session",
+     "label_fa": "زمان‌بندی مناسب (سشن)",
+     "max_points": 1,
+     "ok": true,
+     "points": 1,
+     "unavailable": false
+    }
+   ],
+   "fa_name": "یورو به دلار آمریکا",
+   "max_score": 11,
+   "pip": 0.0001,
+   "price": 1.149,
+   "reject_detail": "",
+   "reject_reason": "",
+   "score": 11,
+   "signal": {
+    "atr": 0.001,
+    "direction": "BUY",
+    "direction_fa": "خرید 🟢",
+    "entry": 1.149,
+    "fa_name": "یورو به دلار آمریکا",
+    "is_gold": false,
+    "journal": {
+     "atr": 0.001,
+     "direction": "BUY",
+     "entry": 1.149,
+     "evidences": [
+      "trend:2/2",
+      "level:2/2",
+      "fundamental:2/2",
+      "momentum:1/1",
+      "strength:1/1",
+      "news:1/1",
+      "tv:1/1",
+      "session:1/1"
+     ],
+     "id": "EURUSD-BUY-20260923140000-1.149",
+     "kind": "signal",
+     "max_score": 11,
+     "pip": 0.0001,
+     "reward_pips": 14.0,
+     "risk_pips": 7.0,
+     "rr": 2.0,
+     "score": 11,
+     "sent": true,
+     "session": "لندن + نیویورک (هم‌پوشانی — بهترین نقدینگی ⭐)",
+     "sl": 1.1483,
+     "strategies": [
+      "trend_pullback"
+     ],
+     "symbol": "EURUSD",
+     "tp": 1.1504,
+     "ts": "2026-09-23T14:00:00+00:00"
+    },
+    "max_score": 11,
+    "now": "2026-09-23T14:00:00+00:00",
+    "pip": 0.0001,
+    "reward_pips": 13.999999999998458,
+    "risk_pips": 6.999999999999229,
+    "rr": 2.0,
+    "score": 11,
+    "session_fa": "لندن + نیویورک (هم‌پوشانی — بهترین نقدینگی ⭐)",
+    "sid": "EURUSD-BUY-20260923140000-1.149",
+    "sl": 1.1483,
+    "sl_capped": false,
+    "stars": 5,
+    "strategies": [
+     {
+      "detail_fa": "روند + پولبک: پیشنهاد BUY — روند صعودی + پولبک + تأیید ادامه",
+      "direction": "BUY",
+      "key": "trend_pullback",
+      "name_fa": "روند + پولبک",
+      "proposes": true,
+      "reasons_fa": [
+       "روند صعودی با جهت غالب تأییدشده (H4+H1 هم‌جهت، ADX=۳۲)",
+       "پولبک شناسایی شد — RSI=۳۸ در منطقهٔ ۳۰–۴۵",
+       "تأیید ادامهٔ حرکت — RSI در حال برگشت و کندل آخر ۱ ساعته در جهت روند بسته شده"
+      ],
+      "strength": 0.84
+     },
+     {
+      "detail_fa": "شکست لندن: بیرونِ پنجرهٔ شکستِ لندن (۷:۰۰ تا ۱۱:۰۰ UTC — الان ساعت ۱۴:۰۰)",
+      "direction": "NONE",
+      "key": "london_breakout",
+      "name_fa": "شکست لندن",
+      "proposes": true,
+      "reasons_fa": [
+       "بیرونِ پنجرهٔ شکستِ لندن (۷:۰۰ تا ۱۱:۰۰ UTC — الان ساعت ۱۴:۰۰)"
+      ],
+      "strength": 0.0
+     },
+     {
+      "detail_fa": "کری (نرخ بهره): اختلاف نرخ EUR/USD (-۱.۳۸٪) زیر آستانهٔ ۱.۵٪ است — صرفِ carry ناچیز",
+      "direction": "NONE",
+      "key": "carry",
+      "name_fa": "کری (نرخ بهره)",
+      "proposes": false,
+      "reasons_fa": [
+       "اختلاف نرخ EUR/USD (-۱.۳۸٪) زیر آستانهٔ ۱.۵٪ است — صرفِ carry ناچیز"
+      ],
+      "strength": 0.0
+     }
+    ],
+    "symbol": "EURUSD",
+    "tp": 1.1503999999999999,
+    "warnings": []
+   },
+   "status_fa": "✅ سیگنال صادر شد",
+   "strategies": [
+    {
+     "detail_fa": "روند + پولبک: پیشنهاد BUY — روند صعودی + پولبک + تأیید ادامه",
+     "direction": "BUY",
+     "key": "trend_pullback",
+     "name_fa": "روند + پولبک",
+     "proposes": true,
+     "reasons_fa": [
+      "روند صعودی با جهت غالب تأییدشده (H4+H1 هم‌جهت، ADX=۳۲)",
+      "پولبک شناسایی شد — RSI=۳۸ در منطقهٔ ۳۰–۴۵",
+      "تأیید ادامهٔ حرکت — RSI در حال برگشت و کندل آخر ۱ ساعته در جهت روند بسته شده"
+     ],
+     "strength": 0.84
+    },
+    {
+     "detail_fa": "شکست لندن: بیرونِ پنجرهٔ شکستِ لندن (۷:۰۰ تا ۱۱:۰۰ UTC — الان ساعت ۱۴:۰۰)",
+     "direction": "NONE",
+     "key": "london_breakout",
+     "name_fa": "شکست لندن",
+     "proposes": true,
+     "reasons_fa": [
+      "بیرونِ پنجرهٔ شکستِ لندن (۷:۰۰ تا ۱۱:۰۰ UTC — الان ساعت ۱۴:۰۰)"
+     ],
+     "strength": 0.0
+    },
+    {
+     "detail_fa": "کری (نرخ بهره): اختلاف نرخ EUR/USD (-۱.۳۸٪) زیر آستانهٔ ۱.۵٪ است — صرفِ carry ناچیز",
+     "direction": "NONE",
+     "key": "carry",
+     "name_fa": "کری (نرخ بهره)",
+     "proposes": false,
+     "reasons_fa": [
+      "اختلاف نرخ EUR/USD (-۱.۳۸٪) زیر آستانهٔ ۱.۵٪ است — صرفِ carry ناچیز"
+     ],
+     "strength": 0.0
+    }
+   ],
+   "symbol": "EURUSD",
+   "vetoes": [],
+   "warnings": []
+  }
+ },
  "veto_clean": [],
  "veto_multi": {
   "all_except_data": {
@@ -1546,6 +3194,7 @@
    "score": 0,
    "signal": null,
    "status_fa": "🚫 وتو شد",
+   "strategies": [],
    "symbol": "EURUSD",
    "vetoes": [
     {
@@ -1593,6 +3242,7 @@
    "score": 0,
    "signal": null,
    "status_fa": "🚫 وتو شد",
+   "strategies": [],
    "symbol": "EURUSD",
    "vetoes": [
     {
@@ -1637,6 +3287,7 @@
    "score": 0,
    "signal": null,
    "status_fa": "🚫 وتو شد",
+   "strategies": [],
    "symbol": "EURUSD",
    "vetoes": [
     {
@@ -1659,6 +3310,7 @@
    "score": 0,
    "signal": null,
    "status_fa": "🚫 وتو شد",
+   "strategies": [],
    "symbol": "EURUSD",
    "vetoes": [
     {
@@ -1681,6 +3333,7 @@
    "score": 0,
    "signal": null,
    "status_fa": "🚫 وتو شد",
+   "strategies": [],
    "symbol": "EURUSD",
    "vetoes": [
     {
@@ -1703,6 +3356,7 @@
    "score": 0,
    "signal": null,
    "status_fa": "🚫 وتو شد",
+   "strategies": [],
    "symbol": "EURUSD",
    "vetoes": [
     {
@@ -1725,6 +3379,7 @@
    "score": 0,
    "signal": null,
    "status_fa": "🚫 وتو شد",
+   "strategies": [],
    "symbol": "EURUSD",
    "vetoes": [
     {
@@ -1747,6 +3402,7 @@
    "score": 0,
    "signal": null,
    "status_fa": "🚫 وتو شد",
+   "strategies": [],
    "symbol": "EURUSD",
    "vetoes": [
     {
@@ -1769,6 +3425,7 @@
    "score": 0,
    "signal": null,
    "status_fa": "🚫 وتو شد",
+   "strategies": [],
    "symbol": "EURUSD",
    "vetoes": [
     {
@@ -1869,62 +3526,46 @@
    "max_score": 11,
    "pip": 0.0001,
    "price": 1.149,
-   "reject_detail": "",
-   "reject_reason": "",
+   "reject_detail": "توافقِ استراتژی‌ها کافی نیست — هم‌جهت با خرید: ۰ (پیشنهاددهنده: ۰) از ۳؛ حداقل لازم: ۱ هم‌جهت + ۱ پیشنهاددهنده. «روند + پولبک» بی‌نظر؛ «شکست لندن» بی‌نظر؛ «کری (نرخ بهره)» بی‌نظر",
+   "reject_reason": "NO_STRATEGY",
    "score": 10,
-   "signal": {
-    "atr": 0.001,
-    "direction": "BUY",
-    "direction_fa": "خرید 🟢",
-    "entry": 1.149,
-    "fa_name": "یورو به دلار آمریکا",
-    "is_gold": false,
-    "journal": {
-     "atr": 0.001,
-     "direction": "BUY",
-     "entry": 1.149,
-     "evidences": [
-      "trend:1/2",
-      "level:2/2",
-      "fundamental:2/2",
-      "momentum:1/1",
-      "strength:1/1",
-      "news:1/1",
-      "tv:1/1",
-      "session:1/1"
+   "signal": null,
+   "status_fa": "🎯 استراتژی موافق نیست",
+   "strategies": [
+    {
+     "detail_fa": "روند + پولبک: روند معتبر نیست (ADX=۱۴ زیر ۲۰)",
+     "direction": "NONE",
+     "key": "trend_pullback",
+     "name_fa": "روند + پولبک",
+     "proposes": true,
+     "reasons_fa": [
+      "روند معتبر نیست (ADX=۱۴ زیر ۲۰)"
      ],
-     "id": "EURUSD-BUY-20260923140000-1.149",
-     "kind": "signal",
-     "max_score": 11,
-     "pip": 0.0001,
-     "reward_pips": 14.0,
-     "risk_pips": 7.0,
-     "rr": 2.0,
-     "score": 10,
-     "sent": true,
-     "session": "لندن + نیویورک (هم‌پوشانی — بهترین نقدینگی ⭐)",
-     "sl": 1.1483,
-     "symbol": "EURUSD",
-     "tp": 1.1504,
-     "ts": "2026-09-23T14:00:00+00:00"
+     "strength": 0.0
     },
-    "max_score": 11,
-    "now": "2026-09-23T14:00:00+00:00",
-    "pip": 0.0001,
-    "reward_pips": 13.999999999998458,
-    "risk_pips": 6.999999999999229,
-    "rr": 2.0,
-    "score": 10,
-    "session_fa": "لندن + نیویورک (هم‌پوشانی — بهترین نقدینگی ⭐)",
-    "sid": "EURUSD-BUY-20260923140000-1.149",
-    "sl": 1.1483,
-    "sl_capped": false,
-    "stars": 5,
-    "symbol": "EURUSD",
-    "tp": 1.1503999999999999,
-    "warnings": []
-   },
-   "status_fa": "✅ سیگنال صادر شد",
+    {
+     "detail_fa": "شکست لندن: بیرونِ پنجرهٔ شکستِ لندن (۷:۰۰ تا ۱۱:۰۰ UTC — الان ساعت ۱۴:۰۰)",
+     "direction": "NONE",
+     "key": "london_breakout",
+     "name_fa": "شکست لندن",
+     "proposes": true,
+     "reasons_fa": [
+      "بیرونِ پنجرهٔ شکستِ لندن (۷:۰۰ تا ۱۱:۰۰ UTC — الان ساعت ۱۴:۰۰)"
+     ],
+     "strength": 0.0
+    },
+    {
+     "detail_fa": "کری (نرخ بهره): اختلاف نرخ EUR/USD (-۱.۳۸٪) زیر آستانهٔ ۱.۵٪ است — صرفِ carry ناچیز",
+     "direction": "NONE",
+     "key": "carry",
+     "name_fa": "کری (نرخ بهره)",
+     "proposes": false,
+     "reasons_fa": [
+      "اختلاف نرخ EUR/USD (-۱.۳۸٪) زیر آستانهٔ ۱.۵٪ است — صرفِ carry ناچیز"
+     ],
+     "strength": 0.0
+    }
+   ],
    "symbol": "EURUSD",
    "vetoes": [],
    "warnings": []
@@ -2052,6 +3693,9 @@
      "sent": true,
      "session": "بازار بسته 🔒",
      "sl": 1.1483,
+     "strategies": [
+      "trend_pullback"
+     ],
      "symbol": "EURUSD",
      "tp": 1.1504,
      "ts": "2026-09-19T12:00:00+00:00"
@@ -2068,11 +3712,85 @@
     "sl": 1.1483,
     "sl_capped": false,
     "stars": 5,
+    "strategies": [
+     {
+      "detail_fa": "روند + پولبک: پیشنهاد BUY — روند صعودی + پولبک + تأیید ادامه",
+      "direction": "BUY",
+      "key": "trend_pullback",
+      "name_fa": "روند + پولبک",
+      "proposes": true,
+      "reasons_fa": [
+       "روند صعودی با جهت غالب تأییدشده (H4+H1 هم‌جهت، ADX=۳۲)",
+       "پولبک شناسایی شد — RSI=۳۸ در منطقهٔ ۳۰–۴۵",
+       "تأیید ادامهٔ حرکت — RSI در حال برگشت و کندل آخر ۱ ساعته در جهت روند بسته شده"
+      ],
+      "strength": 0.84
+     },
+     {
+      "detail_fa": "شکست لندن: روزهای پایانی هفته — سشن لندن بسته است",
+      "direction": "NONE",
+      "key": "london_breakout",
+      "name_fa": "شکست لندن",
+      "proposes": true,
+      "reasons_fa": [
+       "روزهای پایانی هفته — سشن لندن بسته است"
+      ],
+      "strength": 0.0
+     },
+     {
+      "detail_fa": "کری (نرخ بهره): اختلاف نرخ EUR/USD (-۱.۳۸٪) زیر آستانهٔ ۱.۵٪ است — صرفِ carry ناچیز",
+      "direction": "NONE",
+      "key": "carry",
+      "name_fa": "کری (نرخ بهره)",
+      "proposes": false,
+      "reasons_fa": [
+       "اختلاف نرخ EUR/USD (-۱.۳۸٪) زیر آستانهٔ ۱.۵٪ است — صرفِ carry ناچیز"
+      ],
+      "strength": 0.0
+     }
+    ],
     "symbol": "EURUSD",
     "tp": 1.1503999999999999,
     "warnings": []
    },
    "status_fa": "✅ سیگنال صادر شد",
+   "strategies": [
+    {
+     "detail_fa": "روند + پولبک: پیشنهاد BUY — روند صعودی + پولبک + تأیید ادامه",
+     "direction": "BUY",
+     "key": "trend_pullback",
+     "name_fa": "روند + پولبک",
+     "proposes": true,
+     "reasons_fa": [
+      "روند صعودی با جهت غالب تأییدشده (H4+H1 هم‌جهت، ADX=۳۲)",
+      "پولبک شناسایی شد — RSI=۳۸ در منطقهٔ ۳۰–۴۵",
+      "تأیید ادامهٔ حرکت — RSI در حال برگشت و کندل آخر ۱ ساعته در جهت روند بسته شده"
+     ],
+     "strength": 0.84
+    },
+    {
+     "detail_fa": "شکست لندن: روزهای پایانی هفته — سشن لندن بسته است",
+     "direction": "NONE",
+     "key": "london_breakout",
+     "name_fa": "شکست لندن",
+     "proposes": true,
+     "reasons_fa": [
+      "روزهای پایانی هفته — سشن لندن بسته است"
+     ],
+     "strength": 0.0
+    },
+    {
+     "detail_fa": "کری (نرخ بهره): اختلاف نرخ EUR/USD (-۱.۳۸٪) زیر آستانهٔ ۱.۵٪ است — صرفِ carry ناچیز",
+     "direction": "NONE",
+     "key": "carry",
+     "name_fa": "کری (نرخ بهره)",
+     "proposes": false,
+     "reasons_fa": [
+      "اختلاف نرخ EUR/USD (-۱.۳۸٪) زیر آستانهٔ ۱.۵٪ است — صرفِ carry ناچیز"
+     ],
+     "strength": 0.0
+    }
+   ],
    "symbol": "EURUSD",
    "vetoes": [],
    "warnings": []

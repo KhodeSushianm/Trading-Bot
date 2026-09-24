@@ -57,6 +57,7 @@ from src.judge.scoring import (JudgeContext, collect_vetoes,       # noqa: E402
                                ev_momentum, ev_news, ev_session, ev_strength,
                                ev_tradingview, ev_trend, judge_all,
                                judge_config, judge_symbol)
+from src.plugins.strategies import STRATEGY_RULES, StrategyAdapter  # noqa: E402
 from src.judge.session import market_status                        # noqa: E402
 
 GOLDEN_PATH = HERE / "judge_rules_golden.json"
@@ -71,6 +72,22 @@ CFG = load_config()
 ACFG = CFG["analysis"]
 JCFG = CFG["judge"]
 SYMS = CFG["symbols"]
+SCFG_ROOT = CFG.get("strategies") or {}
+
+# S3: قواعد استراتژیِ پیش‌فرضِ باتری — همان adapterهای production
+# (StrategyAdapter با cfg جاری؛ scfg در ساخت bind می‌شود). طلایی با این
+# قواعد ضبط می‌شود چون مسیر production (registry) همیشه آن‌ها را تزریق
+# می‌کند؛ مسیرِ strategy_rules=None (رفتار v0.25) جدا در test_judge_rules
+# پین شده است.
+DEFAULT_STRATEGY_RULES = [StrategyAdapter(k, CFG) for _pid, k in STRATEGY_RULES]
+
+
+class ThrowingRule:
+    """قاعدهٔ خطاداده — پینِ Failure Isolation دروازهٔ توافق (S3)."""
+    key = "trend_pullback"
+
+    def evaluate(self, a, md, ctx):
+        raise RuntimeError("boom")
 
 RANK_DEFAULT = [("EUR", 0.30), ("GBP", 0.10), ("USD", -0.20), ("JPY", -0.40)]
 RANK_USD_STRONG = [("USD", 0.30), ("GBP", 0.10), ("EUR", -0.20), ("JPY", -0.40)]
@@ -83,7 +100,8 @@ TV_NEUTRAL = {"EURUSD": TVSnapshot("EURUSD", 1.149, 41.0, 32.0, "NEUTRAL", 6, 6,
 #  سازنده‌های دادهٔ ساختگیِ قطعی (الگو از tests/manual/test_judge.py)
 # ══════════════════════════════════════════════════════════════
 def make_md(symbol: str = "EURUSD", n: int = 300, base: float = 1.1490,
-            atr: float = 0.0010, seed: int = 7, last_spike: float = 1.0) -> MarketData:
+            atr: float = 0.0010, seed: int = 7, last_spike: float = 1.0,
+            last_dir: str = "") -> MarketData:
     rng = np.random.default_rng(seed)
     idx = pd.date_range("2026-08-20", periods=n, freq="1h")
     close = base + np.cumsum(rng.normal(0, atr * 0.6, n))
@@ -92,6 +110,13 @@ def make_md(symbol: str = "EURUSD", n: int = 300, base: float = 1.1490,
     high[-1] = close[-1] + half[-1] * last_spike * 6      # کندل آخر را پرنوسان کن
     low[-1] = close[-1] - half[-1] * last_spike * 6
     open_ = close + rng.normal(0, atr * 0.2, n)
+    # S3: جهتِ کندلِ آخر برای تأییدِ ادامهٔ trend_pullback باید *قطعی* باشد
+    # (پیش‌تر تصادفیِ seed بود و دروازهٔ توافق به شانس وابسته می‌شد).
+    # Open در TR/ATR نقشی ندارد → بقیهٔ سناریوها بایت‌به‌بایت دست‌نخورده.
+    if last_dir == "bull":
+        open_[-1] = close[-1] - 0.5 * atr
+    elif last_dir == "bear":
+        open_[-1] = close[-1] + 0.5 * atr
     h1 = pd.DataFrame({"Open": open_, "High": high, "Low": low, "Close": close}, index=idx)
     m15 = h1.iloc[-96:].copy()
     h4 = h1.iloc[-(4 * 250):].resample("4h").agg(
@@ -109,14 +134,16 @@ def make_analysis(**kw) -> SymbolAnalysis:
 
 
 def make_ctx(now: datetime = WED_OVERLAP, cal=None, news=None, ranking=None,
-             tv=None, **jover) -> JudgeContext:
+             tv=None, scfg=None, **jover) -> JudgeContext:
     jcfg = dict(JCFG)
     jcfg.update(jover)
     return JudgeContext(jcfg=jcfg, acfg=ACFG, symbols_cfg=SYMS,
                         ranking=RANK_DEFAULT if ranking is None else ranking,
                         tv_map=TV_BUY if tv is None else tv,
                         cal_snap=cal, news_snap=news, now=now,
-                        status=market_status(now), event_veto_minutes=30.0)
+                        status=market_status(now), event_veto_minutes=30.0,
+                        # S3: دروازهٔ توافق min_agree را از اینجا می‌خواند
+                        strategies_cfg=(SCFG_ROOT if scfg is None else scfg))
 
 
 def clean_cal() -> CalendarSnapshot:
@@ -223,7 +250,8 @@ def signal_dump(s) -> dict:
             "risk_pips": s.risk_pips, "reward_pips": s.reward_pips, "rr": s.rr,
             "is_gold": s.is_gold, "session_fa": s.session_fa,
             "now": s.now.isoformat(), "warnings": s.warnings, "sl_capped": s.sl_capped,
-            "direction_fa": s.direction_fa, "journal": s.to_journal(sent=True)}
+            "direction_fa": s.direction_fa, "strategies": s.strategies,
+            "journal": s.to_journal(sent=True)}
 
 
 def judgment_dump(j) -> dict:
@@ -234,13 +262,26 @@ def judgment_dump(j) -> dict:
             "vetoes": [veto_dump(v) for v in j.vetoes],
             "evidences": [evidence_dump(e) for e in j.evidences],
             "warnings": j.warnings,
+            "strategies": j.strategies,
             "signal": signal_dump(j.signal) if j.signal else None}
 
 
-def _judge(a, md=None, ctx=None, jfn=None) -> dict:
-    fn = judge_symbol if jfn is None else jfn
-    return judgment_dump(fn(a, {}, md if md is not None else make_md(),
-                            ctx if ctx is not None else make_ctx()))
+_DEFAULT_RULES = object()   # sentinel: «قواعد پیش‌فرضِ S3 تزریق شود»
+
+
+def _judge(a, md=None, ctx=None, jfn=None, rules=_DEFAULT_RULES) -> dict:
+    """یک داوریِ ساختگی → dump قطعی.
+
+    jfn تزریق‌شده (مسیر registry در test_plugins) قواعدِ خودش را دارد؛
+    مسیر مستقیم با `rules` صدا زده می‌شود: sentinel = DEFAULT_STRATEGY_RULES
+    (رفتارِ production از S3) و None = دروازه خاموش (رفتارِ v0.25).
+    """
+    md_ = md if md is not None else make_md()
+    ctx_ = ctx if ctx is not None else make_ctx()
+    if jfn is not None:
+        return judgment_dump(jfn(a, {}, md_, ctx_))
+    sr = DEFAULT_STRATEGY_RULES if rules is _DEFAULT_RULES else rules
+    return judgment_dump(judge_symbol(a, {}, md_, ctx_, strategy_rules=sr))
 
 
 # ══════════════════════════════════════════════════════════════
@@ -392,13 +433,16 @@ def battery_evidence() -> dict:
 def battery_judge_full(jfn=None) -> dict:
     out = {}
     # BUY طلایی — همهٔ مدارک حاضر → ۱۱/۱۱
-    out["buy"] = _judge(make_analysis(), md=make_md(),
+    # (S3: کندل آخرِ md در هر دو سناریو *قطعی* شد — bull برای BUY و bear
+    # برای SELL — تا trend_pullback توافق کند و intentِ «سیگنال کامل»
+    # preserved بماند. Open در TR/ATR نقشی ندارد → وتوها دست‌نخورده)
+    out["buy"] = _judge(make_analysis(), md=make_md(last_dir="bull"),
                         ctx=make_ctx(cal=clean_cal(), news=good_news()), jfn=jfn)
     # SELL طلایی — ۱۱/۱۱
     out["sell"] = _judge(
         make_analysis(trend="bearish", rsi=62.0, rsi_rising=False,
                       verdict="SELL_SETUP", support=1.1400, resistance=1.1494),
-        md=make_md(),
+        md=make_md(last_dir="bear"),
         ctx=make_ctx(cal=clean_cal(), news=sell_news(),
                      ranking=RANK_USD_STRONG, tv=TV_SELL), jfn=jfn)
     return out
@@ -436,7 +480,13 @@ def battery_judge_no_setup(jfn=None) -> dict:
 
 
 def battery_judge_capped(jall=None) -> list:
-    """سه سیگنال آماده، سقف ۱ → بهترین می‌ماند، بقیه CAPPED."""
+    """سه سیگنال آماده، سقف ۱ → بهترین می‌ماند، بقیه CAPPED.
+
+    S3: datasets دیگر خالی نیست — دروازهٔ توافق به کندلِ H1 نیاز دارد
+    (بدون md، tp صادقانه NONE می‌دهد و intentِ «سه آماده» می‌مرد). a3 هم
+    rsi=38 گرفت (منطقهٔ tp) تا آماده بماند — امتیازش ۸→۹ (momentum +1)؛
+    ترتیبِ cap (۱۱>۱۰>۹) preserved.
+    """
     a1 = make_analysis()                                             # ۱۱/۱۱
     a2 = make_analysis(symbol="GBPUSD", fa_name="پوند به دلار آمریکا",
                        base="GBP", quote="USD", price=1.3500,
@@ -444,10 +494,18 @@ def battery_judge_capped(jall=None) -> list:
     a3 = make_analysis(symbol="USDJPY", fa_name="دلار به ین ژاپن",
                        base="USD", quote="JPY", price=150.00, pip=0.01,
                        atr=0.10, support=149.96, resistance=150.60,
-                       rsi=55.0)                                    # ۸/۱۱
+                       rsi=38.0)                                    # ۹/۱۱
+    datasets = {"EURUSD": make_md(last_dir="bull"),
+                "GBPUSD": make_md(symbol="GBPUSD", base=1.3500, last_dir="bull"),
+                "USDJPY": make_md(symbol="USDJPY", base=150.00, atr=0.10,
+                                  last_dir="bull")}
     ctx = make_ctx(cal=clean_cal(), news=good_news(), max_signals_per_cycle=1)
-    fn = judge_all if jall is None else jall
-    return [judgment_dump(j) for j in fn([a1, a2, a3], {}, ctx)]
+    if jall is not None:
+        fn = jall
+    else:
+        def fn(lst, ds, c):
+            return judge_all(lst, ds, c, strategy_rules=DEFAULT_STRATEGY_RULES)
+    return [judgment_dump(j) for j in fn([a1, a2, a3], datasets, ctx)]
 
 
 def battery_judge_all_mixed(jall=None) -> list:
@@ -463,9 +521,16 @@ def battery_judge_all_mixed(jall=None) -> list:
     a4 = make_analysis(symbol="AUDUSD", fa_name="دلار استرالیا به دلار آمریکا",
                        base="AUD", quote="USD", price=0.6600, rsi=55.0,
                        support=0.6500, resistance=0.6700)            # LOW_SCORE (۵/۱۱)
+    # S3: فقط a1 (سیگنال) به md نیاز دارد — a2/a3/a4 پیش از دروازه رد
+    # می‌شوند (VETO/NO_SETUP/LOW_SCORE) و datasets برایشان بی‌اثر است
+    datasets = {"EURUSD": make_md(last_dir="bull")}
     ctx = make_ctx(cal=clean_cal(), news=None)
-    fn = judge_all if jall is None else jall
-    return [judgment_dump(j) for j in fn([a1, a2, a3, a4], {}, ctx)]
+    if jall is not None:
+        fn = jall
+    else:
+        def fn(lst, ds, c):
+            return judge_all(lst, ds, c, strategy_rules=DEFAULT_STRATEGY_RULES)
+    return [judgment_dump(j) for j in fn([a1, a2, a3, a4], datasets, ctx)]
 
 
 def battery_risk_math() -> dict:
@@ -487,13 +552,80 @@ def battery_risk_math() -> dict:
 
 
 # ══════════════════════════════════════════════════════════════
+# ══════════════════════════════════════════════════════════════
+#  گروه S3 — دروازهٔ توافق استراتژی‌ها
+# ══════════════════════════════════════════════════════════════
+def battery_strategy_gate() -> dict:
+    """سناریوهای دروازهٔ توافق (S3) — همه با judge_symbol *مستقیم* و
+    strategy_rules صریح (نه jfn): موضوعِ خودِ دروازه است و قواعدِ هر
+    سناریو متفاوت است. مسیر registry به‌طور جدا در test_judge_rules/
+    test_plugins پین شده (judge_full/capped/mixed با تزریق registry).
+
+    پوشش: ردِ بدون پیشنهاددهنده (D1=R2) · تنها-carry · min_agree=2 ·
+    فهرست خالی = fail-closed (D3) · قاعدهٔ خطاداده (Failure Isolation) ·
+    opt-out با min_agree=0 · سیگنالِ سالم با توافق (strategies در signal/
+    journal).
+    """
+    out = {}
+    md_bull = make_md(last_dir="bull")
+    ctx_ok = make_ctx(cal=clean_cal(), news=good_news())
+
+    # ۱) ستاپ آماده (امتیاز ≥ ۷) ولی tp به‌خاطر RSI=25 (زیر منطقهٔ ۳۰–۴۵)
+    #    NONE است و lb/carry هم NONE → هیچ هم‌جهتی نیست → NO_STRATEGY
+    out["no_agreement"] = _judge(make_analysis(rsi=25.0), md=md_bull, ctx=ctx_ok)
+
+    # ۲) تنها-carry: USDJPY با اختلاف +2.63 → carry BUY (proposes=False)؛
+    #    tp NONE (rsi=25) → n_total=1 ولی n_prop=0 → NO_STRATEGY (پینِ D1=R2)
+    out["carry_only"] = _judge(
+        make_analysis(symbol="USDJPY", fa_name="دلار به ین ژاپن", base="USD",
+                      quote="JPY", price=150.00, pip=0.01, atr=0.10,
+                      support=149.96, resistance=150.60, rsi=25.0),
+        md=make_md(symbol="USDJPY", base=150.00, atr=0.10, last_dir="bull"),
+        ctx=make_ctx(cal=clean_cal(), news=None, tv={}))
+
+    # ۳) min_agree=2 — فقط tp هم‌جهت است (۱ < ۲) → NO_STRATEGY (پینِ config)
+    out["min_agree_2"] = _judge(make_analysis(), md=md_bull,
+                                ctx=make_ctx(cal=clean_cal(), news=good_news(),
+                                             scfg=dict(SCFG_ROOT, min_agree=2)))
+
+    # ۴) فهرست خالی (همهٔ استراتژی‌ها خاموش) → fail-closed صادقانه (D3)
+    out["fail_closed_empty"] = _judge(make_analysis(), md=md_bull, ctx=ctx_ok,
+                                      rules=[])
+
+    # ۵) قاعدهٔ خطاداده + tp سالم → placeholder صادقانه ثبت می‌شود ولی
+    #    مانعِ سیگنال نیست (Failure Isolation) → سیگنال با ۲ verdict
+    #    (tp پیشنهاددهنده توافق می‌کند؛ خطاداده «نظر ندارد» شمرده می‌شود)
+    out["broken_rule_isolated"] = _judge(
+        make_analysis(), md=md_bull, ctx=ctx_ok,
+        rules=[ThrowingRule(), StrategyAdapter("trend_pullback", CFG)])
+
+    # ۶) فقط قاعدهٔ خطاداده → هیچ نظرِ واقعی نیست → NO_STRATEGY با placeholder
+    out["broken_rule_only"] = _judge(make_analysis(), md=md_bull, ctx=ctx_ok,
+                                     rules=[ThrowingRule()])
+
+    # ۷) opt-out: min_agree=0 → دروازه خاموش، سیگنال با وجودِ صفر توافق؛
+    #    strategies صادقانه ارزیابی و ثبت می‌شوند (نمایش/ژورنال خالیِ موافق)
+    out["opt_out_min_agree_0"] = _judge(
+        make_analysis(rsi=25.0), md=md_bull,
+        ctx=make_ctx(cal=clean_cal(), news=good_news(),
+                     scfg=dict(SCFG_ROOT, min_agree=0)))
+
+    # ۸) مسیرِ سالم: tp توافق می‌کند → سیگنال + strategies پر + ژورنالِ
+    #    کلیدهای موافق (پینِ Signal.strategies و to_journal)
+    out["pass_full"] = _judge(make_analysis(), md=md_bull, ctx=ctx_ok)
+    return out
+
+
 def build_battery(judge_symbol_fn=None, judge_all_fn=None) -> dict:
     """کل باتری — خروجی کاملاً قطعی (بدون شبکه، بدون ساعت سیستم).
 
     judge_symbol_fn/judge_all_fn: تزریق *اختیاری* مسیر داوری (پیش‌فرض =
-    توابع مستقیم scoring). برای طلاییِ مسیر rule-plugin در test_plugins.
+    توابع مستقیم scoring **با strategy_rules=DEFAULT_STRATEGY_RULES** —
+    رفتارِ production از S3؛ مسیر None با پینِ جدا در test_judge_rules).
+    برای طلاییِ مسیر rule-plugin در test_plugins.
     گروه‌های veto_clean/evidence_branches/risk_math عمداً همیشه مستقیم‌اند —
     parity آن‌ها با goldenهای «adapter == فراخوانی مستقیم» پوشش داده می‌شود.
+    گروه strategy_gate (S3) همیشه مستقیم با قواعدِ صریحِ هر سناریو است.
     """
     return {
         "veto_single": battery_veto_single(judge_symbol_fn),
@@ -506,6 +638,7 @@ def build_battery(judge_symbol_fn=None, judge_all_fn=None) -> dict:
         "judge_no_setup": battery_judge_no_setup(judge_symbol_fn),
         "judge_capped": battery_judge_capped(judge_all_fn),
         "judge_all_mixed": battery_judge_all_mixed(judge_all_fn),
+        "strategy_gate": battery_strategy_gate(),
         "risk_math": battery_risk_math(),
     }
 
@@ -523,6 +656,7 @@ def main() -> int:
            + len(battery["judge_all_mixed"]))
     print(f"✅ طلاییِ داور ضبط شد — {GOLDEN_PATH.name}: "
           f"{n_veto} سناریوی وتو + {n_ev} شاخهٔ شاهد + {n_j} داوری کامل "
+          f"+ {len(battery['strategy_gate'])} دروازهٔ استراتژی (S3) "
           f"+ {len(battery['risk_math'])} حالت ریاضی ریسک")
     return 0
 

@@ -38,7 +38,8 @@ const GOLDEN_PATH = path.join(HERE, 'judge_rules_js_golden.json');
 // می‌شوند (بعد از سوییچ) تا هارنس قبل/بعد از سوییچ بدون تغییر معتبر باشد
 function fileList() {
   const base = ['md5.js', 'fa.js', 'icons.js', 'license.js', 'config.js',
-    'indicators.js', 'session.js', 'technical.js', 'calendar.js', 'news.js', 'judge.js'];
+    'indicators.js', 'session.js', 'technical.js', 'calendar.js', 'news.js', 'judge.js',
+    'strategies.js'];   // S3: دروازهٔ توافق، استراتژی‌ها را در VM لازم دارد
   const pre = ['core.js', 'plugins.js'].filter((f) => fs.existsSync(path.join(WWW, f)));
   return pre.concat(base);
 }
@@ -84,21 +85,28 @@ function makeSellAnalysis(over) {
 }
 
 /* کندل‌های H1 قطعی (زیگزاگ) — برای وتوی VOL_SPIKE با spike انتهایی */
-function makeH1(n, base, atr, spikeLast) {
+function makeH1(n, base, atr, spikeLast, lastDir) {
   const t0 = Date.UTC(2026, 7, 1);
   const out = [];
   for (let i = 0; i < n; i++) {
     const c = base + 0.00002 * base * i + 0.00012 * base * ((i * 7) % 11 - 5);
     let h = c + 0.4 * atr, l = c - 0.4 * atr;
     if (spikeLast && i === n - 1) { h = c + 30 * atr; l = c - 30 * atr; }
-    out.push({ t: t0 + i * 3600e3, o: c, h: h, l: l, c: c });
+    // S3: جهتِ کندل آخر برای تأییدِ ادامهٔ trend_pullback باید *قطعی* باشد.
+    // Open در TR/ATR نقشی ندارد → بقیهٔ سناریوها بایت‌به‌بایت دست‌نخورده.
+    // پیش‌فرض 'bull' (آینهٔ seed-7 پایتون که کندل آخرش صعودی از آب درآمد).
+    let o = c;
+    if (i === n - 1 && lastDir !== 'none') {
+      o = (lastDir === 'bear') ? c + 0.5 * atr : c - 0.5 * atr;
+    }
+    out.push({ t: t0 + i * 3600e3, o: o, h: h, l: l, c: c });
   }
   return out;
 }
 
-function makeMd(O, symbol, spike) {
+function makeMd(O, symbol, spike, lastDir) {
   const base = symbol === 'EURUSD' ? 1.1490 : 1.0;
-  return { symbol: symbol, m15: [], h4: [], h1: makeH1(300, base, 0.0010, !!spike) };
+  return { symbol: symbol, m15: [], h4: [], h1: makeH1(300, base, 0.0010, !!spike, lastDir) };
 }
 
 function ev(whenMs, country, title, titleFa, impact) {
@@ -167,7 +175,9 @@ function makeCtx(O, over) {
     newsSnap: over.newsSnap !== undefined ? over.newsSnap : goodNews(),
     nowMs: nowMs,
     status: O.marketStatus(new Date(nowMs)),
-    eventVetoMinutes: 30
+    eventVetoMinutes: 30,
+    // S3: دروازهٔ توافق min_agree را از اینجا می‌خواند (آینهٔ make_ctx پایتون)
+    strategiesCfg: over.strategiesCfg !== undefined ? over.strategiesCfg : O.CONFIG.strategies
   };
 }
 
@@ -190,6 +200,7 @@ function signalDump(O, s) {
     is_gold: s.is_gold, session_fa: s.session_fa, now: s.now,
     warnings: s.warnings, sl_capped: s.sl_capped,
     evidences: s.evidences.map((e) => e.key + ':' + e.points + '/' + e.max_points),
+    strategies: s.strategies,
     journal: O.signalToJournal(s, true)
   };
 }
@@ -202,6 +213,7 @@ function judgmentDump(O, j) {
     vetoes: j.vetoes.map(vetoDump),
     evidences: j.evidences.map(evidenceDump),
     warnings: j.warnings,
+    strategies: j.strategies,
     signal: j.signal ? signalDump(O, j.signal) : null
   };
 }
@@ -209,12 +221,38 @@ function judgmentDump(O, j) {
 // ══════════════════════════════════════════════════════════════
 //  باتری سناریوها
 // ══════════════════════════════════════════════════════════════
+/* S3: قواعد استراتژیِ پیش‌فرضِ باتری — نمونه‌های واقعیِ registry
+ * (strategy-* adapters با scfg از O.CONFIG) = آینهٔ DEFAULT_STRATEGY_RULES
+ * پایتون (StrategyAdapter با config.yaml؛ هم‌مقداریِ config.js با config.yaml
+ * در test_strategies_switch پین شده). طلایی با این قواعد ضبط می‌شود چون
+ * مسیر production (JudgeAdapter + registry) همیشه آن‌ها را تزریق می‌کند. */
+function defaultStrategyRules(O) {
+  const built = O.buildDefaultRegistry(JSON.parse(JSON.stringify(O.CONFIG)), 'android');
+  return built.registry.providers('odin.strategy@1').map((rec) =>
+    (rec.instance !== null && rec.instance !== undefined) ? rec.instance : rec.factory(built.info.context));
+}
+
 function buildBattery(O, opts) {
   opts = opts || {};
-  const jfn = opts.judgeSymbolFn || function (a, symCfg, md, ctx) { return O.judgeSymbol(a, symCfg, md, ctx); };
-  const jall = opts.judgeAllFn || function (list, datasets, ctx) { return O.judgeAll(list, datasets, ctx); };
+  const strategyRules = opts.strategyRules !== undefined
+    ? opts.strategyRules : defaultStrategyRules(O);
+  const jfn = opts.judgeSymbolFn || function (a, symCfg, md, ctx) {
+    return O.judgeSymbol(a, symCfg, md, ctx, undefined, undefined, undefined, strategyRules);
+  };
+  const jall = opts.judgeAllFn || function (list, datasets, ctx) {
+    return O.judgeAll(list, datasets, ctx, undefined, undefined, undefined, strategyRules);
+  };
 
-  const judge = (a, md, ctx) => judgmentDump(O, jfn(a, {}, md === undefined ? makeMd(O, a.symbol) : md, ctx || makeCtx(O)));
+  // rulesOverride: برای سناریوهای strategy_gate که قواعدِ صریحِ خودشون را
+  // دارند (شکسته/خالی/تک) — undefined = همان strategyRules باتری
+  const judge = (a, md, ctx, rulesOverride) => {
+    if (rulesOverride !== undefined) {
+      return judgmentDump(O, O.judgeSymbol(a, {},
+        md === undefined ? makeMd(O, a.symbol) : md, ctx || makeCtx(O),
+        undefined, undefined, undefined, rulesOverride));
+    }
+    return judgmentDump(O, jfn(a, {}, md === undefined ? makeMd(O, a.symbol) : md, ctx || makeCtx(O)));
+  };
   const bat = {};
 
   // ── وتوها: شلیک تکی ──
@@ -249,9 +287,11 @@ function buildBattery(O, opts) {
   bat.veto_clean = O.collectVetoes(makeAnalysis(), {}, makeMd(O, 'EURUSD'), makeCtx(O)).map(vetoDump);
 
   // ── داوری کامل BUY / SELL ──
+  // S3: کندل آخرِ قطعی — bull برای BUY و bear برای SELL تا trend_pullback
+  // توافق کند و intentِ «سیگنال کامل ۱۱/۱۱» preserved بماند (آینهٔ پایتون)
   bat.judge_full = {
-    buy: judge(makeAnalysis()),
-    sell: judge(makeSellAnalysis(), undefined,
+    buy: judge(makeAnalysis(), makeMd(O, 'EURUSD', false, 'bull')),
+    sell: judge(makeSellAnalysis(), makeMd(O, 'EURUSD', false, 'bear'),
       makeCtx(O, { ranking: RANK_USD_STRONG, tvMap: TV_SELL, newsSnap: sellNews() }))
   };
 
@@ -310,12 +350,19 @@ function buildBattery(O, opts) {
   };
 
   // ── CAPPED: سه سیگنال آماده، سقف ۱ ──
+  // S3: datasets دیگر خالی نیست (دروازه به کندل H1 نیاز دارد) و a3
+  // rsi=38 گرفت (منطقهٔ tp) — امتیازش ۸→۹؛ ترتیب cap (۱۱>۱۰>۹) preserved
   {
     const a1 = makeAnalysis();
     const a2 = makeAnalysis({ symbol: 'GBPUSD', fa_name: 'پوند به دلار آمریکا', base: 'GBP', quote: 'USD', price: 1.3500, support: 1.3496, resistance: 1.3560 });
-    const a3 = makeAnalysis({ symbol: 'USDJPY', fa_name: 'دلار به ین ژاپن', base: 'USD', quote: 'JPY', price: 150.00, pip: 0.01, atr: 0.10, support: 149.96, resistance: 150.60, rsi: 55.0 });
+    const a3 = makeAnalysis({ symbol: 'USDJPY', fa_name: 'دلار به ین ژاپن', base: 'USD', quote: 'JPY', price: 150.00, pip: 0.01, atr: 0.10, support: 149.96, resistance: 150.60, rsi: 38.0 });
+    const datasets = {
+      EURUSD: makeMd(O, 'EURUSD', false, 'bull'),
+      GBPUSD: makeMd(O, 'GBPUSD', false, 'bull'),
+      USDJPY: makeMd(O, 'USDJPY', false, 'bull')
+    };
     const ctx = makeCtx(O, { jcfg: { max_signals_per_cycle: 1 } });
-    bat.judge_capped = jall([a1, a2, a3], {}, ctx).map((j) => judgmentDump(O, j));
+    bat.judge_capped = jall([a1, a2, a3], datasets, ctx).map((j) => judgmentDump(O, j));
   }
 
   // ── judgeAll: ۴ نماد در ۴ سرنوشت ──
@@ -324,7 +371,47 @@ function buildBattery(O, opts) {
     const a2 = makeAnalysis({ symbol: 'GBPUSD', fa_name: 'پوند به دلار آمریکا', base: 'GBP', quote: 'USD', price: 1.3500, adx: 14.0, support: 1.3496, resistance: 1.3560 });
     const a3 = makeAnalysis({ symbol: 'USDJPY', fa_name: 'دلار به ین ژاپن', base: 'USD', quote: 'JPY', price: 150.00, pip: 0.01, atr: 0.10, trend: 'none', verdict: 'WAIT', support: 149.96, resistance: 150.60 });
     const a4 = makeAnalysis({ symbol: 'AUDUSD', fa_name: 'دلار استرالیا به دلار آمریکا', base: 'AUD', quote: 'USD', price: 0.6600, rsi: 55.0, support: 0.6500, resistance: 0.6700 });
-    bat.judge_all_mixed = jall([a1, a2, a3, a4], {}, makeCtx(O, { newsSnap: null })).map((j) => judgmentDump(O, j));
+    // S3: فقط a1 (سیگنال) به md نیاز دارد — بقیه پیش از دروازه رد می‌شوند
+    bat.judge_all_mixed = jall([a1, a2, a3, a4],
+      { EURUSD: makeMd(O, 'EURUSD', false, 'bull') },
+      makeCtx(O, { newsSnap: null })).map((j) => judgmentDump(O, j));
+  }
+
+  // ── S3: دروازهٔ توافق استراتژی‌ها — آینهٔ battery_strategy_gate پایتون ──
+  // (همه با judgeSymbol مستقیم و قواعدِ صریح — موضوعِ خودِ دروازه است)
+  {
+    const ThrowingRule = { key: 'trend_pullback', evaluate: function () { throw new Error('boom'); } };
+    const builtG = O.buildDefaultRegistry(JSON.parse(JSON.stringify(O.CONFIG)), 'android');
+    const tpInst = builtG.registry.byId('strategy-trend-pullback').factory(builtG.info.context);
+    const mdBull = makeMd(O, 'EURUSD', false, 'bull');
+    const scfgWith = (over) => Object.assign(JSON.parse(JSON.stringify(O.CONFIG.strategies)), over);
+
+    bat.strategy_gate = {
+      // ۱) امتیاز ≥ ۷ ولی RSI=25 زیر منطقهٔ tp → صفر هم‌جهت → NO_STRATEGY
+      no_agreement: judge(makeAnalysis({ rsi: 25.0 }), mdBull),
+      // ۲) تنها-carry (proposes=false) → n_prop=0 → رد (پینِ D1=R2)
+      carry_only: judge(
+        makeAnalysis({ symbol: 'USDJPY', fa_name: 'دلار به ین ژاپن', base: 'USD',
+          quote: 'JPY', price: 150.00, pip: 0.01, atr: 0.10,
+          support: 149.96, resistance: 150.60, rsi: 25.0 }),
+        makeMd(O, 'USDJPY', false, 'bull'),
+        makeCtx(O, { newsSnap: null, tvMap: {} })),
+      // ۳) min_agree=2 از ctx.strategiesCfg
+      min_agree_2: judge(makeAnalysis(), mdBull,
+        makeCtx(O, { strategiesCfg: scfgWith({ min_agree: 2 }) })),
+      // ۴) فهرست خالی → fail-closed صادقانه (D3)
+      fail_closed_empty: judge(makeAnalysis(), mdBull, undefined, []),
+      // ۵) قاعدهٔ خطاداده + tp سالم → placeholder صادقانه، سیگنال برقرار
+      broken_rule_isolated: judge(makeAnalysis(), mdBull, undefined,
+        [ThrowingRule, tpInst]),
+      // ۶) فقط خطاداده → هیچ نظر واقعی نیست → رد
+      broken_rule_only: judge(makeAnalysis(), mdBull, undefined, [ThrowingRule]),
+      // ۷) opt-out: min_agree=0 → دروازه خاموش، ارزیابی صادقانه باقی است
+      opt_out_min_agree_0: judge(makeAnalysis({ rsi: 25.0 }), mdBull,
+        makeCtx(O, { strategiesCfg: scfgWith({ min_agree: 0 }) })),
+      // ۸) مسیر سالم — سیگنال با strategies پر
+      pass_full: judge(makeAnalysis(), mdBull)
+    };
   }
 
   // ── ریاضی SL/TP (۶ حالت — آینهٔ باتری پایتون) ──
@@ -363,12 +450,14 @@ function main() {
     + Object.keys(battery.judge_no_setup).length + battery.judge_capped.length
     + battery.judge_all_mixed.length;
   console.log('✅ طلاییِ قواعد داور JS ضبط شد — ' + path.basename(GOLDEN_PATH) + ': '
-    + n + ' سناریوی داوری + ' + Object.keys(battery.risk_math).length + ' حالت ریاضی ریسک');
+    + n + ' سناریوی داوری + ' + Object.keys(battery.strategy_gate).length
+    + ' دروازهٔ استراتژی (S3) + ' + Object.keys(battery.risk_math).length + ' حالت ریاضی ریسک');
   return 0;
 }
 
 module.exports = {
   createVm, buildBattery, stableStringify, fileList, GOLDEN_PATH,
+  defaultStrategyRules,
   FIXED_WED, FIXED_SAT, WED_LONDON, WED_THIN,
   makeAnalysis, makeSellAnalysis, makeMd, makeCtx,
   cleanCal, nearCal, highSoonCal, medSoonCal, failedCal,

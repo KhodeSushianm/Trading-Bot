@@ -276,7 +276,7 @@
     var st = S.state;
     var minScore = S.cfg.judge.min_score | 0;
     var html = pt('scale', 'داور امتیازدهی') +
-      '<div class="page-sub">آستانهٔ صدور: ' + O.faNum(minScore) + ' از ۱۱ امتیاز — اول وتوها، بعد مدارک.</div>';
+      '<div class="page-sub">آستانهٔ صدور: ' + O.faNum(minScore) + ' از ۱۱ امتیاز — وتوها، مدارک، و توافق استراتژی‌ها.</div>';
 
     if (S.cfg.judge.enabled === false) {
       return html + '<div class="card"><div class="empty-state"><div class="e-ico">' + O.ico('gear', 40) + '</div><div class="e-t">داور خاموش است</div><div class="e-s">از تنظیمات فعالش کن.</div></div></div>';
@@ -285,7 +285,8 @@
       return html + '<div class="card"><div class="empty-state"><div class="e-ico">' + O.ico('antenna', 40) + '</div><div class="e-t">هنوز داوری انجام نشده</div><div class="e-s">اول «تحلیل تازه» را از صفحهٔ خانه اجرا کن.</div></div></div>';
     }
 
-    var order = { SIGNAL: 0, VETO: 1, LOW_SCORE: 2, CAPPED: 3, NO_SETUP: 4 };
+    // S3: ترتیب نمایش = ترتیب دروازه‌های داوری (NO_STRATEGY بعد از امتیاز)
+    var order = { SIGNAL: 0, VETO: 1, LOW_SCORE: 2, NO_STRATEGY: 3, CAPPED: 4, NO_SETUP: 5 };
     var js = st.judgments.slice().sort(function (a, b) {
       var ka = a.signal ? -1 : (order[a.reject_reason] != null ? order[a.reject_reason] : 9);
       var kb = b.signal ? -1 : (order[b.reject_reason] != null ? order[b.reject_reason] : 9);
@@ -296,12 +297,14 @@
     if (!signals.length) {
       var vet = js.filter(function (j) { return j.reject_reason === 'VETO'; }).length;
       var low = js.filter(function (j) { return j.reject_reason === 'LOW_SCORE'; }).length;
+      var nstr = js.filter(function (j) { return j.reject_reason === 'NO_STRATEGY'; }).length;
       var nos = js.filter(function (j) { return j.reject_reason === 'NO_SETUP'; }).length;
       html += '<div class="card ink"><div class="ink-title">' + O.ico('no-entry', 15) + '<span>هیچ سیگنالی صادر نشد — و این خودش یک خروجی معتبر است.</span></div>' +
         '<div class="ink-cap" style="margin-top:6px;line-height:2">وعدهٔ سیستم این است که «سیگنال بدون پشتوانه ندهد»، نه اینکه «همیشه سیگنال بدهد».</div>' +
         '<div class="ink-tiles">' +
         '<div class="ink-tile"><div class="t-num">' + O.faNum(vet) + '</div><div class="t-cap">وتو</div></div>' +
         '<div class="ink-tile"><div class="t-num">' + O.faNum(low) + '</div><div class="t-cap">امتیاز ناکافی</div></div>' +
+        '<div class="ink-tile"><div class="t-num">' + O.faNum(nstr) + '</div><div class="t-cap">بدون توافق</div></div>' +
         '<div class="ink-tile"><div class="t-num">' + O.faNum(nos) + '</div><div class="t-cap">بدون ستاپ</div></div>' +
         '</div></div>';
     }
@@ -367,6 +370,13 @@
 
     h += scoreBar(j, minScore);
 
+    // S3: پشتوانهٔ استراتژی — موافق‌ها سبز با قدرت، بقیه با دلیلِ NONE
+    if ((s.strategies || []).length) {
+      h += '<div style="margin-top:8px;font-size:11.5px;font-weight:700">' +
+        O.ico('scale', 12) + ' پشتوانهٔ استراتژی</div>';
+      h += strategiesHtml(s.strategies, s.direction);
+    }
+
     h += '<div style="margin-top:8px;display:flex;gap:6px;flex-wrap:wrap">' +
       '<button class="btn subtle" data-chart-sig="' + esc(s.symbol) + '"' +
       ' style="padding:5px 12px;font-size:10.5px">' + O.ico('chart-line', 12) + ' نمایش روی نمودار</button>' +
@@ -406,7 +416,8 @@
     h += '<div class="sig-head"><div><div style="font-size:14px;font-weight:700;direction:ltr;display:inline-block">' +
       esc(j.symbol) + '</div> <span class="card-sub">' + esc(j.fa_name) + '</span>' +
       '<div style="margin-top:5px"><span class="pill ' + (j.reject_reason === 'VETO' ? 'red' : '') + '">' + eico(statusFa, 11) + '</span>' +
-      ((j.reject_reason === 'LOW_SCORE' || j.reject_reason === 'CAPPED')
+      ((j.reject_reason === 'LOW_SCORE' || j.reject_reason === 'CAPPED'
+        || j.reject_reason === 'NO_STRATEGY')
         ? ' <span class="pill outline">' + O.faNum(j.score) + '/' + O.faNum(j.max_score) + '</span>' : '') +
       '</div></div>' +
       '<div class="card-sub" style="text-align:left">قیمت<br><b class="mono" style="color:var(--text);font-size:13px">' + esc(O.fmtPrice(j.price, j.pip)) + '</b></div></div>';
@@ -430,9 +441,39 @@
         '</div>';
       h += scoreBar(j, minScore);
       h += evidencesHtml(j, id);
+    } else if (j.reject_reason === 'NO_STRATEGY') {
+      // S3: دروازهٔ توافق — امتیاز کافی بود، استراتژی هم‌جهت نبود.
+      // فهرست صادقانهٔ نظرِ هر استراتژی + دلیلِ کوتاهِ NONE (حلقهٔ صداقت:
+      // کاربر باید بداند کدام لایه رد کرده)، بعد نوارِ امتیاز.
+      h += strategiesHtml(j.strategies || [], j.direction);
+      h += scoreBar(j, minScore);
     } else if (j.reject_reason === 'NO_SETUP' && j.price) {
       // توضیح بیشتر بدون جدول مدارک (مدرکی حساب نشده)
     }
+    return h + '</div>';
+  }
+
+  // فهرست فشردهٔ verdict استراتژی‌ها (S3) — هم‌جهت‌ها سبز، بقیه با دلیلِ
+  // کوتاهِ NONE. بدون ایموجی (آیکون SVG — سیاست v0.13.0).
+  var STRAT_WORD = { BUY: 'خرید', SELL: 'فروش', NONE: 'بی‌نظر' };
+  function strategiesHtml(list, sigDir) {
+    if (!list.length) {
+      return '<div style="margin-top:8px;font-size:11px">' + O.ico('no-entry', 12) +
+        ' هیچ استراتژیِ فعالی در دسترس نیست</div>';
+    }
+    var h = '<div style="margin-top:8px;font-size:11px;line-height:2.1">';
+    list.forEach(function (v) {
+      var agree = v.direction === sigDir;
+      h += '<div>' + O.ico(agree ? 'check-circle' : 'minus', 12, agree ? 'c-green' : '') +
+        ' <b>' + esc(v.name_fa) + '</b>: ' +
+        '<span style="color:var(--text-2)">' + esc(STRAT_WORD[v.direction] || v.direction) + '</span>';
+      if (agree) {
+        h += ' — قدرت ' + O.faNum(O.pyFixed(+v.strength || 0, 2)).replace('.', '\u066b');
+      } else if (v.reasons_fa && v.reasons_fa.length) {
+        h += ' — ' + eico(String(v.reasons_fa[0]), 11);
+      }
+      h += '</div>';
+    });
     return h + '</div>';
   }
 

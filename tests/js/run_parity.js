@@ -358,7 +358,8 @@ O.http = async function (url, opts) {
         ranking: O.currencyStrength(datasets, O.CONFIG.analysis.strength_lookback_h1),
         tvMap: tvMap, calSnap: calSnap, newsSnap: newsSnap,
         nowMs: nowMs, status: O.marketStatus(new Date(nowMs)),
-        eventVetoMinutes: O.CONFIG.fundamental.veto_minutes_before
+        eventVetoMinutes: O.CONFIG.fundamental.veto_minutes_before,
+        strategiesCfg: O.CONFIG.strategies   // S3: دروازهٔ توافق (min_agree)
       };
       const js = O.judgeAll(analyses, datasets, ctx);
       const act = js.map(j => {
@@ -371,6 +372,7 @@ O.http = async function (url, opts) {
             pip: s.pip, atr: s.atr, risk_pips: s.risk_pips, reward_pips: s.reward_pips,
             rr: s.rr, is_gold: s.is_gold, session_fa: s.session_fa, warnings: s.warnings,
             sl_capped: s.sl_capped, direction_fa: O.DIR_FA[s.direction],
+            strategies: s.strategies,
             journal: (function () {
               const rec = O.signalToJournal(s, true);
               rec.ts = Date.parse(rec.ts);   // مقایسهٔ معنایی زمان
@@ -382,7 +384,8 @@ O.http = async function (url, opts) {
           symbol: j.symbol, direction: j.direction, score: j.score, max_score: j.max_score,
           reject_reason: j.reject_reason, reject_detail: j.reject_detail,
           status_fa: O.judgmentStatusFa(j), price: j.price, pip: j.pip,
-          vetoes: j.vetoes, evidences: j.evidences, warnings: j.warnings, signal: sig
+          vetoes: j.vetoes, evidences: j.evidences, warnings: j.warnings,
+          strategies: j.strategies, signal: sig
         };
       });
       // انتظارات پایتون را هم‌شکل کن (ts ژورنال → ms؛ detail_fa مدرک tv استثنا)
@@ -416,7 +419,8 @@ O.http = async function (url, opts) {
         const ctx = {
           nowMs: fxs.nowMs,
           ranking: O.currencyStrength(datasets, O.CONFIG.analysis.strength_lookback_h1),
-          newsSnap: newsSnap
+          newsSnap: newsSnap,
+          strategiesCfg: O.CONFIG.strategies
         };
         const mods = {
           trend_pullback: O.strategies.trendPullback,

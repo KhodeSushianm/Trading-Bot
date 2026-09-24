@@ -313,6 +313,8 @@
             ranking: mkt.ranking, tvMap: mkt.tvMap,
             calSnap: mkt.calSnap || null, newsSnap: mkt.newsSnap || null,
             nowMs: nowMs, status: status,
+            // S3: دروازهٔ توافق فقط min_agree را از اینجا می‌خواند
+            strategiesCfg: S.cfg.strategies || {},
             eventVetoMinutes: +(S.cfg.fundamental.veto_minutes_before) || 30
           };
           try { judgments = caps.judge.judgeAll(mkt.analyses, mkt.datasets, ctx); }

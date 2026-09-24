@@ -298,6 +298,21 @@ async function runScenario(name, busSink) {
       await waitCycle(app.calls, 1);
       return record(app);
     }
+    case 'svc_gated_no_strategy': {
+      // S3 (سناریوی ۹): دروازهٔ توافق در سطح سرویس — min_agree=4
+      // (دست‌یافتنی‌نیست؛ فقط ۳ استراتژی داریم) → سیگنالِ آمادهٔ EURUSD
+      // صادقانه NO_STRATEGY می‌شود: بدون اعلانِ سیگنال، بدون رکورد ژورنال؛
+      // state/لاگ‌ها باقی‌اند. جهشِ مستقیم O.CONFIG در VM ایزولهٔ سناریو
+      // (buildcfg deepFill همان مرجع را به S.cfg و ctx.strategiesCfg می‌دهد؛
+      // تنظیمات گوشی برای استراتژی‌ها S4 است — کلیدش در DEFAULT_SETTINGS نیست).
+      const app = createApp({});
+      if (busSink) subscribeBus(app, busSink);
+      app.O.CONFIG.strategies.min_agree = 4;
+      app.O.trialStart(app.pstorage);
+      app.O.svcStart();
+      await waitCycle(app.calls, 1);
+      return record(app);
+    }
     case 'data_outage': {
       const app = createApp({ outage: true });
       if (busSink) subscribeBus(app, busSink);
@@ -380,7 +395,7 @@ function subscribeBus(app, sink) {
   names.forEach((n) => app.O.BUS.on(n, (p) => sink.push([n, p && p.stage ? p.stage : null])));
 }
 
-const SCENARIOS = ['svc_cycle_signals', 'data_outage', 'duplicate_cooldown', 'alerts_fired',
+const SCENARIOS = ['svc_cycle_signals', 'svc_gated_no_strategy', 'data_outage', 'duplicate_cooldown', 'alerts_fired',
   'breaking_news', 'judge_disabled', 'features_disabled', 'market_closed'];
 
 async function runAllScenarios() {
@@ -400,7 +415,7 @@ async function main() {
   const battery = await runAllScenarios();
   fs.writeFileSync(GOLDEN_PATH, JSON.stringify(battery, null, 1) + '\n', 'utf8');
   console.log('✅ طلاییِ چرخهٔ سرویس ضبط شد — ' + path.basename(GOLDEN_PATH) + ': ' +
-    SCENARIOS.length + ' سناریو (سیگنال/قطعی داده/تکراری/هشدار/خبر فوری/داور خاموش/فیچرها خاموش/بازار بسته)');
+    SCENARIOS.length + ' سناریو (سیگنال/دروازهٔ استراتژی S3/قطعی داده/تکراری/هشدار/خبر فوری/داور خاموش/فیچرها خاموش/بازار بسته)');
   return 0;
 }
 

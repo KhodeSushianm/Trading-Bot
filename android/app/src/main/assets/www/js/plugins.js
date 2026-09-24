@@ -101,10 +101,11 @@
   };
   JudgeAdapter.prototype.judgeAll = function (analyses, datasets, ctx) {
     var r = this._rules();
-    if (r.veto === null && r.evidence === null && r.risk === null) {
+    if (r.veto === null && r.evidence === null && r.risk === null
+      && r.strategies === null) {
       return O.judgeAll(analyses, datasets, ctx);          // delegation ساده
     }
-    return O.judgeAll(analyses, datasets, ctx, r.veto, r.evidence, r.risk);
+    return O.judgeAll(analyses, datasets, ctx, r.veto, r.evidence, r.risk, r.strategies);
   };
   /* قواعد از registry (فاز ۶b — آینهٔ JudgePlugin._rules پایتون):
    * veto@1/evidence@1 با ترتیب قطعی (priority, order) + risk از get().
@@ -113,7 +114,7 @@
    * خالی) — coercion به null قواعد پیش‌فرض را بی‌صدا زنده می‌کرد
    * (همان اصلاحیهٔ فاز ۷ پایتون). cache: registry در عمر یک caps ثابت است. */
   JudgeAdapter.prototype._rules = function () {
-    if (!this._registry) return { veto: null, evidence: null, risk: null };
+    if (!this._registry) return { veto: null, evidence: null, risk: null, strategies: null };
     if (this._rulesCache === null) {
       var reg = this._registry;
       var ctx = this._context;
@@ -135,7 +136,15 @@
         var ri = inst(riskRec);
         risk = ri.computeLevels.bind(ri);
       }
-      this._rulesCache = { veto: veto, evidence: evidence, risk: risk };
+      /* S3 (v0.26): providerهای odin.strategy@1 — *نمونه‌های* adapter (نه
+       * متدِ bound): دروازه به .evaluate(a, md, ctx) و .key (برای
+       * placeholder صادقانهٔ خطا) نیاز دارد — آینهٔ JudgePlugin._rules
+       * پایتون. فهرست خالی (همه خاموش) همان‌طور که هست رد می‌شود →
+       * fail-closed صادقانه (تصمیم D3)، نه coercion به null. */
+      var strategies = reg.providers('odin.strategy@1').map(function (rec) {
+        return inst(rec);
+      });
+      this._rulesCache = { veto: veto, evidence: evidence, risk: risk, strategies: strategies };
     }
     return this._rulesCache;
   };

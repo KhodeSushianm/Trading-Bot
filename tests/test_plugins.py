@@ -429,7 +429,9 @@ def test_phase7_unification() -> None:
 
     gen = _load_judge_golden_module()
     a = gen.make_analysis()
-    md = gen.make_md()
+    # S3: کندل آخرِ قطعیِ صعودی — دروازهٔ توافق (trend_pullback) به جهتِ
+    # کندل حساس است و seedِ تصادفیِ make_md() آن را شانسی می‌کرد
+    md = gen.make_md(last_dir="bull")
 
     # ── ۱) binding نقطه‌ای قواعد وتو (judge.veto.*) ──
     cfg_off = copy.deepcopy(CFG)
@@ -448,7 +450,11 @@ def test_phase7_unification() -> None:
     ctx_sat = gen.make_ctx(now=gen.SAT, cal=gen.clean_cal(), news=gen.good_news(),
                            veto=cfg_off["judge"]["veto"])
     j_plugin = jp.judge_all([a], {a.symbol: md}, ctx_sat)[0]
-    j_direct = judge_all([a], {a.symbol: md}, ctx_sat)[0]
+    # S3: مسیر مستقیم هم strategy_rules می‌گیرد — registry از فاز ۴ قواعد
+    # را تزریق می‌کند و از S3 استراتژی‌ها را هم؛ برابری دو مسیر فقط با
+    # تزریقِ متناظر معنا دارد (همان الگوی به‌روزرسانی seamها در ۳a)
+    j_direct = judge_all([a], {a.symbol: md}, ctx_sat,
+                         strategy_rules=gen.DEFAULT_STRATEGY_RULES)[0]
     A(gen.judgment_dump(j_plugin) == gen.judgment_dump(j_direct),
       "veto.weekend=false: مسیر پلاگین == مسیر مستقیم (بایت‌به‌بایت)")
     A([v.key for v in j_direct.vetoes] == [] and j_direct.signal is not None,
@@ -462,14 +468,15 @@ def test_phase7_unification() -> None:
     A([r.id for r in reg_all.providers("odin.judge.veto@1")] == ["veto-data"],
       "همهٔ کلیدهای وتو خاموش → فقط veto-data فعال می‌ماند")
     jp_all = JudgePlugin(info_all["context"])
-    v_rules, _e_rules, _risk = jp_all._rules()
+    v_rules, _e_rules, _risk, _s_rules = jp_all._rules()
     A(v_rules is not None and len(v_rules) == 1,
       "اصلاحیهٔ فاز ۷: فهرست کوتاه/خالی همان‌طور که هست رد می‌شود — "
       "coercion به None قواعد پیش‌فرض را بی‌صدا زنده نمی‌کند")
     ctx_all = gen.make_ctx(now=gen.SAT, cal=gen.clean_cal(), news=gen.good_news(),
                            veto=cfg_all["judge"]["veto"])
     A(gen.judgment_dump(jp_all.judge_all([a], {a.symbol: md}, ctx_all)[0])
-      == gen.judgment_dump(judge_all([a], {a.symbol: md}, ctx_all)[0]),
+      == gen.judgment_dump(judge_all([a], {a.symbol: md}, ctx_all,
+                                     strategy_rules=gen.DEFAULT_STRATEGY_RULES)[0]),
       "همه‌خاموش: مسیر پلاگین == مسیر مستقیم (بدون وتو، سیگنال شنبه)")
 
     # ── ۴) binding داور/ریسک به judge.enabled + fallback بایت‌به‌بایت ──
@@ -524,6 +531,54 @@ def test_phase7_unification() -> None:
     A(any("پلاگین تقویم اقتصادی در دسترس نیست" in ln for ln in logs2)
       and any("پلاگین موتور اخبار در دسترس نیست" in ln for ln in logs2),
       "لاگ صادقانهٔ فارسی برای هر دو: " + repr(logs2))
+
+
+def test_strategy_registry_gate() -> None:
+    """S3: دروازهٔ توافق از مسیر registry — تزریق providerها + fail-closed
+    وقتی همهٔ استراتژی‌ها خاموش‌اند (D3) + برابری adapter==direct."""
+    import copy
+    from src.judge.scoring import judge_all
+    from src.plugins.judge import JudgePlugin
+
+    gen = _load_judge_golden_module()
+    a = gen.make_analysis()
+    md = gen.make_md(last_dir="bull")
+    ctx = gen.make_ctx(cal=gen.clean_cal(), news=gen.good_news())
+
+    # مسیر registry با همهٔ استراتژی‌های فعال == مسیر مستقیم با DEFAULT
+    reg, info = build_default_registry(CFG)
+    _v, _e, _r, s_rules = JudgePlugin(info["context"])._rules()
+    A(s_rules is not None and len(s_rules) == 3,
+      "providers(odin.strategy@1) باید ۳ قاعده به judge-core بدهد")
+    A([r.key for r in s_rules] == ["trend_pullback", "london_breakout", "carry"],
+      "ترتیب تزریق = priority (۱۰/۲۰/۳۰) — قطعی")
+    jp = JudgePlugin(info["context"])
+    j_plugin = jp.judge_all([a], {a.symbol: md}, ctx)[0]
+    j_direct = judge_all([a], {a.symbol: md}, ctx,
+                         strategy_rules=gen.DEFAULT_STRATEGY_RULES)[0]
+    A(gen.judgment_dump(j_plugin) == gen.judgment_dump(j_direct),
+      "دروازه: مسیر registry == مسیر مستقیم (بایت‌به‌بایت)")
+    A(j_plugin.signal is not None and j_plugin.strategies
+      and [v["key"] for v in j_plugin.strategies if v["direction"] == "BUY"]
+      == ["trend_pullback"],
+      "سیگنالِ registry-path با توافقِ tp صادر شد")
+
+    # همهٔ استراتژی‌ها خاموش → provider خالی → fail-closed صادقانه (D3)
+    cfg_off = copy.deepcopy(CFG)
+    for k in ("trend_pullback", "london_breakout", "carry"):
+        cfg_off["strategies"][k]["enabled"] = False
+    reg_o, info_o = build_default_registry(cfg_off)
+    A(reg_o.providers("odin.strategy@1") == [],
+      "strategies.*.enabled=false → هیچ provider فعالی نمی‌ماند")
+    _v, _e, _r, s_off = JudgePlugin(info_o["context"])._rules()
+    A(s_off == [], "فهرستِ خالی همان‌طور که هست رد می‌شود (coercion به None ممنوع — فاز ۷)")
+    jp_off = JudgePlugin(info_o["context"])
+    j_off = jp_off.judge_all([a], {a.symbol: md}, ctx)[0]
+    A(j_off.signal is None and j_off.reject_reason == "NO_STRATEGY"
+      and j_off.strategies == [] and j_off.score >= 7,
+      "fail-closed: بدون استراتژیِ فعال، سیگنالِ بدون پشتوانه صادر نمی‌شود")
+    A(j_off.reject_detail.startswith("هیچ استراتژیِ فعالی در دسترس نیست"),
+      "متن صادقانهٔ fail-closed از مسیر registry")
 
 
 def test_delegation_network() -> None:
@@ -679,7 +734,8 @@ def test_report_dispatcher() -> None:
 def main() -> int:
     tests = [test_registration, test_enable_disable, test_select_market_provider,
              test_golden_pure, test_judge_rule_plugins, test_judge_registry_parity,
-             test_phase7_unification, test_delegation_network,
+             test_phase7_unification, test_strategy_registry_gate,
+             test_delegation_network,
              test_golden_journal_alerts, test_report_dispatcher]
     fails = []
     for t in tests:
