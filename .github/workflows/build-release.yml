@@ -134,6 +134,12 @@ jobs:
       - name: JS engine behavior pins + golden cycle (آفلاین)
         run: node tests/js/test_cycle_switch.js
 
+      # فاز ۶b معماری پلاگین: میخ‌های رفتاری قواعد داور JS (۷ وتو + ۸ شاهد
+      # + ریاضی ریسک — ۵۸ سناریوی طلایی) قبل از rule-plugin شدن نوشته و سبز
+      # شده‌اند؛ بعد از سوییچ باید بدون تغییر سبز بمانند.
+      - name: JS judge-rules behavior pins + golden battery (آفلاین)
+        run: node tests/js/test_judge_switch.js
+
       - name: Data-dir logic test (پرتابل vs نصب‌شده)
         run: python tests/manual/test_paths_install.py
 

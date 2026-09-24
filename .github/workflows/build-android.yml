@@ -122,6 +122,7 @@ jobs:
           node tests/js/smoke_core.js
           node tests/js/smoke_plugins.js
           node tests/js/test_cycle_switch.js
+          node tests/js/test_judge_switch.js
 
       # نگهبان ارزان و هدفمند: versionName/versionCode از src/app_paths.py مشتق
       # می‌شوند، پس اگر آن فایل یا الگوی regex عوض شود APK بی‌صدا با نسخهٔ
