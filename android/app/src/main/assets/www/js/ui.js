@@ -812,6 +812,50 @@
       '<span class="stepper"><button data-step="strategy_min_agree:-1">−</button><span class="val">' + O.faNum(set.strategy_min_agree | 0) + '</span><button data-step="strategy_min_agree:1">+</button></span></div>' +
       '</div>';
 
+    // وضعیت پلاگین‌ها (§۸-2 — v0.28): API از فاز ۷ آماده بود
+    // (registry.status())؛ دسترسی + خطاهای زندهٔ چرخه‌ها (S.pluginIssues
+    // از bus). فهرست در expand-body بسته — گاردِ چیدمانِ ۳۲۰px امن.
+    var pst = [];
+    try { pst = O.buildDefaultRegistry(S.cfg, 'android').registry.status(); } catch (e) { }
+    var issues = S.pluginIssues || {};
+    var knownIds = {};
+    var nOn = 0, nOff = 0, nErr = 0;
+    pst.forEach(function (x) {
+      knownIds[x.id] = true;
+      if (issues[x.id]) nErr++;
+      else if (x.enabled && !x.disabled_reason) nOn++;
+      else nOff++;
+    });
+    // خطاهای زندهٔ بی‌نظیر (مثل قرنطینهٔ stage:*) هم در خلاصه شمرده
+    // می‌شوند — فهرست و خلاصه نباید هیچ‌وقت با هم نجورند
+    Object.keys(issues).forEach(function (id) { if (!knownIds[id]) nErr++; });
+    html += '<div class="card"><div class="section-title" style="margin-top:0">' + ct('plug', 'وضعیت پلاگین‌ها', 13) + '</div>' +
+      '<div class="set-row"><div><div class="set-label">' + O.faNum(pst.length) + ' پلاگین · ' +
+      O.faNum(nOn) + ' فعال · ' + O.faNum(nOff) + ' غیرفعال' +
+      (nErr ? ' · ' + O.faNum(nErr) + ' خطا' : '') + '</div>' +
+      '<div class="set-sub">غیرفعال = کلیدِ ویژگی خاموش یا وابستگی نیامده</div></div></div>' +
+      '<button class="expand-toggle" data-expand="set-plugins">فهرست پلاگین‌ها <span>' + O.ico('chevron-down', 12) + '</span></button>' +
+      '<div class="expand-body closed" id="set-plugins" style="width:100%">';
+    pst.forEach(function (x) {
+      var err = issues[x.id];
+      var pill, cls, why = '';
+      if (err) { pill = 'خطا'; cls = 'red'; why = String(err).slice(0, 80); }
+      else if (x.enabled && !x.disabled_reason) { pill = 'فعال'; cls = 'outline'; }
+      else { pill = 'غیرفعال'; cls = ''; why = x.disabled_reason ? String(x.disabled_reason).slice(0, 80) : ''; }
+      html += '<div class="set-row"><div><div class="set-label mono" dir="ltr" style="font-size:11px;text-align:right">' + esc(x.id) + '</div>' +
+        (why ? '<div class="set-sub">' + eico(why, 11) + '</div>' : '') + '</div>' +
+        '<span class="pill ' + cls + '">' + pill + '</span></div>';
+    });
+    // خطاهای زنده‌ای که id پلاگینِ ثبت‌شده نیستند (مثل قرنطینهٔ stage:judge)
+    // هم صادقانه نشان داده می‌شوند — بی‌صدا گم نشوند
+    Object.keys(issues).forEach(function (id) {
+      if (knownIds[id]) return;
+      html += '<div class="set-row"><div><div class="set-label mono" dir="ltr" style="font-size:11px;text-align:right">' + esc(id) + '</div>' +
+        '<div class="set-sub">' + eico(String(issues[id]).slice(0, 80), 11) + '</div></div>' +
+        '<span class="pill red">خطا</span></div>';
+    });
+    html += '</div></div>';
+
     html += '<div class="card"><div class="section-title" style="margin-top:0">' + ct('ban', 'دروازه‌های وتو', 13) + '</div><div class="hint" style="margin-bottom:6px">وتو بدون استثناست — حتی با امتیاز کامل.</div>' +
       row('weekend', 'lock', 'بازار بسته', 'شنبه/یکشنبه و جمعه از ۰۰:۳۰ بامداد شنبه (تهران)', v.weekend) +
       row('high_impact_event', 'calendar', 'رویداد پراثر تقویم', 'رویداد پراثر تا ۳۰ دقیقهٔ آینده', v.high_impact_event) +

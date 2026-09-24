@@ -33,9 +33,24 @@
     deviceId: '', deviceCode: '', licensed: false,   // لایسنس (v0.14.0)
     chartSym: null, chartTf: 'H1', chartBars: 120, chartSig: null,   // نمودار (v0.17.0)
     onbStage: null,               // 'license' | 'name' | 'bg' | null — مرحلهٔ خوش‌آمدگویی
-    svcBusy: false, svcReady: false
+    svcBusy: false, svcReady: false,
+    // §۸-2 (v0.28): خطاهای زندهٔ پلاگین‌ها از bus — با هر cycle.start پاک
+    // می‌شود (خطای چرخهٔ قبل به چرخهٔ بعد نسبت داده نشود). مصرف: کارت
+    // «وضعیت پلاگین‌ها» در تنظیمات (Failure Isolation بالاخره دیده می‌شود)
+    pluginIssues: {}
   };
   O.S = S;
+
+  // §۸-2 (v0.28): جمع‌آوری خطاهای زندهٔ پلاگین‌ها برای کارت «وضعیت
+  // پلاگین‌ها» — در بارگذاری ماژول ثبت می‌شود چون *هر دو* حالت (UI=boot و
+  // سرویس=svcStart) چرخه می‌زنند و svcStart عمداً boot را صدا نمی‌زند.
+  // listenerها هیچ خروجی‌ای را عوض نمی‌کنند (bus همگام ایزوله — قرارداد).
+  if (O.BUS && typeof O.BUS.on === 'function') {
+    O.BUS.on(O.core.EVENTS.CYCLE_START, function () { S.pluginIssues = {}; });
+    O.BUS.on(O.core.EVENTS.PLUGIN_FAILED, function (f) {
+      if (f && f.plugin_id) S.pluginIssues[f.plugin_id] = String(f.error || '');
+    });
+  }
 
   var DEFAULT_SETTINGS = {
     user_name: 'تریدر',

@@ -13,6 +13,8 @@
  *      فیچر-خاموش (مقایسه با اجرای settings-off) + state صادقانه
  *   ۵) سخت‌گیری: judge-core خاموش با override (judge.enabled روشن) →
  *      لاگ صادقانهٔ «پلاگین داور/سشن در دسترس نیست» بدون کرش/سیگنال
+ *   ۶) کارت «وضعیت پلاگین‌ها» (§۸-2 — v0.28): خلاصه/فهرست از
+ *      registry.status() + خطاهای زندهٔ S.pluginIssues (شامل stage:*)
  *
  * سناریوهای فیچر-خاموشِ طلایی (features_disabled/judge_disabled) در
  * tests/js/test_cycle_switch.js پین‌اند و باید بدون تغییر سبز بمانند.
@@ -175,6 +177,79 @@ async function main() {
       'چرخه نمی‌شکند — زمان‌بندی عادی ادامه می‌یابد');
     const st = JSON.parse(app.prefs.get('state.last') || '{}');
     ok(st && (st.judgments || []).length === 0, 'state.last بدون قضاوت ذخیره شد (صادقانه)');
+  }
+
+  group('۵) کارت وضعیت پلاگین‌ها (تسویهٔ §۸-2 — v0.28)');
+  {
+    const app = gen.createApp({});
+    const O = app.O;
+    const baseSettings = {
+      user_name: 'تست', judge_enabled: true, min_score: 7,
+      veto: { weekend: true, high_impact_event: true, timeframe_conflict: true, range_market: true, volatility_spike: true, breaking_news: true },
+      fund_enabled: true, news_enabled: true, tv_enabled: true,
+      auto_refresh_enabled: true, auto_refresh_min: 15, notify_enabled: true,
+      background_enabled: true, animations_enabled: true,
+      strategy_tp_enabled: true, strategy_lb_enabled: true,
+      strategy_carry_enabled: true, strategy_min_agree: 1
+    };
+    const mkS = (cfg, issues) => ({
+      cfg: cfg, settings: JSON.parse(JSON.stringify(baseSettings)),
+      state: null, stats: null, version: 'test',
+      journal: { load: () => [], raw: () => '' },
+      pluginIssues: issues || {}
+    });
+
+    // حالت سالم: همه فعال
+    let html = O.renderSettings(mkS(O.deepFill(O.CONFIG, {})));
+    ok(html.includes('وضعیت پلاگین‌ها'), 'کارت «وضعیت پلاگین‌ها» در تنظیمات هست');
+    ok(html.includes(O.faNum(29) + ' پلاگین · ' + O.faNum(29) + ' فعال'),
+      'خلاصه: ۲۹ پلاگین · ۲۹ فعال (ارقام فارسی از registry.status())');
+    ok(!html.includes('>خطا<'), 'در حالت سالم هیچ قرصِ «خطا» نیست');
+    ok(html.includes('data-yahoo') && html.includes('strategy-carry'),
+      'id پلاگین‌ها در فهرست هست');
+
+    // کلید فیچری خاموش → «غیرفعال»
+    const cfgOff = JSON.parse(JSON.stringify(O.CONFIG));
+    cfgOff.strategies.carry.enabled = false;
+    html = O.renderSettings(mkS(cfgOff));
+    ok(html.includes(O.faNum(1) + ' غیرفعال'), 'خلاصه: ۱ غیرفعال با کلید فیچری');
+    const i = html.indexOf('strategy-carry');
+    ok(i >= 0 && html.slice(i, i + 400).includes('غیرفعال'),
+      'ردیف strategy-carry قرص «غیرفعال» گرفت');
+
+    // override صریح plugins
+    const cfgOv = JSON.parse(JSON.stringify(O.CONFIG));
+    cfgOv.plugins = { 'veto-weekend': { enabled: false } };
+    html = O.renderSettings(mkS(cfgOv));
+    const j = html.indexOf('veto-weekend');
+    ok(j >= 0 && html.slice(j, j + 400).includes('غیرفعال'),
+      'override صریح هم «غیرفعال» نشان داده می‌شود');
+
+    // خطاهای زندهٔ bus (S.pluginIssues) — از جمله قرنطینهٔ stage:*
+    html = O.renderSettings(mkS(O.deepFill(O.CONFIG, {}),
+      { 'data-yahoo': 'boom-live', 'stage:judge': 'قرنطینهٔ مرحله' }));
+    ok(html.includes(O.faNum(2) + ' خطا'), 'خلاصه: ۲ خطا از pluginIssues');
+    const k = html.indexOf('data-yahoo');
+    ok(k >= 0 && html.slice(k, k + 400).includes('boom-live')
+      && html.slice(k, k + 400).includes('خطا'),
+      'خطای زنده با پیام و قرصِ «خطا»');
+    ok(html.includes('stage:judge') && html.includes('قرنطینهٔ مرحله'),
+      'خطای stage:* (قرنطینهٔ pipeline) هم صادقانه نمایش داده می‌شود');
+
+    // سیم‌کشی زنده: خرابیِ واقعی در چرخه → plugin.failed روی bus →
+    // S.pluginIssues → کارت تنظیمات (بدون تزریق دستی)
+    const app2 = gen.createApp({});
+    app2.O.fetchYahooSymbol = function () { return Promise.reject(new Error('شبکه قطع است')); };
+    app2.O.trialStart(app2.pstorage);
+    app2.O.svcStart();
+    await waitCycle(app2.calls, 1);
+    const live = app2.O.S.pluginIssues || {};
+    ok(Object.keys(live).some((k) => k.indexOf('stage:') === 0)
+      && String(live[Object.keys(live)[0]]).length > 0,
+      'چرخهٔ خراب → S.pluginIssues زنده از bus پر شد: ' + JSON.stringify(live));
+    const html2 = app2.O.renderSettings(app2.O.S);
+    ok(Object.keys(live).every((k) => html2.includes(k)) && html2.includes('>خطا<'),
+      'خطای زندهٔ چرخه در کارت وضعیت پلاگین‌ها دیده می‌شود');
   }
 
   // ══════════════════════════════════════════════════════════════
