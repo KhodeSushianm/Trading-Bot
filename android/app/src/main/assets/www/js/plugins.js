@@ -16,10 +16,11 @@
  *   O.makeCaps              — آینهٔ _Caps در src/engine.py (نمونه‌های تنبل،
  *                             پلاگین خراب → throw، غیرفعال → null)
  *
- * ⚠️ داور JS در این فاز یکجا ثبت می‌شود (judge-core = judgeAll) — شکافتن
- *   ۷ وتو + ۸ شاهدِ judge.js به rule-plugin آینهٔ فاز ۴ پایتون است و
- *   زیرفازِ جداگانهٔ «۶b» با میخ‌های خودش (توابع ev* در judge.js
- *   فایل-خصوصی‌اند). محاسبات داور همین حالا با run_parity پین شده‌اند.
+ * ⚠️ فاز ۶b انجام شد: ۷ وتو + ۸ شاهدِ داور هم rule-plugin‌اند (veto-*×۷ +
+ *   ev-*×۸ — id/ترتیب/binding دقیقاً آینهٔ پایتون؛ شش وتوی کلیددار به
+ *   judge.veto.* با dot-path فاز ۷ bind شدند). judge-core حالا registry-aware
+ *   است و قواعد را از registry به judgeAll تزریق می‌کند (fallback صادقانه:
+ *   بدون registry → delegation سادهٔ قبلی).
  *
  * سبک: ES5 خالص (var/function) — نگهبانش بخش مشروطِ test_cycle_switch.js.
  */
@@ -83,7 +84,11 @@
     return O.fetchNews(cfg, onLog);
   };
 
-  function JudgeAdapter() { }
+  function JudgeAdapter(context) {
+    this._context = context || {};
+    this._registry = this._context.registry || null;
+    this._rulesCache = null;
+  }
   // تنظیمات داور در JS از قبل در config.js با پیش‌فرض‌ها ادغام شده
   // (O.deepFill(O.CONFIG, settings) در buildCfg) — پس judgeConfig همان
   // بخشِ ادغام‌شده را برمی‌گرداند (همتای judge_config پایتون).
@@ -91,7 +96,44 @@
     return (cfg && cfg.judge) || {};
   };
   JudgeAdapter.prototype.judgeAll = function (analyses, datasets, ctx) {
-    return O.judgeAll(analyses, datasets, ctx);
+    var r = this._rules();
+    if (r.veto === null && r.evidence === null && r.risk === null) {
+      return O.judgeAll(analyses, datasets, ctx);          // delegation ساده
+    }
+    return O.judgeAll(analyses, datasets, ctx, r.veto, r.evidence, r.risk);
+  };
+  /* قواعد از registry (فاز ۶b — آینهٔ JudgePlugin._rules پایتون):
+   * veto@1/evidence@1 با ترتیب قطعی (priority, order) + risk از get().
+   * adapterها stateless‌اند → اگر نمونهٔ lifecycle ساخته نشده، مستقیم با
+   * factory ساخته می‌شوند. فهرست‌ها *همان‌طور که هستند* رد می‌شوند (حتی
+   * خالی) — coercion به null قواعد پیش‌فرض را بی‌صدا زنده می‌کرد
+   * (همان اصلاحیهٔ فاز ۷ پایتون). cache: registry در عمر یک caps ثابت است. */
+  JudgeAdapter.prototype._rules = function () {
+    if (!this._registry) return { veto: null, evidence: null, risk: null };
+    if (this._rulesCache === null) {
+      var reg = this._registry;
+      var ctx = this._context;
+      function inst(rec) {
+        return (rec.instance !== null && rec.instance !== undefined)
+          ? rec.instance : rec.factory(ctx);
+      }
+      var veto = reg.providers('odin.judge.veto@1').map(function (rec) {
+        var i = inst(rec);
+        return i.rule.bind(i);
+      });
+      var evidence = reg.providers('odin.judge.evidence@1').map(function (rec) {
+        var i = inst(rec);
+        return i.rule.bind(i);
+      });
+      var riskRec = reg.get('odin.judge.risk@1');
+      var risk = null;
+      if (riskRec) {
+        var ri = inst(riskRec);
+        risk = ri.computeLevels.bind(ri);
+      }
+      this._rulesCache = { veto: veto, evidence: evidence, risk: risk };
+    }
+    return this._rulesCache;
   };
 
   function RiskAdapter() { }
@@ -120,6 +162,32 @@
   function AlertsAdapter() { }
   AlertsAdapter.prototype.checkAlerts = function (storage, analyses, nowMs) {
     return O.alertsCheck(storage, analyses, nowMs);
+  };
+
+  // ── adapterهای قواعد داور (فاز ۶b) — delegation خالص به judge.js ──
+  // shape: odin.judge.veto@1 → rule(a, symCfg, md, ctx) → Veto|null
+  function VetoRuleAdapter(vetoId, fnName) {
+    this.vetoId = vetoId;
+    this._fn = fnName;
+  }
+  VetoRuleAdapter.prototype.rule = function (a, symCfg, md, ctx) {
+    return O[this._fn](a, symCfg, md, ctx);
+  };
+
+  // shape: odin.judge.evidence@1 → rule(a, ctx, direction) → Evidence
+  // mode: 'full' = (a,ctx,d) · 'no-dir' = (a,ctx) · 'ctx-only' = (ctx)
+  // (trend/fundamental direction را مصرف نمی‌کنند؛ session فقط ctx —
+  // همان وعدهٔ §۲.۲ سند، آینهٔ EvidenceRuleAdapter پایتون)
+  function EvidenceRuleAdapter(evidenceId, fnName, mode) {
+    this.evidenceId = evidenceId;
+    this._fn = fnName;
+    this._mode = mode;
+  }
+  EvidenceRuleAdapter.prototype.rule = function (a, ctx, direction) {
+    var fn = O[this._fn];
+    if (this._mode === 'ctx-only') return fn(ctx);
+    if (this._mode === 'no-dir') return fn(a, ctx);
+    return fn(a, ctx, direction);
   };
 
   // ── تعریف پلاگین‌ها — manifestها آینهٔ همتاهای پایتون در src/plugins/ ──
@@ -172,7 +240,7 @@
       provides: ['odin.judge.engine@1'],
       config: { section: 'judge', enabled_key: 'enabled', 'default': true },
       stage: 'judge', priority: 50,
-      factory: function () { return new JudgeAdapter(); }
+      factory: function (context) { return new JudgeAdapter(context); }
     },
     {
       // فاز ۷: risk فقط درون judgeAll مصرف می‌شود (مسیر داور) → bind به
@@ -197,6 +265,50 @@
       factory: function () { return new AlertsAdapter(); }
     }
   ];
+
+  // ── قواعد داور (فاز ۶b) — id/ترتیب/binding دقیقاً آینهٔ پایتون ──
+  // (plugin-id, veto_id, نام تابع judge.js, کلیدِ veto یا null)
+  var VETO_DEFS = [
+    ['veto-data', 'DATA', 'vetoData', null],
+    ['veto-weekend', 'WEEKEND', 'vetoWeekend', 'weekend'],
+    ['veto-tf-conflict', 'TF_CONFLICT', 'vetoTfConflict', 'timeframe_conflict'],
+    ['veto-range', 'RANGE', 'vetoRange', 'range_market'],
+    ['veto-event', 'EVENT', 'vetoEvent', 'high_impact_event'],
+    ['veto-vol-spike', 'VOL_SPIKE', 'vetoVolSpike', 'volatility_spike'],
+    ['veto-breaking-news', 'BREAKING_NEWS', 'vetoBreakingNews', 'breaking_news']
+  ];
+  // (plugin-id, evidence_id, نام تابع، mode)
+  var EV_DEFS = [
+    ['ev-trend', 'TREND', 'evTrend', 'no-dir'],
+    ['ev-level', 'LEVEL', 'evLevel', 'full'],
+    ['ev-fundamental', 'FUNDAMENTAL', 'evFundamental', 'no-dir'],
+    ['ev-momentum', 'MOMENTUM', 'evMomentum', 'full'],
+    ['ev-strength', 'STRENGTH', 'evStrength', 'full'],
+    ['ev-news', 'NEWS', 'evNews', 'full'],
+    ['ev-tv', 'TV', 'evTradingView', 'full'],
+    ['ev-session', 'SESSION', 'evSession', 'ctx-only']
+  ];
+
+  // ۷ وتو — priority ۱۰..۷۰ = ترتیب ارزیابی؛ شش کلیددار به judge.veto.*
+  // bind می‌شوند (dot-path فاز ۷ — کلیدهای *موجود*؛ تنظیمات گوشی از راه
+  // buildCfg همان‌ها را می‌سازد). guardهای درون بدنه هم باقی‌اند (مسیر
+  // مستقیم بدون registry) — برابری دو مسیر در test_judge_switch پین شده.
+  VETO_DEFS.forEach(function (d, i) {
+    DEFS.push({
+      id: d[0], provides: ['odin.judge.veto@1'],
+      config: d[3] ? { section: 'judge', enabled_key: 'veto.' + d[3], 'default': true } : null,
+      stage: 'judge', priority: 10 * (i + 1),
+      factory: function () { return new VetoRuleAdapter(d[1], d[2]); }
+    });
+  });
+  // ۸ شاهد — priority ۱۰..۸۰ = ترتیب جدول امتیاز (کلید config ندارند)
+  EV_DEFS.forEach(function (d, i) {
+    DEFS.push({
+      id: d[0], provides: ['odin.judge.evidence@1'], config: null,
+      stage: 'judge', priority: 10 * (i + 1),
+      factory: function () { return new EvidenceRuleAdapter(d[1], d[2], d[3]); }
+    });
+  });
 
   // ── bus واحد اپ — آینهٔ BUS در src/engine.py (بدون listener = صفر اثر) ──
   O.BUS = O.core.createBus();

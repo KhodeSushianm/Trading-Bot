@@ -58,9 +58,9 @@ async function main() {
     const app = gen.createApp({});
     const O = app.O;
     const built = O.buildDefaultRegistry(O.deepFill(O.CONFIG, {}), 'android');
-    ok(built.registry.all().length === 11
+    ok(built.registry.all().length === 26
        && built.registry.all().every((r) => r.enabled),
-      'config پیش‌فرض: هر ۱۱ پلاگین فعال');
+      'config پیش‌فرض: هر ۲۶ پلاگین فعال (۱۱ فاز ۶ + ۱۵ قاعدهٔ داور فاز ۶b)');
 
     const off = O.deepFill(O.CONFIG, { judge: { enabled: false } });
     const b2 = O.buildDefaultRegistry(off, 'android');

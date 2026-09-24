@@ -199,12 +199,17 @@ async function testRegistryWhenPresent() {
   A(!!reg && !!info, 'buildDefaultRegistry باید (registry, info) بدهد');
 
   // idهای پلاگین‌های JS — همان نام‌های پایتون (تقارن بین‌موتوری)
+  // (فاز ۶b: ۱۵ قاعدهٔ داور اضافه شد — فهرست ساختاری است، نه طلاییِ رفتاری)
   const ids = reg.all().map((r) => r.id);
   const expectedIds = ['data-yahoo', 'data-tradingview', 'analysis-technical',
     'analysis-strength', 'session', 'fundamental-calendar', 'fundamental-news',
-    'judge-core', 'judge-risk', 'journal', 'alerts-price'];
-  A(expectedIds.every((x) => ids.indexOf(x) >= 0) && ids.length === expectedIds.length,
-    '۱۱ پلاگین اندروید با idهای متقارن پایتون: ' + JSON.stringify(ids));
+    'judge-core', 'judge-risk', 'journal', 'alerts-price',
+    'veto-data', 'veto-weekend', 'veto-tf-conflict', 'veto-range',
+    'veto-event', 'veto-vol-spike', 'veto-breaking-news',
+    'ev-trend', 'ev-level', 'ev-fundamental', 'ev-momentum',
+    'ev-strength', 'ev-news', 'ev-tv', 'ev-session'];
+  A(ids.join(',') === expectedIds.join(','),
+    '۲۶ پلاگین اندروید با idهای متقارن پایتون (۱۱ فاز ۶ + ۱۵ قاعدهٔ داور فاز ۶b): ' + JSON.stringify(ids));
   A(info.disabled.length === 0, 'با config پیش‌فرض هیچ پلاگینی disabled نیست');
 
   // bindingها: خاموشی فیچرها → پلاگین مربوطه غیرفعال (همان کلیدهای موجود)

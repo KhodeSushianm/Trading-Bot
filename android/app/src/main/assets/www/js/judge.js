@@ -49,27 +49,51 @@
     } catch (e) { return [0, 0]; }
   };
 
-  // ── دروازه‌های وتو ──────────────────────────────────────────
-  O.collectVetoes = function (a, symCfg, md, ctx) {
-    var v = [];
-    var vc = ctx.jcfg.veto;
-
+  // ── ۷ قاعدهٔ وتو (فاز ۶b) ────────────────────────────────────
+  // هر دروازه یک تابع مستقل با shape قرارداد odin.judge.veto@1 است:
+  // (a, symCfg, md, ctx) → Veto|null. بدنهٔ هر تابع، جابه‌جاییِ بایت‌به‌بایتِ
+  // همان بلوک از collectVetoes قبلی است — فقط مرز عوض شده، نه منطق.
+  // دو مسیر مصرف: مستقیم (collectVetoes با پیش‌فرض O.VETO_RULES) و
+  // rule-plugin (adapterهای نازک در js/plugins.js). guardهای کلیدِ
+  // judge.veto.* عمداً درون بدنه‌اند (مثل پایتون): مسیر مستقیم بدون
+  // registry هم همان کلیدها را می‌خواند — binding مانیفست لایهٔ دوم است.
+  O.vetoData = function (a, symCfg, md, ctx) {
     if (a.verdict === 'DATA') {
-      v.push(Veto('DATA', '⚠️ دادهٔ ناکافی',
-        'تعداد کندل‌ها برای محاسبهٔ EMA200 کافی نیست — تحلیل قابل اتکا نیست'));
+      return Veto('DATA', '⚠️ دادهٔ ناکافی',
+        'تعداد کندل‌ها برای محاسبهٔ EMA200 کافی نیست — تحلیل قابل اتکا نیست');
     }
+    return null;
+  };
+
+  O.vetoWeekend = function (a, symCfg, md, ctx) {
+    var vc = ctx.jcfg.veto;
     if (vc.weekend !== false && !ctx.status.open) {
-      v.push(Veto('WEEKEND', '🔒 بازار بسته است', ctx.status.reason_fa));
+      return Veto('WEEKEND', '🔒 بازار بسته است', ctx.status.reason_fa);
     }
+    return null;
+  };
+
+  O.vetoTfConflict = function (a, symCfg, md, ctx) {
+    var vc = ctx.jcfg.veto;
     if (vc.timeframe_conflict !== false && a.verdict !== 'DATA' && !a.h1_agrees) {
-      v.push(Veto('TF_CONFLICT', '🔀 تضاد جهت بین تایم‌فریم‌ها',
-        'روند ۴ ساعته ' + O.TREND_FA[a.trend] + ' است ولی ۱ ساعته هم‌جهت نیست — طبق قوانین، معامله در تضاد تایم‌فریم ممنوع است'));
+      return Veto('TF_CONFLICT', '🔀 تضاد جهت بین تایم‌فریم‌ها',
+        'روند ۴ ساعته ' + O.TREND_FA[a.trend] + ' است ولی ۱ ساعته هم‌جهت نیست — طبق قوانین، معامله در تضاد تایم‌فریم ممنوع است');
     }
+    return null;
+  };
+
+  O.vetoRange = function (a, symCfg, md, ctx) {
+    var vc = ctx.jcfg.veto;
     var adxMin = +((ctx.acfg.adx_min_trend != null) ? ctx.acfg.adx_min_trend : 20);
     if (vc.range_market !== false && a.verdict !== 'DATA' && a.adx < adxMin) {
-      v.push(Veto('RANGE', '😴 بازار بی‌روند (رنج)',
-        'ADX=' + O.pyFixed(a.adx, 0) + ' زیر آستانهٔ ' + O.pyFixed(adxMin, 0) + ' است — استراتژی روندی در بازار رنج کار نمی‌کند'));
+      return Veto('RANGE', '😴 بازار بی‌روند (رنج)',
+        'ADX=' + O.pyFixed(a.adx, 0) + ' زیر آستانهٔ ' + O.pyFixed(adxMin, 0) + ' است — استراتژی روندی در بازار رنج کار نمی‌کند');
     }
+    return null;
+  };
+
+  O.vetoEvent = function (a, symCfg, md, ctx) {
+    var vc = ctx.jcfg.veto;
     if (vc.high_impact_event !== false && ctx.calSnap && ctx.calSnap.events && ctx.calSnap.events.length) {
       var evs = O.vetoForSymbol(ctx.calSnap.events, a.base, a.quote, ctx.nowMs, +ctx.eventVetoMinutes);
       if (evs.length) {
@@ -77,27 +101,53 @@
         var soon = evs.slice().sort(function (x, y) { return Math.abs(O.evMinutesFrom(x, ctx.nowMs)) - Math.abs(O.evMinutesFrom(y, ctx.nowMs)); })[0];
         var mins = Math.round(O.evMinutesFrom(soon, ctx.nowMs));
         var when = O.faNum(Math.abs(mins)) + ' دقیقه ' + (mins >= 0 ? 'بعد' : 'پیش');
-        v.push(Veto('EVENT', '📅 رویداد پراثر تقویم',
-          names + ' — ' + when + '. نوسان خبری غیرقابل پیش‌بینی است'));
+        return Veto('EVENT', '📅 رویداد پراثر تقویم',
+          names + ' — ' + when + '. نوسان خبری غیرقابل پیش‌بینی است');
       }
     }
+    return null;
+  };
+
+  O.vetoVolSpike = function (a, symCfg, md, ctx) {
+    var vc = ctx.jcfg.veto;
     if (vc.volatility_spike !== false && md) {
       var vol = ctx.jcfg.volatility;
       var lookback = (vol.lookback_bars | 0) || 100;
       var ratio = O.volatilityRatio(md, ctx.acfg, lookback)[0];
       var mult = +vol.spike_multiplier;
       if (ratio && ratio > mult) {
-        v.push(Veto('VOL_SPIKE', '📈 جهش غیرعادی نوسان',
+        return Veto('VOL_SPIKE', '📈 جهش غیرعادی نوسان',
           'ATR یک‌ساعتهٔ فعلی ' + O.faNum(O.pyFixed(ratio, 1)) + ' برابر میانگین ' + O.faNum(lookback) +
-          ' کندل اخیر است (آستانهٔ وتو: ' + O.faNum(O.pyFixed(mult, 1)) + ' برابر). در این شرایط اسپرد وید می‌شود و حد ضرر قابل اتکا نیست'));
+          ' کندل اخیر است (آستانهٔ وتو: ' + O.faNum(O.pyFixed(mult, 1)) + ' برابر). در این شرایط اسپرد وید می‌شود و حد ضرر قابل اتکا نیست');
       }
     }
+    return null;
+  };
+
+  O.vetoBreakingNews = function (a, symCfg, md, ctx) {
+    var vc = ctx.jcfg.veto;
     if (vc.breaking_news !== false) {
       var brs = O.breakingNewsFor(ctx.newsSnap, a.base, a.quote, (ctx.jcfg.news.breaking_min_score | 0) || 5);
       if (brs.length) {
-        v.push(Veto('BREAKING_NEWS', '🚨 خبر فوری',
-          '«' + O.headlineFa(brs[0], 70) + '» — تا آرام‌شدن بازار صبر کن'));
+        return Veto('BREAKING_NEWS', '🚨 خبر فوری',
+          '«' + O.headlineFa(brs[0], 70) + '» — تا آرام‌شدن بازار صبر کن');
       }
+    }
+    return null;
+  };
+
+  // ترتیب ارزیابی = دقیقاً ترتیب دروازه‌ها در collectVetoes قبلی (میخِ
+  // tests/js/test_judge_switch.js)؛ مسیر rule-plugin هم همین ترتیب را با
+  // priority مانیفست‌ها پین می‌کند.
+  O.VETO_RULES = [O.vetoData, O.vetoWeekend, O.vetoTfConflict, O.vetoRange,
+    O.vetoEvent, O.vetoVolSpike, O.vetoBreakingNews];
+
+  O.collectVetoes = function (a, symCfg, md, ctx, rules) {
+    var v = [];
+    var list = rules || O.VETO_RULES;
+    for (var i = 0; i < list.length; i++) {
+      var veto = list[i](a, symCfg, md, ctx);
+      if (veto) v.push(veto);
     }
     return v;
   };
@@ -263,6 +313,32 @@
     return Evidence('session', L, 0, 1, 'سشن ' + st.label + ' — نقدینگی کمتر، حرکت‌ها کم‌جان‌تر و اسپرد نسبتاً بیشتر');
   }
 
+  // ── صادرات شاهدها (فاز ۶b) ──────────────────────────────────
+  // منطق دست‌نخورده است؛ adapterها در js/plugins.js فقط delegation می‌کنند.
+  O.evTrend = evTrend;
+  O.evLevel = evLevel;
+  O.evFundamental = evFundamental;
+  O.evMomentum = evMomentum;
+  O.evStrength = evStrength;
+  O.evNews = evNews;
+  O.evTradingView = evTradingView;
+  O.evSession = evSession;
+
+  // شکل یکدستِ جدول امتیاز: rule(a, ctx, direction) — همان فهرست امروزِ
+  // judgeSymbol. trend/fundamental direction را مصرف نمی‌کنند و session فقط
+  // ctx می‌گیرد (wrapperها نادیده می‌گیرند — وعدهٔ §۲.۲ سند، آینهٔ
+  // _ev_session_rule پایتون). ترتیب با priority مانیفست‌ها هم پین شده.
+  O.EVIDENCE_RULES = [
+    function (a, ctx, d) { return evTrend(a, ctx); },
+    function (a, ctx, d) { return evLevel(a, ctx, d); },
+    function (a, ctx, d) { return evFundamental(a, ctx); },
+    function (a, ctx, d) { return evMomentum(a, ctx, d); },
+    function (a, ctx, d) { return evStrength(a, ctx, d); },
+    function (a, ctx, d) { return evNews(a, ctx, d); },
+    function (a, ctx, d) { return evTradingView(a, ctx, d); },
+    function (a, ctx, d) { return evSession(ctx); }
+  ];
+
   // ── ورود / حد ضرر / هدف (پورت compute_levels) ────────────────
   O.computeLevels = function (direction, entry, atr, support, resistance, rcfg) {
     var sign = direction === 'BUY' ? 1 : -1;
@@ -312,7 +388,11 @@
   }
 
   // ── داوری یک نماد (هرگز استثنا پرتاب نمی‌کند) ───────────────
-  O.judgeSymbol = function (a, symCfg, md, ctx) {
+  O.judgeSymbol = function (a, symCfg, md, ctx, vetoRules, evidenceRules, riskFn) {
+    // vetoRules/evidenceRules/riskFn (فاز ۶b): تزریق *اختیاری* قواعد —
+    // undefined = فهرست‌های پیش‌فرض همین ماژول (بایت‌به‌بایت رفتار امروز).
+    // مسیر rule-plugin (JudgeAdapter + registry) همان قواعد را از registry
+    // تزریق می‌کند؛ طلایی‌های test_judge_switch برابری دو مسیر را پین کرده‌اند.
     var j = {
       symbol: a.symbol, fa_name: a.fa_name, direction: null,
       score: 0, max_score: 11, evidences: [], vetoes: [], warnings: [],
@@ -320,7 +400,7 @@
       price: a.price, pip: a.pip
     };
 
-    j.vetoes = O.collectVetoes(a, symCfg, md, ctx);
+    j.vetoes = O.collectVetoes(a, symCfg, md, ctx, vetoRules);
 
     if (a.verdict === 'BUY_SETUP') j.direction = 'BUY';
     else if (a.verdict === 'SELL_SETUP') j.direction = 'SELL';
@@ -336,16 +416,9 @@
       return j;
     }
 
-    j.evidences = [
-      evTrend(a, ctx),
-      evLevel(a, ctx, j.direction),
-      evFundamental(a, ctx),
-      evMomentum(a, ctx, j.direction),
-      evStrength(a, ctx, j.direction),
-      evNews(a, ctx, j.direction),
-      evTradingView(a, ctx, j.direction),
-      evSession(ctx)
-    ];
+    j.evidences = (evidenceRules || O.EVIDENCE_RULES).map(function (rule) {
+      return rule(a, ctx, j.direction);
+    });
     j.max_score = j.evidences.reduce(function (s, e) { return s + e.max_points; }, 0);
     j.score = j.evidences.reduce(function (s, e) { return s + e.points; }, 0);
 
@@ -364,7 +437,7 @@
     }
 
     var rcfg = ctx.jcfg.risk;
-    var lv = O.computeLevels(j.direction, a.price, a.atr, a.support, a.resistance, rcfg);
+    var lv = (riskFn || O.computeLevels)(j.direction, a.price, a.atr, a.support, a.resistance, rcfg);
     if (lv.capped) {
       j.warnings.push('حد ضرر از سطح کلیدی دور بود و به سقف ' + O.faNum(O.pyFixed(+rcfg.max_sl_atr, 1)) + '×ATR محدود شد');
     }
@@ -391,8 +464,11 @@
   };
 
   // سرنوشت همهٔ نمادها + سقف تعداد سیگنال در هر چرخه
-  O.judgeAll = function (analyses, datasets, ctx) {
-    var out = analyses.map(function (a) { return O.judgeSymbol(a, {}, datasets[a.symbol], ctx); });
+  // (پارامترهای قواعد، pass-through به judgeSymbol — فاز ۶b)
+  O.judgeAll = function (analyses, datasets, ctx, vetoRules, evidenceRules, riskFn) {
+    var out = analyses.map(function (a) {
+      return O.judgeSymbol(a, {}, datasets[a.symbol], ctx, vetoRules, evidenceRules, riskFn);
+    });
     var cap = (ctx.jcfg.max_signals_per_cycle | 0) || 3;
     var ready = out.filter(function (j) { return j.signal; }).sort(function (x, y) { return y.score - x.score; });
     ready.slice(cap).forEach(function (j) {
