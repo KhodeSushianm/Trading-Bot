@@ -77,6 +77,9 @@
       rr: +rec.rr || 2, score: rec.score | 0, max_score: (rec.max_score | 0) || 11,
       session: rec.session || '', evidences: (rec.evidences || []).slice(),
       sent: rec.sent !== false,
+      // S4 (v0.27): کلیدِ استراتژی‌های هم‌جهت — رکوردهای قدیمی کلید را
+      // ندارند → فهرست خالی (صادقانه؛ آینهٔ Entry.strategies پایتون)
+      strategies: (rec.strategies || []).slice(),
       outcome: null, outcome_ts: null, close_price: null, r: null, note: ''
     };
   }
@@ -105,6 +108,9 @@
   };
 
   O.entryWeekKey = function (e) { return O.isoWeekKey(e.ts); };
+
+  // کلیدهای استراتژیِ هم‌جهت (آینهٔ e.strategies پایتون — کپی، نه مرجع)
+  O.entryStrategyKeys = function (e) { return (e.strategies || []).slice(); };
 
   O.entryEvidenceKeys = function (e) {
     var out = [];
@@ -219,7 +225,8 @@
   O.computeStats = function (entries, nowMs) {
     var st = {
       now: nowMs, total: entries.length, open_count: 0,
-      overall: Bucket(), by_week: {}, by_symbol: {}, by_direction: {}, by_score: {}, by_evidence: {}
+      overall: Bucket(), by_week: {}, by_symbol: {}, by_direction: {}, by_score: {}, by_evidence: {},
+      by_strategy: {}
     };
     entries.forEach(function (e) {
       if (e.outcome == null) { st.open_count += 1; return; }
@@ -238,6 +245,11 @@
         if (!st.by_evidence[k]) st.by_evidence[k] = Bucket();
         bucketAdd(st.by_evidence[k], e);
       });
+      // S4: تفکیک استراتژی — همان الگوی by_evidence (آینهٔ compute_stats)
+      O.entryStrategyKeys(e).forEach(function (k) {
+        if (!st.by_strategy[k]) st.by_strategy[k] = Bucket();
+        bucketAdd(st.by_strategy[k], e);
+      });
     });
     bucketRates(st.overall);
     Object.keys(st.by_week).forEach(function (k) { bucketRates(st.by_week[k]); });
@@ -245,6 +257,7 @@
     Object.keys(st.by_direction).forEach(function (k) { bucketRates(st.by_direction[k]); });
     Object.keys(st.by_score).forEach(function (k) { bucketRates(st.by_score[k]); });
     Object.keys(st.by_evidence).forEach(function (k) { bucketRates(st.by_evidence[k]); });
+    Object.keys(st.by_strategy).forEach(function (k) { bucketRates(st.by_strategy[k]); });
     st.expectancy = st.overall.avg_r;
     var wks = Object.keys(st.by_week).sort();
     st.this_week_key = wks.length ? wks[wks.length - 1] : null;

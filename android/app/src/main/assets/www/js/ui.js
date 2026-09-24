@@ -698,6 +698,25 @@
       html += '</div></div>';
     }
 
+    // به تفکیک استراتژی (S4 — v0.27؛ رکوردهای ژورنال از v0.26 برچسب دارند)
+    var stKeys = Object.keys(stats.by_strategy || {});
+    if (stKeys.length) {
+      html += '<div class="card"><button class="expand-toggle" data-expand="j-strats" style="padding-top:0">' +
+        O.ico('scale', 13) + ' تفکیک استراتژی‌ها <span>' + O.ico('chevron-down', 12) + '</span></button>' +
+        '<div class="expand-body closed" id="j-strats" style="width:100%">';
+      stKeys.sort().forEach(function (k) {
+        var b = stats.by_strategy[k];
+        var nm = k;
+        try { nm = O.strategyFor(k).nameFa; } catch (err) { /* کلیدِ ناشناخته → همان کلید */ }
+        html += '<div class="j-entry"><div class="j-sym"><div class="s1">' + esc(nm) + '</div>' +
+          '<div class="s2">توافقاتِ بسته‌شده ' + O.faNum(b.closed) + ' · برد ' + O.faNum(b.wins) +
+          ' · باخت ' + O.faNum(b.losses) + ' · منقضی ' + O.faNum(b.expired) + '</div></div>' +
+          '<span class="r-chip ' + ((b.avg_r || 0) >= 0 ? 'win' : 'loss') + '">' + O.rFmt(b.avg_r) + '</span></div>';
+      });
+      html += '<div class="stat-defs" style="margin-top:6px">سرنوشتِ سیگنال‌هایی که این استراتژی با آن‌ها توافق کرد — همبستگی ≠ علیت (صادقانه).</div>';
+      html += '</div></div>';
+    }
+
     html += '<div class="action-row" style="margin-top:4px">' +
       '<button class="btn ghost sm" data-action="journal-save" style="flex:1">' + O.ico('save', 13) + ' ذخیره در دانلودها</button>' +
       '<button class="btn ghost sm" data-action="journal-export" style="flex:1">' + O.ico('share', 13) + ' کپی JSONL</button>' +

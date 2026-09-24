@@ -651,19 +651,23 @@ def gen_journal_fixtures(now_ms: int) -> None:
         {"kind": "signal", "id": "EURUSD-BUY-A", "ts": (now - timedelta(hours=3)).isoformat(),
          "symbol": "EURUSD", "direction": "BUY", "entry": 1.1500, "sl": 1.1470, "tp": 1.1560,
          "pip": 0.0001, "atr": 0.0008, "risk_pips": 30.0, "reward_pips": 60.0, "rr": 2.0,
-         "score": 8, "max_score": 11, "session": "لندن", "evidences": ["trend:2/2", "level:2/2", "news:0/1"], "sent": True},
+         "score": 8, "max_score": 11, "session": "لندن", "evidences": ["trend:2/2", "level:2/2", "news:0/1"],
+         "strategies": ["trend_pullback"], "sent": True},
         {"kind": "signal", "id": "XAUUSD-SELL-B", "ts": (now - timedelta(hours=5)).isoformat(),
          "symbol": "XAUUSD", "direction": "SELL", "entry": 4370.0, "sl": 4400.0, "tp": 4310.0,
          "pip": 1.0, "atr": 12.0, "risk_pips": 30.0, "reward_pips": 60.0, "rr": 2.0,
-         "score": 9, "max_score": 11, "session": "نیویورک", "evidences": ["trend:2/2"], "sent": True},
+         "score": 9, "max_score": 11, "session": "نیویورک", "evidences": ["trend:2/2"],
+         "strategies": ["trend_pullback", "carry"], "sent": True},
         {"kind": "signal", "id": "GBPUSD-BUY-C", "ts": (now - timedelta(hours=60)).isoformat(),
          "symbol": "GBPUSD", "direction": "BUY", "entry": 1.3500, "sl": 1.3470, "tp": 1.3560,
          "pip": 0.0001, "atr": 0.0009, "risk_pips": 30.0, "reward_pips": 60.0, "rr": 2.0,
-         "score": 7, "max_score": 11, "session": "لندن", "evidences": ["trend:1/2"], "sent": False},
+         "score": 7, "max_score": 11, "session": "لندن", "evidences": ["trend:1/2"],
+         "strategies": ["london_breakout"], "sent": False},
         {"kind": "signal", "id": "USDJPY-BUY-D", "ts": (now - timedelta(hours=1)).isoformat(),
          "symbol": "USDJPY", "direction": "BUY", "entry": 156.80, "sl": 156.50, "tp": 157.40,
          "pip": 0.01, "atr": 0.09, "risk_pips": 30.0, "reward_pips": 60.0, "rr": 2.0,
-         "score": 8, "max_score": 11, "session": "توکیو", "evidences": ["trend:2/2"], "sent": True},
+         "score": 8, "max_score": 11, "session": "توکیو", "evidences": ["trend:2/2"],
+         "strategies": ["carry"], "sent": True},
         # یک بستهٔ قدیمی برای آمار
         {"kind": "signal", "id": "EURUSD-BUY-OLD", "ts": (now - timedelta(days=9)).isoformat(),
          "symbol": "EURUSD", "direction": "BUY", "entry": 1.1400, "sl": 1.1370, "tp": 1.1460,
@@ -691,6 +695,7 @@ def gen_journal_fixtures(now_ms: int) -> None:
                 "evidences": e.evidences, "sent": e.sent, "outcome": e.outcome,
                 "outcome_ts": int(e.outcome_ts.timestamp() * 1000) if e.outcome_ts else None,
                 "close_price": e.close_price, "r": e.r, "note": e.note,
+                "strategies": e.strategies,
                 "week_key": e.week_key, "evidence_keys": e.evidence_keys()}
 
     FX["journal"] = {
@@ -704,6 +709,7 @@ def gen_journal_fixtures(now_ms: int) -> None:
                   "by_symbol": {k: vars(v) for k, v in stats.by_symbol.items()},
                   "by_score": {k: vars(v) for k, v in stats.by_score.items()},
                   "by_evidence": {k: vars(v) for k, v in stats.by_evidence.items()},
+                  "by_strategy": {k: vars(v) for k, v in stats.by_strategy.items()},
                   "by_week": {k: vars(v) for k, v in stats.by_week.items()}},
     }
 

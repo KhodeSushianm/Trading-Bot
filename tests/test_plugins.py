@@ -663,6 +663,79 @@ def test_golden_journal_alerts() -> None:
         A(fired_empty == [], "بدون هشدار ثبت‌شده باید [] برگردد")
 
 
+def test_journal_strategy_stats() -> None:
+    """S4 (v0.27): کارنامهٔ تفکیک استراتژی — پارس Entry.strategies،
+    Stats.by_strategy، بخشِ جدید render_stats + backward-compat رکوردهای
+    بی‌برچسب (پیش از v0.26) + برابری مسیر پلاگین == مستقیم."""
+    import json
+    from datetime import datetime, timezone
+    from src.journal.stats import compute_stats
+    from src.journal.store import Journal
+    from src.report.journal import render_stats
+
+    now2 = datetime(2026, 9, 24, 12, 0, tzinfo=timezone.utc)
+    recs = [
+        {"kind": "signal", "id": "EURUSD-BUY-1", "ts": "2026-09-22T10:00:00+00:00",
+         "symbol": "EURUSD", "direction": "BUY", "entry": 1.1, "sl": 1.097, "tp": 1.106,
+         "pip": 0.0001, "atr": 0.001, "risk_pips": 30, "reward_pips": 60, "rr": 2.0,
+         "score": 9, "max_score": 11, "session": "لندن",
+         "evidences": ["trend:2/2"], "strategies": ["trend_pullback"], "sent": True},
+        {"kind": "outcome", "id": "EURUSD-BUY-1", "ts": "2026-09-22T14:00:00+00:00",
+         "outcome": "TP", "close_price": 1.106, "r": 2.0, "note": ""},
+        {"kind": "signal", "id": "USDJPY-BUY-2", "ts": "2026-09-22T11:00:00+00:00",
+         "symbol": "USDJPY", "direction": "BUY", "entry": 150.0, "sl": 149.7, "tp": 150.6,
+         "pip": 0.01, "atr": 0.1, "risk_pips": 30, "reward_pips": 60, "rr": 2.0,
+         "score": 8, "max_score": 11, "session": "توکیو",
+         "evidences": ["trend:2/2"], "strategies": ["trend_pullback", "carry"], "sent": True},
+        {"kind": "outcome", "id": "USDJPY-BUY-2", "ts": "2026-09-22T15:00:00+00:00",
+         "outcome": "SL", "close_price": 149.7, "r": -1.0, "note": ""},
+        # رکورد پیش از v0.26 — بدون کلید strategies (پینِ backward-compat)
+        {"kind": "signal", "id": "GBPUSD-BUY-OLD", "ts": "2026-09-01T10:00:00+00:00",
+         "symbol": "GBPUSD", "direction": "BUY", "entry": 1.35, "sl": 1.347, "tp": 1.356,
+         "pip": 0.0001, "atr": 0.001, "risk_pips": 30, "reward_pips": 60, "rr": 2.0,
+         "score": 10, "max_score": 11, "session": "لندن",
+         "evidences": ["trend:2/2"], "sent": True},
+        {"kind": "outcome", "id": "GBPUSD-BUY-OLD", "ts": "2026-09-01T14:00:00+00:00",
+         "outcome": "TP", "close_price": 1.356, "r": 2.0, "note": ""},
+    ]
+    with tempfile.TemporaryDirectory() as td:
+        jpath = Path(td) / "signals.jsonl"
+        jpath.write_text("".join(json.dumps(r, ensure_ascii=False) + "\n"
+                                 for r in recs), encoding="utf-8")
+        jp = JournalPlugin()
+        e_plugin = jp.open(jpath).load()
+        e_direct = Journal(jpath).load()
+        A([e.strategies for e in e_plugin] == [e.strategies for e in e_direct],
+          "Entry.strategies در مسیر پلاگین و مستقیم یکی است")
+        by_id = {e.id: e for e in e_direct}
+        A(by_id["EURUSD-BUY-1"].strategies == ["trend_pullback"]
+          and by_id["USDJPY-BUY-2"].strategies == ["trend_pullback", "carry"]
+          and by_id["GBPUSD-BUY-OLD"].strategies == [],
+          "پارس strategies از رکورد؛ رکورد قدیمیِ بی‌برچسب → فهرست خالی (صادقانه)")
+
+        st = compute_stats(e_direct, now2)
+        A(sorted(st.by_strategy) == ["carry", "trend_pullback"],
+          f"by_strategy فقط از رکوردهای برچسب‌دار: {sorted(st.by_strategy)}")
+        tb = st.by_strategy["trend_pullback"]
+        A((tb.closed, tb.wins, tb.losses) == (2, 1, 1) and abs(tb.avg_r - 0.5) < 1e-12,
+          "trend_pullback: ۲ بسته (۱ برد/۱ باخت) با میانگین R=۰٫۵")
+        cb = st.by_strategy["carry"]
+        A((cb.closed, cb.wins, cb.losses) == (1, 0, 1),
+          "carry: فقط در بازنده توافق داشت — آمار صادقانه")
+        A(st.overall.closed == 3,
+          "آمار کلی رکورد قدیمی را هم می‌شمارد (فقط by_strategy برچسب‌محور است)")
+
+        txt = render_stats(st)
+        A("─── کدام استراتژی واقعاً به درد خورده؟ ───" in txt,
+          "بخشِ جدید render_stats حاضر است")
+        A("همبستگی ≠ علیت" in txt, "یادداشتِ صادقانهٔ همبستگی در کارنامه")
+        st_old = compute_stats([by_id["GBPUSD-BUY-OLD"]], now2)
+        txt_old = render_stats(st_old)
+        A("رکوردهای پیش از v0.26 برچسب استراتژی ندارند" in txt_old
+          and "کدام استراتژی واقعاً به درد خورده؟" not in txt_old,
+          "ژورنالِ تماماً قدیمی → توضیح صادقانه به‌جای بخشِ خالی")
+
+
 def test_report_dispatcher() -> None:
     from src.analysis.technical import analyze_symbol
     from src.fundamental.calendar import CalendarSnapshot
@@ -736,7 +809,8 @@ def main() -> int:
              test_golden_pure, test_judge_rule_plugins, test_judge_registry_parity,
              test_phase7_unification, test_strategy_registry_gate,
              test_delegation_network,
-             test_golden_journal_alerts, test_report_dispatcher]
+             test_golden_journal_alerts, test_journal_strategy_stats,
+             test_report_dispatcher]
     fails = []
     for t in tests:
         try:

@@ -49,6 +49,10 @@ class Entry:
     session: str = ""
     evidences: list[str] = field(default_factory=list)
     sent: bool = True
+    # S4 (v0.27): کلیدِ استراتژی‌های هم‌جهتِ سیگنال — از v0.26 در رکورد
+    # journal نوشته می‌شود؛ رکوردهای قدیمی کلید را ندارند → فهرست خالی
+    # (صادقانه: در by_strategy شمرده نمی‌شوند، نه حدس زده)
+    strategies: list[str] = field(default_factory=list)
 
     # نتیجه
     outcome: Optional[str] = None          # None = هنوز باز
@@ -136,6 +140,7 @@ class Journal:
             score=int(rec.get("score", 0)), max_score=int(rec.get("max_score", 11)),
             session=rec.get("session", ""), evidences=list(rec.get("evidences") or []),
             sent=bool(rec.get("sent", True)),
+            strategies=[str(k) for k in (rec.get("strategies") or [])],
         )
 
     @staticmethod

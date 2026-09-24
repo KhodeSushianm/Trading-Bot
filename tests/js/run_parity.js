@@ -463,6 +463,7 @@ O.http = async function (url, opts) {
       reward_pips: e.reward_pips, rr: e.rr, score: e.score, max_score: e.max_score,
       session: e.session, evidences: e.evidences, sent: e.sent, outcome: e.outcome,
       outcome_ts: e.outcome_ts, close_price: e.close_price, r: e.r, note: e.note,
+      strategies: e.strategies,
       week_key: O.entryWeekKey(e), evidence_keys: O.entryEvidenceKeys(e)
     }));
     deepEq('entries', FIX.journal.entries, actEntries, 1e-9);
@@ -474,7 +475,8 @@ O.http = async function (url, opts) {
     const actStats = {
       total: st.total, open_count: st.open_count, overall: strip(st.overall),
       by_symbol: stripMap(st.by_symbol), by_score: stripMap(st.by_score),
-      by_evidence: stripMap(st.by_evidence), by_week: stripMap(st.by_week)
+      by_evidence: stripMap(st.by_evidence), by_strategy: stripMap(st.by_strategy),
+      by_week: stripMap(st.by_week)
     };
     deepEq('stats', FIX.journal.stats, actStats, 1e-9);
     // نرخ‌های محاسبه‌شده هم با تعریف پایتون بررسی شود

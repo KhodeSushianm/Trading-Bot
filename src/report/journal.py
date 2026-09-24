@@ -102,6 +102,20 @@ def render_stats(stats: Stats, open_entries: list[Entry] | None = None,
         for k, b in rows:
             lines.append(f"   {k:<12} {_bucket_line(b)}")
 
+    # همبستگی استراتژی↔برد (S4 — v0.27؛ رکوردها از v0.26 برچسب دارند)
+    if stats.by_strategy:
+        lines.append("─── کدام استراتژی واقعاً به درد خورده؟ ───")
+        rows = sorted(stats.by_strategy.items(),
+                      key=lambda kv: -((kv[1].hit_rate or 0.0)))
+        for k, b in rows:
+            lines.append(f"   {k:<16} {_bucket_line(b)}")
+        lines.append("   ↳ سرنوشتِ سیگنال‌هایی که استراتژی با آن‌ها توافق کرد"
+                     " — همبستگی ≠ علیت (صادقانه).")
+    elif stats.total:
+        lines.append("─── به تفکیک استراتژی ───")
+        lines.append("   رکوردهای پیش از v0.26 برچسب استراتژی ندارند — از اولین"
+                     " سیگنالِ v0.26 این بخش پر می‌شود.")
+
     # یادآوری صداقت دربارهٔ حجم نمونه
     lines.append("")
     if o.closed == 0:

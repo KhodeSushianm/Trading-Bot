@@ -64,6 +64,9 @@ class Stats:
     by_direction: dict[str, Bucket] = field(default_factory=dict)
     by_score: dict[str, Bucket] = field(default_factory=dict)
     by_evidence: dict[str, Bucket] = field(default_factory=dict)
+    # S4 (v0.27): سرنوشتِ سیگنال‌هایی که هر استراتژی با آن‌ها *توافق* کرد —
+    # همان فلسفهٔ by_evidence (همبستگی ≠ علیت؛ صادقانه در متن کارنامه)
+    by_strategy: dict[str, Bucket] = field(default_factory=dict)
 
     @property
     def last_week_key(self) -> Optional[str]:
@@ -107,4 +110,6 @@ def compute_stats(entries: list[Entry], now: datetime) -> Stats:
         st.by_score.setdefault(_score_bucket(e.score), Bucket()).add(e)
         for k in e.evidence_keys():
             st.by_evidence.setdefault(k, Bucket()).add(e)
+        for k in e.strategies:
+            st.by_strategy.setdefault(k, Bucket()).add(e)
     return st
