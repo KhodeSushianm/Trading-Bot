@@ -319,7 +319,7 @@ def test_judge_rule_plugins() -> None:
       "providers(veto@1) باید با ترتیب priority = ترتیب ارزیابی امروز بیاید")
     A([r.id for r in reg.providers("odin.judge.evidence@1")] == EVIDENCE_ORDER,
       "providers(evidence@1) باید با ترتیب priority = جدول امتیاز امروز بیاید")
-    A([vid for _, vid, _ in VETO_RULES]
+    A([vid for _, vid, _, _ in VETO_RULES]
       == ["DATA", "WEEKEND", "TF_CONFLICT", "RANGE", "EVENT", "VOL_SPIKE",
           "BREAKING_NEWS"], "veto_idهای اعلانی = ۷ کلید فعلی Veto")
     A([eid for _, eid, _, _ in EVIDENCE_RULES]
@@ -340,7 +340,7 @@ def test_judge_rule_plugins() -> None:
     ctx_wed = gen.make_ctx(cal=gen.clean_cal(), news=gen.good_news())
     ctx_sat = gen.make_ctx(now=gen.SAT, cal=gen.near_cal(gen.SAT),
                            news=gen.breaking_news())
-    for pid, vid, fname in VETO_RULES:
+    for pid, vid, fname, _ckey in VETO_RULES:
         rec = reg.by_id(pid)
         A(rec is not None and "odin.judge.veto@1" in rec.manifest.provides,
           f"{pid}: ثبت‌شده با قرارداد veto@1")
@@ -408,6 +408,118 @@ def test_judge_registry_parity() -> None:
     A(lm.initialize(rec) is None and rec.state is PluginState.INITIALIZED,
       "initialize پلاگین judge-core باید سالم باشد")
     A(isinstance(rec.instance, JudgePlugin), "نمونهٔ judge-core = JudgePlugin")
+
+
+def test_phase7_unification() -> None:
+    """فاز ۷: enable/disable یکپارچه زیر مانیفست — همان کلیدها + override.
+
+    پوشش: binding نقطه‌ایِ قواعد وتو · binding داور/ریسک/تلگرام · اولویت
+    override · مسیر graceful تلگرام (بایت‌به‌بایت «تنظیم نشده») ·
+    سخت‌گیریِ None (unavailable صادقانه، بدون کرش/نت) · اصلاحیهٔ _rules.
+    """
+    import copy
+    from src.config import load_config
+    from src.judge.scoring import judge_all, judge_config
+    from src.plugins.judge import JudgePlugin
+    import src.engine as E
+
+    gen = _load_judge_golden_module()
+    a = gen.make_analysis()
+    md = gen.make_md()
+
+    # ── ۱) binding نقطه‌ای قواعد وتو (judge.veto.*) ──
+    cfg_off = copy.deepcopy(CFG)
+    cfg_off["judge"]["veto"]["weekend"] = False
+    reg, info = build_default_registry(cfg_off)
+    A(reg.by_id("veto-weekend").enabled is False,
+      "judge.veto.weekend=false → پلاگین veto-weekend غیرفعال (dot-path)")
+    A(reg.by_id("veto-data").enabled is True,
+      "veto-data کلید ندارد → همیشه فعال (وتوی بدون استثنا)")
+    A([r.id for r in reg.providers("odin.judge.veto@1")]
+      == [p for p, _, _, _ in VETO_RULES if p != "veto-weekend"],
+      "providers(veto@1) = شش قاعدهٔ باقی‌مانده، با ترتیب preserved")
+
+    # ── ۲) مسیر پلاگین با وتوی خاموش == مسیر مستقیم (guard درون بدنه) ──
+    jp = JudgePlugin(info["context"])
+    ctx_sat = gen.make_ctx(now=gen.SAT, cal=gen.clean_cal(), news=gen.good_news(),
+                           veto=cfg_off["judge"]["veto"])
+    j_plugin = jp.judge_all([a], {a.symbol: md}, ctx_sat)[0]
+    j_direct = judge_all([a], {a.symbol: md}, ctx_sat)[0]
+    A(gen.judgment_dump(j_plugin) == gen.judgment_dump(j_direct),
+      "veto.weekend=false: مسیر پلاگین == مسیر مستقیم (بایت‌به‌بایت)")
+    A([v.key for v in j_direct.vetoes] == [] and j_direct.signal is not None,
+      "شنبه با weekend=false → بدون وتو سیگنال می‌دهد (رفتار امروز)")
+
+    # ── ۳) اصلاحیهٔ _rules: همهٔ کلیدهای وتو خاموش → فقط veto-data ──
+    cfg_all = copy.deepcopy(CFG)
+    for k in cfg_all["judge"]["veto"]:
+        cfg_all["judge"]["veto"][k] = False
+    reg_all, info_all = build_default_registry(cfg_all)
+    A([r.id for r in reg_all.providers("odin.judge.veto@1")] == ["veto-data"],
+      "همهٔ کلیدهای وتو خاموش → فقط veto-data فعال می‌ماند")
+    jp_all = JudgePlugin(info_all["context"])
+    v_rules, _e_rules, _risk = jp_all._rules()
+    A(v_rules is not None and len(v_rules) == 1,
+      "اصلاحیهٔ فاز ۷: فهرست کوتاه/خالی همان‌طور که هست رد می‌شود — "
+      "coercion به None قواعد پیش‌فرض را بی‌صدا زنده نمی‌کند")
+    ctx_all = gen.make_ctx(now=gen.SAT, cal=gen.clean_cal(), news=gen.good_news(),
+                           veto=cfg_all["judge"]["veto"])
+    A(gen.judgment_dump(jp_all.judge_all([a], {a.symbol: md}, ctx_all)[0])
+      == gen.judgment_dump(judge_all([a], {a.symbol: md}, ctx_all)[0]),
+      "همه‌خاموش: مسیر پلاگین == مسیر مستقیم (بدون وتو، سیگنال شنبه)")
+
+    # ── ۴) binding داور/ریسک به judge.enabled + fallback بایت‌به‌بایت ──
+    cfg_joff = copy.deepcopy(CFG)
+    cfg_joff["judge"]["enabled"] = False
+    reg_j, _ = build_default_registry(cfg_joff)
+    A(reg_j.by_id("judge-core").enabled is False
+      and reg_j.by_id("judge-risk").enabled is False,
+      "judge.enabled=false → judge-core و judge-risk غیرفعال")
+    A(reg_j.get("odin.judge.engine@1") is None,
+      "get(engine@1) پلاگین خاموش را نمی‌دهد")
+    cfg_loaded = load_config()
+    A(same(judge_config(cfg_loaded), cfg_loaded.get("judge") or {}),
+      "fallback jcfg در engine بایت‌به‌بایت است: cfg['judge'] == judge_config(cfg)"
+      " (load_config همان DEFAULTS را ادغام کرده)")
+
+    # ── ۵) binding تلگرام + مسیر graceful (همان «تنظیم نشده» امروز) ──
+    cfg_tg = copy.deepcopy(CFG)
+    cfg_tg["telegram"]["send_reports"] = False
+    reg_t, _ = build_default_registry(cfg_tg)
+    A(reg_t.by_id("notify-telegram").enabled is False,
+      "telegram.send_reports=false → notify-telegram غیرفعال")
+    logs = []
+    ok, msg = E._send_telegram(cfg_tg, "متن", logs.append, label="گزارش")
+    A(ok is False and msg == "تنظیم نشده",
+      "_send_telegram با پلاگین غایب → (False, 'تنظیم نشده') — همان body-guard امروز")
+    A(logs == ["[i] تلگرام تنظیم نشده — گزارش فقط در پنل/کنسول نمایش داده می‌شود"],
+      "لاگِ مسیر graceful بایت‌به‌بایت (شاخهٔ None در wrapper تاریخی)")
+
+    # ── ۶) override صریح plugins — برنده در هر دو جهت ──
+    cfg_ov = copy.deepcopy(CFG)
+    cfg_ov["plugins"] = {"fundamental-news": {"enabled": False}}
+    reg_o, _ = build_default_registry(cfg_ov)
+    A(reg_o.by_id("fundamental-news").enabled is False,
+      "override: news.enabled=true ولی plugins.enabled=false → غیرفعال")
+    cfg_ov2 = copy.deepcopy(CFG)
+    cfg_ov2["news"]["enabled"] = False
+    cfg_ov2["plugins"] = {"fundamental-news": {"enabled": True}}
+    reg_o2, _ = build_default_registry(cfg_ov2)
+    A(reg_o2.by_id("fundamental-news").enabled is True,
+      "override: news.enabled=false ولی plugins.enabled=true → پلاگین در دسترس"
+      " (نگهبانِ feature-side مصرف‌کننده همچنان خاموش نگه می‌دارد — معنای مستند)")
+
+    # ── ۷) سخت‌گیری Failure Isolation: None → unavailable صادقانه، بدون نت ──
+    cfg_none = copy.deepcopy(CFG)
+    cfg_none["plugins"] = {"fundamental-calendar": {"enabled": False},
+                           "fundamental-news": {"enabled": False}}
+    logs2 = []
+    cal, news = E._collect_fundamental(cfg_none, logs2.append)
+    A(cal is None and news is None,
+      "پلاگین غایب → snap=None (unavailable — نه کرش، نه واکشی)")
+    A(any("پلاگین تقویم اقتصادی در دسترس نیست" in ln for ln in logs2)
+      and any("پلاگین موتور اخبار در دسترس نیست" in ln for ln in logs2),
+      "لاگ صادقانهٔ فارسی برای هر دو: " + repr(logs2))
 
 
 def test_delegation_network() -> None:
@@ -563,7 +675,7 @@ def test_report_dispatcher() -> None:
 def main() -> int:
     tests = [test_registration, test_enable_disable, test_select_market_provider,
              test_golden_pure, test_judge_rule_plugins, test_judge_registry_parity,
-             test_delegation_network,
+             test_phase7_unification, test_delegation_network,
              test_golden_journal_alerts, test_report_dispatcher]
     fails = []
     for t in tests:

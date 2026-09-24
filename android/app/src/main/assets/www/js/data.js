@@ -401,17 +401,25 @@
           }))
         : Promise.resolve();
 
-      // پلاگین خاموش (طبق binding) → fallback به همان تابع قبلی تا خروجیِ
-      // مسیر «غیرفعال در تنظیمات» (guard داخلی) بایت‌به‌بایت امروز بماند.
+      // فاز ۷ — تک‌مسیر: پلاگین خاموش (طبق binding) → همان snap
+      // «غیرفعال در تنظیمات» درون‌خطی — بایت‌به‌بایت با خروجیِ guard داخلیِ
+      // O.fetchCalendar (smoke_plugins برابری این دو را assert می‌کند).
+      // guard داخلی سرِ جایش می‌ماند (دفاع لایهٔ دوم + سایر مصرف‌کننده‌ها).
       var cal = caps.calendar;
-      var calP = (cal ? cal.fetchCalendar(cfg, storage) : O.fetchCalendar(cfg, storage)).then(function (s) {
+      var calP = (cal ? cal.fetchCalendar(cfg, storage) : Promise.resolve({
+        events: [], ok: false, error: 'غیرفعال در تنظیمات', fetched: false,
+        stale: false, fromCache: false, weekRange: ['', '']
+      })).then(function (s) {
         mkt.calSnap = s;
         if (s && s.ok) log('🏦 تقویم اقتصادی: ' + O.faNum(s.events.length) + ' رویداد' + (s.fromCache ? ' (از کش)' : ''));
         else log('[!] تقویم اقتصادی در دسترس نیست: ' + String((s && s.error) || '').slice(0, 80));
       });
 
       var news = caps.news;
-      var newsP = (news ? news.fetchNews(cfg, log) : O.fetchNews(cfg, log)).then(function (s) {
+      var newsP = (news ? news.fetchNews(cfg, log) : Promise.resolve({
+        items: [], ok: false, error: 'غیرفعال در تنظیمات', feedsOk: 0,
+        feedsFailed: 0, staleFeeds: [], failedNames: [], rawCount: 0
+      })).then(function (s) {
         mkt.newsSnap = s;
         if (s && s.ok) {
           var br = s.items.filter(function (i) { return i.breaking; }).length;

@@ -71,7 +71,11 @@ class JudgePlugin:
             risk_rec = reg.get("odin.judge.risk@1")
             risk_fn = (inst(risk_rec).compute_levels
                        if risk_rec is not None else None)
-            self._rules_cache = (vetoes or None, evidences or None, risk_fn)
+            # اصلاحیهٔ فاز ۷: وقتی registry هست، فهرست‌ها *همان‌طور که
+            # هستند* رد می‌شوند — حتی خالی. پیش‌تر `vetoes or None` فهرست
+            # خالی (همهٔ وتوها خاموش) را به None تبدیل می‌کرد و قواعد
+            # پیش‌فرضِ scoring بی‌صدا برمی‌گشتند — خلافِ تنظیمات کاربر.
+            self._rules_cache = (vetoes, evidences, risk_fn)
         return self._rules_cache
 
 
@@ -129,16 +133,19 @@ class EvidenceRuleAdapter:
         return fn(ctx) if self._ctx_only else fn(a, ctx, direction)
 
 
-# (plugin-id, veto_id, نام تابع scoring) — ترتیب = ترتیب ارزیابیِ امروزِ
-# collect_vetoes؛ priority مانیفست‌ها دقیقاً همین ترتیب را پین می‌کند.
-VETO_RULES: Tuple[Tuple[str, str, str], ...] = (
-    ("veto-data", "DATA", "veto_data"),
-    ("veto-weekend", "WEEKEND", "veto_weekend"),
-    ("veto-tf-conflict", "TF_CONFLICT", "veto_tf_conflict"),
-    ("veto-range", "RANGE", "veto_range"),
-    ("veto-event", "EVENT", "veto_event"),
-    ("veto-vol-spike", "VOL_SPIKE", "veto_vol_spike"),
-    ("veto-breaking-news", "BREAKING_NEWS", "veto_breaking_news"),
+# (plugin-id, veto_id, نام تابع scoring, کلیدِ veto در judge) — ترتیب =
+# ترتیب ارزیابیِ امروزِ collect_vetoes؛ priority مانیفست‌ها دقیقاً همان
+# ترتیب را پین می‌کند. ستون چهارم (فاز ۷): کلیدِ *موجودِ* خاموش/روشنِ هر
+# دروازه — به‌صورت dot-path به مانیفست bind می‌شود تا «غیرفعال» هم زیر
+# مانیفست بیاید؛ DATA کلید ندارد (وتوی بدون استثنا) → config=None.
+VETO_RULES: Tuple[Tuple[str, str, str, Optional[str]], ...] = (
+    ("veto-data", "DATA", "veto_data", None),
+    ("veto-weekend", "WEEKEND", "veto_weekend", "weekend"),
+    ("veto-tf-conflict", "TF_CONFLICT", "veto_tf_conflict", "timeframe_conflict"),
+    ("veto-range", "RANGE", "veto_range", "range_market"),
+    ("veto-event", "EVENT", "veto_event", "high_impact_event"),
+    ("veto-vol-spike", "VOL_SPIKE", "veto_vol_spike", "volatility_spike"),
+    ("veto-breaking-news", "BREAKING_NEWS", "veto_breaking_news", "breaking_news"),
 )
 
 # (plugin-id, evidence_id, نام تابع, ctx_only) — ترتیب = جدول امتیازِ امروز
@@ -165,35 +172,41 @@ def plugins() -> List[Tuple[PluginManifest, Any]]:
         (PluginManifest(
             id="judge-core", version="1.0.0",
             provides=["odin.judge.engine@1"],
-            # عمداً config=None: engine پیش از چکِ judge.enabled هم از
-            # judge_config استفاده می‌کند (ادغام پیش‌فرض‌ها) — پس پلاگین باید
-            # همیشه در دسترس باشد؛ کلید enabled همان guard فعلی engine است.
-            # bind شدن در فاز ۷ با معناشناسی دقیق بازبینی می‌شود.
-            config=None,
+            # فاز ۷ — بازبینی انجام شد: bind به judge.enabled با حفظ مسیرِ
+            # بدون guardِ judge_config: engine در آن نقطه (jcfg) وقتی پلاگین
+            # خاموش است به cfg["judge"] برمی‌گردد که در load_config با همان
+            # DEFAULTS ادغام شده (src/config.py) — بایت‌به‌بایت یکسان.
+            # در JS هم cycleCtx.jcfg مستقیماً cfg.judge است. پس «خاموش =
+            # پلاگین غایب» هیچ مسیر صادقی را نمی‌شکند.
+            config={"section": "judge", "enabled_key": "enabled", "default": True},
             platforms=["desktop", "android"],
             stage="judge", priority=50, optional=True),
          lambda ctx: JudgePlugin(ctx if isinstance(ctx, dict) else None)),
         (PluginManifest(
             id="judge-risk", version="1.0.0",
             provides=["odin.judge.risk@1"],
-            # config=None: ریاضی SL/TP همیشه لازم است (judge_symbol پیش از
-            # هر guard آن را صدا می‌زند) — کلیدهای تنظیمش داخل rcfg هستند.
-            config=None,
+            # فاز ۷: risk فقط درون judge_symbol مصرف می‌شود (مسیر judge) —
+            # پس bind به judge.enabled امن است؛ مصرف‌کنندهٔ مستقیم
+            # (panel/main/selftest) تابع scoring را صدا می‌زند، نه پلاگین را.
+            config={"section": "judge", "enabled_key": "enabled", "default": True},
             platforms=["desktop", "android"],
             stage="judge", priority=60, optional=True),
          lambda _ctx: RiskPlugin()),
     ]
 
     # ── ۷ قاعدهٔ وتو — priority ۱۰..۷۰ = ترتیب ارزیابیِ امروز ──
-    # config=None: روشن/خاموشِ هر دروازه همان کلیدهای *موجود* judge.veto.*
-    # است که داخل بدنهٔ قاعده خوانده می‌شوند (vc.get) — enable/disable زیر
-    # مانیفست با معناشناسی دقیق، کارِ فاز ۷ است (بدون تغییر رفتار امروز).
-    for i, (pid, vid, fname) in enumerate(VETO_RULES):
+    # فاز ۷: شش دروازهٔ کلیددار به judge.veto.* bind شدند (dot-path در
+    # config-bridge). guardهای درونِ بدنه (vc.get) عمداً باقی‌اند: مصرف‌کنندهٔ
+    # مسیر مستقیم (selftest/gen_fixtures/test_judge) بدون registry همان
+    # کلیدها را می‌خواند — دو مسیر یک رفتار دارند (تست طلاییِ veto-off در
+    # tests/test_plugins.py برابری‌شان را پین می‌کند).
+    for i, (pid, vid, fname, cfg_key) in enumerate(VETO_RULES):
         out.append((
             PluginManifest(
                 id=pid, version="1.0.0",
                 provides=["odin.judge.veto@1"],
-                config=None,
+                config=({"section": "judge", "enabled_key": f"veto.{cfg_key}",
+                         "default": True} if cfg_key else None),
                 platforms=["desktop", "android"],
                 stage="judge", priority=10 * (i + 1), optional=True),
             lambda _ctx, vid=vid, fname=fname: VetoRuleAdapter(vid, fname)))

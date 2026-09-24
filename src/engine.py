@@ -110,6 +110,25 @@ class _Caps:
 def _caps(cfg: dict) -> _Caps:
     return _Caps(cfg)
 
+
+def _safe_render(caps: _Caps, kind: str, payload: dict,
+                 log: LogFn, default: str = "") -> str:
+    """رندر گزارش با Failure Isolation (سخت‌گیری فاز ۷).
+
+    پلاگین report غایب/خراب → لاگ صادقانهٔ فارسی + مقدار پیش‌فرض؛ هرگز
+    استثنا بیرون نمی‌رود (یک گزارشِ از‌دست‌رفته نباید چرخه را بیندازد).
+    مسیر سالم بایت‌به‌بایت همان caps.report.render است.
+    """
+    rep = caps.report
+    if rep is None:
+        log(f"[!] پلاگین گزارش در دسترس نیست — «{kind}» خالی رندر شد (unavailable)")
+        return default
+    try:
+        return rep.render(kind, payload)
+    except Exception as e:                          # noqa: BLE001 — قرنطینهٔ رندر
+        log(f"[!] رندر «{kind}» ناموفق: {str(e)[:90]}")
+        return default
+
 LogFn = Callable[[str], None]
 
 
@@ -146,6 +165,8 @@ def _collect_market(cfg: dict, log: LogFn, with_tv: bool = True) -> dict:
                     out["errors"] += 1
                     continue
                 out["datasets"][sym_cfg["name"]] = md
+                if caps.technical is None:            # سخت‌گیری فاز ۷
+                    raise RuntimeError("پلاگین تحلیل تکنیکال در دسترس نیست")
                 out["analyses"].append(caps.technical.analyze_symbol(
                     sym_cfg, md, cfg["analysis"]))
             except Exception as e:
@@ -160,18 +181,24 @@ def _collect_market(cfg: dict, log: LogFn, with_tv: bool = True) -> dict:
         return out
 
     log(f"✅ تحلیل {len(out['analyses'])} نماد انجام شد")
-    out["ranking"] = caps.strength.currency_strength(
-        out["datasets"], lookback_h1=int(cfg["analysis"].get("strength_lookback_h1", 24)))
+    if caps.strength is not None:
+        out["ranking"] = caps.strength.currency_strength(
+            out["datasets"], lookback_h1=int(cfg["analysis"].get("strength_lookback_h1", 24)))
+    else:                                             # سخت‌گیری فاز ۷
+        log("[!] پلاگین قدرت ارزها در دسترس نیست — رتبه‌بندی خالی می‌ماند (unavailable)")
 
     tv_cfg = cfg.get("tradingview") or {}
     out["tv_tf"] = str(tv_cfg.get("timeframe", "4h"))
     if with_tv and tv_cfg.get("enabled", True):
         log("🔍 دریافت تاییدیه تریدینگ‌ویو...")
-        try:
-            out["tv_map"] = caps.tv.fetch_tv_snapshot(cfg["symbols"], timeframe=out["tv_tf"])
-            log(f"✅ تاییدیه تریدینگ‌ویو برای {len(out['tv_map'])} نماد دریافت شد")
-        except Exception as e:
-            log(f"[!] تاییدیه تریدینگ‌ویو ناموفق: {str(e)[:90]}")
+        if caps.tv is None:                           # سخت‌گیری فاز ۷
+            log("[!] پلاگین تریدینگ‌ویو در دسترس نیست — تاییدیه خالی می‌ماند (unavailable)")
+        else:
+            try:
+                out["tv_map"] = caps.tv.fetch_tv_snapshot(cfg["symbols"], timeframe=out["tv_tf"])
+                log(f"✅ تاییدیه تریدینگ‌ویو برای {len(out['tv_map'])} نماد دریافت شد")
+            except Exception as e:
+                log(f"[!] تاییدیه تریدینگ‌ویو ناموفق: {str(e)[:90]}")
     return out
 
 
@@ -182,17 +209,23 @@ def _collect_fundamental(cfg: dict, log: LogFn) -> tuple:
     caps = _caps(cfg)
     cal_snap = news_snap = None
     if fcfg.get("enabled", True):
-        try:
-            cal_snap = caps.calendar.fetch_calendar(cfg, on_log=log)
-        except Exception as e:                       # لایهٔ اطمینان آخر
-            log(f"[!] خطای غیرمنتظره در تقویم اقتصادی: {str(e)[:90]}")
+        if caps.calendar is None:                     # سخت‌گیری فاز ۷
+            log("[!] پلاگین تقویم اقتصادی در دسترس نیست — رد شد (unavailable)")
+        else:
+            try:
+                cal_snap = caps.calendar.fetch_calendar(cfg, on_log=log)
+            except Exception as e:                   # لایهٔ اطمینان آخر
+                log(f"[!] خطای غیرمنتظره در تقویم اقتصادی: {str(e)[:90]}")
     else:
         log("[i] موتور فاندامنتال (تقویم اقتصادی) در تنظیمات غیرفعال است")
     if ncfg.get("enabled", True):
-        try:
-            news_snap = caps.news.fetch_news(cfg, on_log=log)
-        except Exception as e:
-            log(f"[!] خطای غیرمنتظره در موتور اخبار: {str(e)[:90]}")
+        if caps.news is None:                         # سخت‌گیری فاز ۷
+            log("[!] پلاگین موتور اخبار در دسترس نیست — رد شد (unavailable)")
+        else:
+            try:
+                news_snap = caps.news.fetch_news(cfg, on_log=log)
+            except Exception as e:
+                log(f"[!] خطای غیرمنتظره در موتور اخبار: {str(e)[:90]}")
     else:
         log("[i] موتور اخبار در تنظیمات غیرفعال است")
     return cal_snap, news_snap
@@ -218,6 +251,8 @@ def _compute_vetoes(cfg: dict, cal_snap, analyses, now: datetime, log: LogFn) ->
         return vetoes
     minutes = float((cfg.get("fundamental") or {}).get("veto_minutes_before", 30))
     caps = _caps(cfg)
+    if caps.calendar is None:      # سخت‌گیری فاز ۷: قرارداد «هرگز استثنا نه»
+        return vetoes
     for a in analyses:
         evs = caps.calendar.veto_for_symbol(cal_snap, a.base, a.quote, now,
                                             minutes=minutes)
@@ -368,19 +403,22 @@ def run_cycle(cfg: Optional[dict] = None, on_log: LogFn = _noop,
     # «دیدن» است، نه برای نوشتن در سند صداقت. فقط آمارِ موجود خوانده می‌شود.
     journal, stats, resolved = None, None, []
     if (cfg.get("journal") or {}).get("enabled", True):
-        journal = caps.journal.open()
-        if simulated:
-            log("[i] حالت شبیه‌سازی: ژورنال فقط خوانده می‌شود، نتیجه‌ای ثبت نمی‌شود")
-        try:
-            if not simulated:
-                resolved = caps.journal.resolve_open_signals(
-                    journal, mkt["datasets"], now=now, cfg=cfg, on_log=log)
-        except Exception as e:
-            log(f"[!] پیگیری ژورنال ناموفق: {str(e)[:90]}")
-        try:
-            stats = caps.journal.compute_stats(journal.load(), now)
-        except Exception as e:
-            log(f"[!] محاسبهٔ آمار ژورنال ناموفق: {str(e)[:90]}")
+        if caps.journal is None:                      # سخت‌گیری فاز ۷
+            log("[!] پلاگین ژورنال در دسترس نیست — ژورنال این چرخه رد شد (unavailable)")
+        else:
+            journal = caps.journal.open()
+            if simulated:
+                log("[i] حالت شبیه‌سازی: ژورنال فقط خوانده می‌شود، نتیجه‌ای ثبت نمی‌شود")
+            try:
+                if not simulated:
+                    resolved = caps.journal.resolve_open_signals(
+                        journal, mkt["datasets"], now=now, cfg=cfg, on_log=log)
+            except Exception as e:
+                log(f"[!] پیگیری ژورنال ناموفق: {str(e)[:90]}")
+            try:
+                stats = caps.journal.compute_stats(journal.load(), now)
+            except Exception as e:
+                log(f"[!] محاسبهٔ آمار ژورنال ناموفق: {str(e)[:90]}")
     else:
         log("[i] ژورنال در تنظیمات غیرفعال است")
     result["resolved"] = [{"symbol": e.symbol, "direction": e.direction,
@@ -388,12 +426,9 @@ def run_cycle(cfg: Optional[dict] = None, on_log: LogFn = _noop,
     result["stats"] = stats
     BUS.emit(Events.JOURNAL_RESOLVED, {"resolved": len(resolved)})
     if stats is not None and journal is not None:
-        try:
-            result["journal_report"] = caps.report.render(
-                "stats", {"stats": stats, "open_entries": journal.open_entries(),
-                          "now": now})
-        except Exception:
-            result["journal_report"] = ""
+        result["journal_report"] = _safe_render(
+            caps, "stats", {"stats": stats, "open_entries": journal.open_entries(),
+                            "now": now}, log)
 
     if not mkt["analyses"]:
         result["errors"] = max(mkt["errors"], 1)
@@ -407,32 +442,41 @@ def run_cycle(cfg: Optional[dict] = None, on_log: LogFn = _noop,
     BUS.emit(Events.VETOES_COMPUTED, {"vetoes": sorted(vetoes)})
 
     # ── ⚖️ داور امتیازدهی (مرحله ۳) ───────────────────────────
-    jcfg = caps.judge.judge_config(cfg)
+    # فاز ۷: judge-core به judge.enabled bind است — وقتی خاموش است پلاگین
+    # غایب است ولی jcfg هنوز لازم است (min_score برای رندر/ضداسپم).
+    # cfg["judge"] در load_config با همان DEFAULTS ادغام شده (src/config.py)
+    # → fallback بایت‌به‌بایت یکسان است.
+    jcfg = (caps.judge.judge_config(cfg) if caps.judge is not None
+            else (cfg.get("judge") or {}))
     judgments, signals, judge_summary = [], [], ""
     if jcfg.get("enabled", True):
-        ctx = JudgeContext(
-            jcfg=jcfg, acfg=cfg["analysis"], symbols_cfg=cfg["symbols"],
-            ranking=mkt["ranking"], tv_map=mkt["tv_map"],
-            cal_snap=cal_snap, news_snap=news_snap, now=now,
-            status=caps.session.market_status(now),
-            # منبع حقیقتِ پنجرهٔ وتو همان تنظیم مرحله ۲ است، نه یک عدد دوم
-            event_veto_minutes=float((cfg.get("fundamental") or {})
-                                     .get("veto_minutes_before", 30)),
-        )
-        judgments = caps.judge.judge_all(mkt["analyses"], mkt["datasets"], ctx)
-        signals = [j.signal for j in judgments if j.signal]
-        BUS.emit(Events.JUDGE_DONE,
-                 {"judgments": len(judgments), "signals": len(signals)})
-        for _sg in signals:
-            BUS.emit(Events.SIGNAL_CREATED,
-                     {"symbol": _sg.symbol, "direction": _sg.direction,
-                      "score": _sg.score})
-        log(f"⚖️ داور: {len(signals)} سیگنال صادر شد 🎯" if signals
-            else "⚖️ داور: هیچ سیگنالی صادر نشد (دلیل هر نماد در گزارش هست)")
-        judge_summary = caps.report.render(
-            "judge_summary", {"judgments": judgments,
-                              "min_score": int(jcfg.get("min_score", 7)),
-                              "now": now})
+        if caps.judge is None or caps.session is None:   # سخت‌گیری فاز ۷
+            log("[!] پلاگین داور/سشن در دسترس نیست — قضاوتی در این چرخه انجام نشد (unavailable)")
+        else:
+            ctx = JudgeContext(
+                jcfg=jcfg, acfg=cfg["analysis"], symbols_cfg=cfg["symbols"],
+                ranking=mkt["ranking"], tv_map=mkt["tv_map"],
+                cal_snap=cal_snap, news_snap=news_snap, now=now,
+                status=caps.session.market_status(now),
+                # منبع حقیقتِ پنجرهٔ وتو همان تنظیم مرحله ۲ است، نه یک عدد دوم
+                event_veto_minutes=float((cfg.get("fundamental") or {})
+                                         .get("veto_minutes_before", 30)),
+            )
+            judgments = caps.judge.judge_all(mkt["analyses"], mkt["datasets"], ctx)
+            signals = [j.signal for j in judgments if j.signal]
+            BUS.emit(Events.JUDGE_DONE,
+                     {"judgments": len(judgments), "signals": len(signals)})
+            for _sg in signals:
+                BUS.emit(Events.SIGNAL_CREATED,
+                         {"symbol": _sg.symbol, "direction": _sg.direction,
+                          "score": _sg.score})
+            log(f"⚖️ داور: {len(signals)} سیگنال صادر شد 🎯" if signals
+                else "⚖️ داور: هیچ سیگنالی صادر نشد (دلیل هر نماد در گزارش هست)")
+            judge_summary = _safe_render(
+                caps, "judge_summary",
+                {"judgments": judgments,
+                 "min_score": int(jcfg.get("min_score", 7)),
+                 "now": now}, log)
     else:
         log("[i] داور امتیازدهی در تنظیمات غیرفعال است")
 
@@ -446,7 +490,7 @@ def run_cycle(cfg: Optional[dict] = None, on_log: LogFn = _noop,
             f" | باز {fa_num(stats.open_count)}"
             + (f" | بسته‌شدهٔ این چرخه: {fa_num(len(resolved))}" if resolved else ""))
 
-    report = caps.report.render("console", {
+    report = _safe_render(caps, "console", {
         "analyses": mkt["analyses"], "ranking": mkt["ranking"],
         "source_name": mkt["source_name"],
         "tv_map": mkt["tv_map"], "tv_tf": mkt["tv_tf"],
@@ -454,7 +498,7 @@ def run_cycle(cfg: Optional[dict] = None, on_log: LogFn = _noop,
         "symbols_cfg": cfg["symbols"], "vetoes": vetoes,
         "cal_horizon": _horizon_hours(cfg), "judge_summary": judge_summary,
         "now": now, "simulated": simulated, "journal_line": journal_line,
-    })
+    }, log)
     BUS.emit(Events.REPORT_RENDERED, {"kind": "console", "length": len(report)})
     result.update(report=report, errors=mkt["errors"], ok=True, vetoes=vetoes,
                   calendar_ok=bool(cal_snap and cal_snap.ok),
@@ -470,13 +514,13 @@ def run_cycle(cfg: Optional[dict] = None, on_log: LogFn = _noop,
             sent_signals.append({"symbol": sig.symbol, "direction": sig.direction,
                                  "score": sig.score, "max_score": sig.max_score,
                                  "sent": False, "simulated": True,
-                                 "text": caps.report.render("signal", {"s": sig}),
+                                 "text": _safe_render(caps, "signal", {"s": sig}, log),
                                  "entry": sig.entry, "sl": sig.sl, "tp": sig.tp})
     elif signals:
         state = _load_signal_state()
         for sig in signals:
             go, why = should_send_signal(state, sig, jcfg, now=now)
-            text = caps.report.render("signal", {"s": sig})
+            text = _safe_render(caps, "signal", {"s": sig}, log)
             sent = False
             if go:
                 sent, _msg = _send_telegram(cfg, text, log,
@@ -564,11 +608,11 @@ def run_cycle(cfg: Optional[dict] = None, on_log: LogFn = _noop,
     # بخش فاندامنتال به‌صورت مستقل (برای تب جداگانه در پنل)
     fund_parts = []
     if cal_snap is not None:
-        fund_parts.append(caps.report.render(
-            "calendar", {"snap": cal_snap, "symbols_cfg": cfg["symbols"],
-                         "now": now, "horizon_hours": _horizon_hours(cfg)}))
+        fund_parts.append(_safe_render(
+            caps, "calendar", {"snap": cal_snap, "symbols_cfg": cfg["symbols"],
+                               "now": now, "horizon_hours": _horizon_hours(cfg)}, log))
     if news_snap is not None:
-        fund_parts.append(caps.report.render("news", {"snap": news_snap}))
+        fund_parts.append(_safe_render(caps, "news", {"snap": news_snap}, log))
     result["fundamental_report"] = "\n".join(fund_parts)
 
     _archive(report)
@@ -607,13 +651,13 @@ def run_briefing(cfg: Optional[dict] = None, on_log: LogFn = _noop,
         news_snap = None
 
     bcfg = cfg.get("briefing") or {}
-    text = caps.report.render("briefing", {
+    text = _safe_render(caps, "briefing", {
         "analyses": mkt["analyses"], "ranking": mkt["ranking"],
         "cal_snap": cal_snap, "news_snap": news_snap,
         "symbols_cfg": cfg["symbols"],
         "source_name": mkt["source_name"],
         "horizon_hours": float(bcfg.get("horizon_hours", 24)),
-    })
+    }, log)
     result.update(report=text, errors=mkt["errors"], ok=True)
     _archive(text, "briefings.log")
     result["telegram"] = _send_telegram(cfg, text, log, label="بریفینگ صبحگاهی")
@@ -660,6 +704,8 @@ def check_event_alerts(cfg: Optional[dict] = None, cal_snap=None,
     log = on_log
     caps = _caps(cfg)
 
+    if caps.calendar is None:      # سخت‌گیری فاز ۷: unavailable، نه کرش
+        return []
     if cal_snap is None:
         # از کش محلی می‌آید → ارزان
         cal_snap = caps.calendar.fetch_calendar(cfg, on_log=_noop)
@@ -684,9 +730,9 @@ def check_event_alerts(cfg: Optional[dict] = None, cal_snap=None,
             continue
         if state.get(e.key):
             continue                                       # قبلاً هشدار داده شده
-        text = caps.report.render("event_alert",
-                                  {"event": e, "symbols_cfg": cfg["symbols"],
-                                   "now": now})
+        text = _safe_render(caps, "event_alert",
+                            {"event": e, "symbols_cfg": cfg["symbols"],
+                             "now": now}, log)
         sent = False
         if not dry_run:
             sent, _msg = _send_telegram(cfg, text, log, label="هشدار رویداد")
@@ -718,6 +764,9 @@ def run_journal_report(cfg: Optional[dict] = None, on_log: LogFn = _noop,
         on_log(f"[{datetime.now():%H:%M:%S}] {msg}")
 
     caps = _caps(cfg)
+    if caps.journal is None:       # سخت‌گیری فاز ۷
+        log("[!] پلاگین ژورنال در دسترس نیست — گزارش ساخته نشد (unavailable)")
+        return result
     jr = caps.journal.open()
     try:
         entries = jr.load()
@@ -727,13 +776,13 @@ def run_journal_report(cfg: Optional[dict] = None, on_log: LogFn = _noop,
     now = datetime.now(timezone.utc)
     stats = caps.journal.compute_stats(entries, now)
     if kind == "nightly":
-        text = caps.report.render("nightly",
-                                  {"entries": entries, "stats": stats, "now": now})
+        text = _safe_render(caps, "nightly",
+                            {"entries": entries, "stats": stats, "now": now}, log)
         label = "🌙 خلاصهٔ شبانه"
     else:
-        text = caps.report.render("stats", {"stats": stats,
+        text = _safe_render(caps, "stats", {"stats": stats,
                                             "open_entries": jr.open_entries(),
-                                            "now": now})
+                                            "now": now}, log)
         label = "📊 کارنامهٔ دقت"
     result.update(report=text, ok=True, stats=stats)
     _archive(text, "journal.log")

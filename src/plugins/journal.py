@@ -34,10 +34,16 @@ def plugins() -> List[Tuple[PluginManifest, Any]]:
         (PluginManifest(
             id="journal", version="1.0.0",
             provides=["odin.journal@1"],
-            # عمداً config=None: run_journal_report و journal_signal بدون چکِ
-            # journal.enabled هم ژورنال را می‌خوانند/می‌نویسند (سند صداقت نباید
-            # با یک کلید از دسترس خارج شود) — guard فعلی engine حفظ می‌شود.
-            # bind شدن در فاز ۷ بازبینی می‌شود.
+            # تصمیم نهایی فاز ۷ — config=None می‌ماند (bind نمی‌شود):
+            # ۱) ضداسپم (should_send_signal) و ثبت سیگنال حتی با
+            #    journal.enabled=false هم باید کار کنند — وگرنه خاموش‌کردن
+            #    ژورنال باعث ارسالِ سیگنالِ تکراری می‌شود (رفتار امروز).
+            # ۲) resolve_open_signals خودش guard داخلی دارد (enabled=false →
+            #    []) — پس «خاموش» صادقانه کار می‌کند بدون غیبتِ پلاگین.
+            # یکپارچگیِ enable/disable اینجا یعنی: کلید فیچری + guardهای
+            # موجود (engine/بدنه) — نه bind مانیفست. (فقط override صریحِ
+            # plugins.journal.enabled=false می‌تواند پلاگین را غایب کند که
+            # مصرف‌کننده‌ها در فاز ۷ None-safe شده‌اند.)
             config=None,
             platforms=["desktop", "android"],
             stage="journal_pre", priority=10, optional=True),

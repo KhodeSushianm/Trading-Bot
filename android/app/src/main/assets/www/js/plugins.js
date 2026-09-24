@@ -164,15 +164,23 @@
       factory: function () { return new NewsAdapter(); }
     },
     {
-      // عمداً config=None (مثل پایتون): judgeConfig/judgeAll در مسیرهای
-      // بدون guard هم مصرف می‌شوند — کلید judge.enabled همان guard فعلی
-      // cycleCore است (بازبینی در فاز ۷).
-      id: 'judge-core', provides: ['odin.judge.engine@1'], config: null,
+      // فاز ۷ — بازبینی انجام شد: bind به judge.enabled امن است چون
+      // ۱) guard مصرف‌کننده (S.cfg.judge.enabled) پیش از caps.judge چک می‌شود
+      //    و ۲) ctx.jcfg مستقیماً S.cfg.judge است (پیش‌فرض‌ها در config.js
+      //    ادغام شده‌اند — judgeConfig در چرخه صدا زده نمی‌شود).
+      id: 'judge-core',
+      provides: ['odin.judge.engine@1'],
+      config: { section: 'judge', enabled_key: 'enabled', 'default': true },
       stage: 'judge', priority: 50,
       factory: function () { return new JudgeAdapter(); }
     },
     {
-      id: 'judge-risk', provides: ['odin.judge.risk@1'], config: null,
+      // فاز ۷: risk فقط درون judgeAll مصرف می‌شود (مسیر داور) → bind به
+      // judge.enabled امن است؛ مصرف‌کنندهٔ مستقیم (UI/تست‌ها) O.computeLevels
+      // را صدا می‌زند، نه پلاگین را.
+      id: 'judge-risk',
+      provides: ['odin.judge.risk@1'],
+      config: { section: 'judge', enabled_key: 'enabled', 'default': true },
       stage: 'judge', priority: 60,
       factory: function () { return new RiskAdapter(); }
     },

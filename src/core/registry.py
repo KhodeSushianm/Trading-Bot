@@ -116,5 +116,9 @@ class PluginRegistry:
         return True
 
     def status(self) -> List[dict]:
-        """خلاصهٔ وضعیت همهٔ پلاگین‌ها — برای لاگ/تشخیص (و UI در فاز ۷)."""
+        """خلاصهٔ وضعیت همهٔ پلاگین‌ها — برای لاگ/تشخیص.
+
+        (نمایش در UI: به بعد از مهاجرت موکول شد — تصمیم فاز ۷ با تأیید مالک؛
+        API آماده است و smoke_plugins/test_plugins مصرفش را پین کرده‌اند.)
+        """
         return [r.status_dict() for r in self.all()]

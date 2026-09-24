@@ -49,10 +49,15 @@ def plugins() -> List[Tuple[PluginManifest, Any]]:
         (PluginManifest(
             id="notify-telegram", version="1.0.0",
             provides=["odin.notify@1"],
-            # عمداً config=None: guard «تنظیم نشده» داخل بدنهٔ send است (همان
-            # رفتار امروز). bind شدن به send_reports در فاز ۷ با معناشناسی
-            # دقیق‌تر انجام می‌شود تا مسیر graceful هرگز از دست نرود.
-            config=None,
+            # فاز ۷ — بازبینی انجام شد: bind به telegram.send_reports امن است،
+            # چون wrapper تاریخیِ engine از فاز ۳ برای notifier=None شاخهٔ
+            # graceful دارد با *همان* پیام و مقدار بازگشتیِ مسیر «تنظیم
+            # نشده» («[i] تلگرام تنظیم نشده — …» / (False, "تنظیم نشده")) —
+            # پس نبودِ پلاگین هرگز این مسیر را از engine نمی‌گیرد (وعدهٔ
+            # کامنت فاز ۳). guard داخل بدنهٔ send هم باقی است (token/chat_id
+            # خالی با send_reports=true → همان خروجی).
+            config={"section": "telegram", "enabled_key": "send_reports",
+                    "default": True},
             platforms=["desktop"],
             stage="dispatch_signals", priority=10, optional=True),
          lambda _ctx: TelegramNotifier()),

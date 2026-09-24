@@ -7,7 +7,7 @@
     جدیدی به config.yaml / O.CONFIG اضافه نمی‌شود.
   • بخش اختیاری `plugins:` در config فقط «override» است و پیش‌فرضِ خالی
     دارد؛ یعنی وقتی کاربر چیزی ننوشته، رفتار دقیقاً امروز است.
-    (کلیدهای این بخش در فاز ۷ مستندِ کاربری می‌شوند.)
+    (کلیدهای این بخش در فاز ۷ در config.yaml/config.js مستندِ کاربری شدند.)
 
 ترتیب اولویت (بالا = برنده):
   ۱) cfg["plugins"][plugin_id]["enabled"]     (override صریح کاربر)
@@ -64,8 +64,8 @@ def plugin_enabled(cfg: Dict[str, Any], manifest: PluginManifest) -> bool:
 def plugin_config(cfg: Dict[str, Any], manifest: PluginManifest) -> dict:
     """بخش config این پلاگین (dict) — همان چیزی که توابع فعلی می‌گیرند.
 
-    overrideهای `plugins[id].config` (فاز ۷) عمیق روی بخش ادغام می‌شوند؛
-    امروز که چنین کلیدی وجود ندارد، خروجی == cfg[section] است.
+    overrideهای `plugins[id].config` عمیق روی بخش ادغام می‌شوند (فاز ۷ مستند شد؛
+    هنوز مصرف‌کننده‌ای ندارد) — امروز خروجی == cfg[section] است.
     """
     cfg = cfg or {}
     c = manifest.config or {}

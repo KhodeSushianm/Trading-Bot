@@ -285,13 +285,19 @@
     O.BUS.emit(O.core.EVENTS.CYCLE_START, { simulated: false });
 
     return O.runPipeline(S.cfg, S.storage, log).then(function (mkt) {
-      var status = caps.session.marketStatus(new Date(nowMs));
+      // سخت‌گیری فاز ۷: session غایب (فقط FAILED/override — binding ندارد)
+      // → status=null و بلوک داور صادقانه رد می‌شود (نه TypeError بی‌صدا)
+      var status = caps.session ? caps.session.marketStatus(new Date(nowMs)) : null;
 
       // ژورنال اول (مثل دسکتاپ): سیگنال‌های باز از روی کندل‌ها بسته می‌شوند
       var resolved = [];
       try {
         if (S.cfg.journal.enabled !== false) {
-          resolved = caps.journal.resolveOpenSignals(S.journal, mkt.datasets, nowMs, S.cfg, log);
+          if (caps.journal) {
+            resolved = caps.journal.resolveOpenSignals(S.journal, mkt.datasets, nowMs, S.cfg, log);
+          } else {
+            log('[!] پلاگین ژورنال در دسترس نیست — پیگیری سیگنال‌های باز رد شد (unavailable)');
+          }
         }
       } catch (e) { log('[!] پیگیری ژورنال ناموفق: ' + e); }
       O.BUS.emit(O.core.EVENTS.JOURNAL_RESOLVED, { resolved: resolved.length });
@@ -299,15 +305,19 @@
       // داور
       var judgments = [];
       if (S.cfg.judge.enabled !== false) {
-        var ctx = {
-          jcfg: S.cfg.judge, acfg: S.cfg.analysis, symbolsCfg: S.cfg.symbols,
-          ranking: mkt.ranking, tvMap: mkt.tvMap,
-          calSnap: mkt.calSnap || null, newsSnap: mkt.newsSnap || null,
-          nowMs: nowMs, status: status,
-          eventVetoMinutes: +(S.cfg.fundamental.veto_minutes_before) || 30
-        };
-        try { judgments = caps.judge.judgeAll(mkt.analyses, mkt.datasets, ctx); }
-        catch (e) { log('[!] خطای داور: ' + e); }
+        if (!caps.judge || !caps.session) {   // سخت‌گیری فاز ۷ (آینهٔ پایتون)
+          log('[!] پلاگین داور/سشن در دسترس نیست — قضاوتی در این چرخه انجام نشد (unavailable)');
+        } else {
+          var ctx = {
+            jcfg: S.cfg.judge, acfg: S.cfg.analysis, symbolsCfg: S.cfg.symbols,
+            ranking: mkt.ranking, tvMap: mkt.tvMap,
+            calSnap: mkt.calSnap || null, newsSnap: mkt.newsSnap || null,
+            nowMs: nowMs, status: status,
+            eventVetoMinutes: +(S.cfg.fundamental.veto_minutes_before) || 30
+          };
+          try { judgments = caps.judge.judgeAll(mkt.analyses, mkt.datasets, ctx); }
+          catch (e) { log('[!] خطای داور: ' + e); }
+        }
       } else {
         log('[i] داور امتیازدهی در تنظیمات غیرفعال است');
       }
@@ -328,9 +338,12 @@
       var newSignals = [];                    // سیگنال‌های تازه (غیرتکراری) این چرخه — برای اعلان
       try { sentState = JSON.parse(S.storage.get('sent_signals.json') || '{}'); } catch (e) { }
       signals.forEach(function (sig) {
-        var dec = caps.journal.shouldSendSignal(sentState, sig, S.cfg.judge, nowMs);
+        // ضداسپم هرگز نباید با غیبت پلاگین بمیرد (آینهٔ تصمیم پایتون:
+        // journal عمداً binding ندارد) — fallback مستقیم فقط برای FAILED/override
+        var jn = caps.journal || O;
+        var dec = jn.shouldSendSignal(sentState, sig, S.cfg.judge, nowMs);
         if (S.cfg.journal.enabled !== false) {
-          try { S.journal.appendRec(caps.journal.signalToJournal(sig, dec.go)); } catch (e) { }
+          try { S.journal.appendRec(jn.signalToJournal(sig, dec.go)); } catch (e) { }
         }
         if (dec.go) {
           newSignals.push(sig);
@@ -347,7 +360,7 @@
 
       // آمار + وضعیت ماندگار
       var stats = null;
-      try { stats = caps.journal.computeStats(S.journal.load(), nowMs); } catch (e) { }
+      try { stats = (caps.journal || O).computeStats(S.journal.load(), nowMs); } catch (e) { }
       var sparks = {};
       Object.keys(mkt.datasets).forEach(function (k) {
         sparks[k] = mkt.datasets[k].m15.slice(-60).map(function (x) { return x.c; });
@@ -397,7 +410,13 @@
       // سرویس پس‌زمینه (اپ بسته) آن‌ها را فعال کنند؛ حذفِ پس‌از‌فعال‌شدن
       // تضمین می‌کند یک هشدار دو بار اعلان نمی‌شود.
       var firedAlerts = [];
-      try { firedAlerts = caps.alerts.checkAlerts(S.storage, S.state.analyses, nowMs); }
+      try {
+        if (caps.alerts) {
+          firedAlerts = caps.alerts.checkAlerts(S.storage, S.state.analyses, nowMs);
+        } else {   // سخت‌گیری فاز ۷
+          log('[!] پلاگین هشدار قیمت در دسترس نیست — بررسی رد شد (unavailable)');
+        }
+      }
       catch (e) { log('[!] بررسی هشدار قیمت ناموفق: ' + e); }
       if (firedAlerts.length && S.settings.notify_enabled !== false) {
         firedAlerts.forEach(function (f) {
@@ -480,11 +499,18 @@
   // ── حالت سرویس (پس‌زمینه — بدون DOM) ────────────────────────
   // OdinService بعد از بارگذاری صفحه ODIN.svcStart() را صدا می‌زند و
   // زمان‌بندی چرخه‌های بعدی با bgCycleDone(nextMin) به دست نیتیو می‌افتد.
+  // ژورنال هرگز نباید از دسترس خارج شود (سند صداقت + پایهٔ ضداسپم) —
+  // اگر پلاگین غایب بود (فقط FAILED/override؛ binding عمداً None است)
+  // مستقیم ساخته می‌شود. آینهٔ تصمیم journal در src/plugins/journal.py.
+  function openJournal(caps, storage) {
+    return caps.journal ? caps.journal.open(storage) : new O.Journal(storage);
+  }
+
   O.svcStart = function () {
     if (!O.SERVICE_MODE || S.svcReady) return;
     S.storage = O.makeStorage();
     loadSettings();
-    S.journal = O.makeCaps(S.cfg).journal.open(S.storage);   // فاز ۶: از پلاگین ژورنال
+    S.journal = openJournal(O.makeCaps(S.cfg), S.storage);   // فاز ۶/۷: از پلاگین ژورنال
     try { S.version = (typeof ODINNative !== 'undefined' && ODINNative.getVersion()) || S.version; } catch (e) { }
     // لایسنس (v0.14.0): سرویس بدون فعال‌سازی چرخه نمی‌زند — صادقانه اطلاع می‌دهد و می‌ایستد
     try {
@@ -1209,7 +1235,7 @@
   function boot() {
     S.storage = O.makeStorage();
     loadSettings();
-    S.journal = O.makeCaps(S.cfg).journal.open(S.storage);   // فاز ۶: از پلاگین ژورنال
+    S.journal = openJournal(O.makeCaps(S.cfg), S.storage);   // فاز ۶/۷: از پلاگین ژورنال
     // نسخه از PackageManager می‌آید که خودش از APP_VERSION در src/app_paths.py
     // مشتق می‌شود (v0.20.1). fallback عمداً «dev» است نه یک شمارهٔ نسخهٔ
     // واقعی — چون هاردکدکردن عدد اینجا همان چیزی است که باعث شد اپ روی
