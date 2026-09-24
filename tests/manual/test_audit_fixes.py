@@ -61,15 +61,25 @@ cfg = {"data_source": "yahoo", "symbols": [], "analysis": {}, "journal": {"enabl
        "tradingview": {"enabled": False}, "telegram": {"send_reports": False},
        "judge": {"enabled": False}, "loop": {"interval_minutes": 15}}
 
-with mock.patch.object(E, "Journal", lambda: Journal(os.path.join(tmp.name, "s.jsonl"))), \
+# ── به‌روزرسانی فاز ۳b: seamها به دنیای پلاگینی منتقل شدند ──
+# E.Journal/E.judge_all/E.render_report از فاز ۳a در engine وجود ندارند:
+#   • ژورنال → JournalPlugin.open (همان seam با پچ متد کلاس)
+#   • judge_all → در این سناریو judge.enabled=false است (پچ بی‌موضوع)
+#   • render_report → caps.report.render (رندر واقعیِ کنسول با تحلیلِ خالی
+#     آفلاین و سبک است — پچ لازم نیست)
+# _collect_market/_collect_fundamental/_compute_vetoes هنوز توابع ماژولِ
+# engine‌اند و هندلرهای مرحله آن‌ها را در زمان فراخوانی از ماژول می‌خوانند
+# → پچ مثل قبل کار می‌کند.
+from src.plugins.journal import JournalPlugin
+
+with mock.patch.object(JournalPlugin, "open",
+                       lambda self, path=None: Journal(os.path.join(tmp.name, "s.jsonl"))), \
      mock.patch.object(E, "_collect_market",
                        lambda c, lg: {"analyses": [], "datasets": {"EURUSD": md},
                                       "ranking": [], "tv_map": {}, "tv_tf": "4h",
                                       "source_name": "test", "errors": 0}), \
      mock.patch.object(E, "_collect_fundamental", lambda c, lg: (None, None)), \
-     mock.patch.object(E, "_compute_vetoes", lambda *a, **k: {}), \
-     mock.patch.object(E, "judge_all", lambda *a, **k: []), \
-     mock.patch.object(E, "render_report", lambda *a, **k: "گزارش تست"):
+     mock.patch.object(E, "_compute_vetoes", lambda *a, **k: {}):
     # الف) چرخهٔ عادی → باید ببندد
     res = E.run_cycle(dict(cfg), on_log=lambda m: None)
     n_after_real = len([l for l in pathlib.Path(tmp.name, "s.jsonl").read_text().splitlines()
