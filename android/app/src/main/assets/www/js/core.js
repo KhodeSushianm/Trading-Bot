@@ -617,6 +617,21 @@
   //  ترتیب اولویت: plugins[id].enabled ← section[enabled_key] ←
   //                 config.default ← true
   // ════════════════════════════════════════════════════════════
+  // مقدارِ کلید (مسطح یا dot-path) درون بخش — {found, value}
+  // فاز ۷: enabled_key می‌تواند مسیر نقطه‌ای باشد (مثل 'veto.weekend') —
+  // آینهٔ _resolve_enabled_key در src/core/config_bridge.py
+  function resolveEnabledKey(section, key) {
+    var parts = String(key).split('.');
+    var cur = section;
+    for (var i = 0; i < parts.length; i++) {
+      if (!cur || typeof cur !== 'object' || !hasOwn(cur, parts[i])) {
+        return { found: false, value: null };
+      }
+      cur = cur[parts[i]];
+    }
+    return { found: true, value: cur };
+  }
+
   core.pluginEnabled = function (cfg, manifest) {
     cfg = cfg || {};
 
@@ -627,13 +642,14 @@
       return pyBool(over.enabled);
     }
 
-    // ۲) کلید فیچری موجود
+    // ۲) کلید فیچری موجود (مسطح یا dot-path — فاز ۷)
     var c = manifest.config;
     if (c && typeof c === 'object' && pyBool(c.section)) {
       var section = hasOwn(cfg, c.section) ? cfg[c.section] : null;
       var key = hasOwn(c, 'enabled_key') ? c.enabled_key : 'enabled';
-      if (section && typeof section === 'object' && hasOwn(section, key)) {
-        return pyBool(section[key]);
+      if (section && typeof section === 'object') {
+        var r = resolveEnabledKey(section, key);
+        if (r.found) return pyBool(r.value);
       }
       // ۳) پیش‌فرض مانیفست
       return pyBool(hasOwn(c, 'default') ? c['default'] : true);

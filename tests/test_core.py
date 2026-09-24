@@ -282,6 +282,21 @@ def test_config_bridge() -> None:
     A(isinstance(sec, dict), "plugin_config باید dict بدهد")
     A(plugin_config(cfg, m_none) == {}, "بدون section → dict خالی")
 
+    # ── فاز ۷: enabled_key نقطه‌ای (dot-path) برای کلیدهای تودرتوی *موجود* ──
+    m_veto = _mk("veto-weekend-x", ["odin.judge.veto@1"],
+                 config={"section": "judge", "enabled_key": "veto.weekend", "default": True})
+    A(plugin_enabled({"judge": {"veto": {"weekend": False}}}, m_veto) is False,
+      "dot-path: judge.veto.weekend=false → غیرفعال")
+    A(plugin_enabled({"judge": {"veto": {"weekend": True}}}, m_veto) is True,
+      "dot-path: judge.veto.weekend=true → فعال")
+    A(plugin_enabled({"judge": {}}, m_veto) is True,
+      "dot-path مفقود → پیش‌فرض مانیفست (default=True)")
+    A(plugin_enabled({"judge": {"veto": {}}}, m_veto) is True,
+      "dot-path نیمه‌مفقود → پیش‌فرض مانیفست")
+    A(plugin_enabled({"judge": {"veto": {"weekend": True}},
+                      "plugins": {"veto-weekend-x": {"enabled": False}}}, m_veto) is False,
+      "override صریح plugins بر dot-path هم برنده است")
+
 
 def test_bus() -> None:
     bus = EventBus()

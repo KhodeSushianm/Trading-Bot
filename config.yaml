@@ -241,6 +241,32 @@ telegram:
   bot_token: ""     # از طریق پنل پر می‌شود (@BotFather)
   chat_id: ""       # از طریق پنل پر می‌شود (دکمه «گرفتن خودکار»)
 
+# ── فراخوانی‌های سیستم پلاگین (معماری پلاگین — فاز ۷) ────────────
+# بخشِ *اختیاری* برای فعال/غیرفعال‌کردن تک‌تک پلاگین‌ها. پیش‌فرض خالی است و
+# تا وقتی خالی است، فعال/غیرفعال دقیقاً با همان کلیدهای فیچریِ بالا کار
+# می‌کند (news.enabled، judge.veto.*، fundamental.enabled و ...).
+# ترتیب اولویت (بالا = برنده):
+#   ۱) plugins.<id>.enabled     ← override صریح (اینجا)
+#   ۲) کلید فیچریِ موجود        ← مثل news.enabled (همان معنای امروز)
+#   ۳) پیش‌فرض مانیفست پلاگین
+#   ۴) true
+# شناسهٔ پلاگین‌ها: data-yahoo · data-twelvedata · data-auto · data-tradingview
+#   · analysis-technical · analysis-strength · session · fundamental-calendar
+#   · fundamental-news · judge-core · judge-risk · veto-data · veto-weekend
+#   · veto-tf-conflict · veto-range · veto-event · veto-vol-spike
+#   · veto-breaking-news · ev-trend · ev-level · ev-fundamental · ev-momentum
+#   · ev-strength · ev-news · ev-tv · ev-session · journal · notify-telegram
+#   · alerts-price · report-renderer
+# مثال (فقط شکل را نشان می‌دهد — به‌صورت پیش‌فرض فعال نکنید):
+#   plugins:
+#     veto-weekend: { enabled: false }        # فقط وتوی آخر هفته حذف شود
+#     fundamental-news: { enabled: false }    # پلاگین اخبار فارغ از news.enabled
+# نکتهٔ معنایی: override فقط «دسترس‌پذیری پلاگین» را کنترل می‌کند؛ رفتارِ
+# مصرف‌کننده‌ها همچنان با کلیدهای فیچری است (برای خاموش‌کردن کامل یک فیچر،
+# همان کلید فیچری را خاموش کنید). plugins.<id>.config هم به‌صورت عمیق روی
+# بخش config پلاگین ادغام می‌شود (فعلاً مصرف‌کننده‌ای ندارد).
+plugins: {}
+
 # ── حلقه اجرای خودکار (دکمه «شروع ربات» در پنل) ────────────────
 loop:
   interval_minutes: 15   # فاصله بین تحلیل‌های خودکار

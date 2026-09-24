@@ -79,7 +79,14 @@
 
     journal: { enabled: true, expiry_hours: 48, conservative_both_touch: true },
 
-    ui: { user_name: 'سوشیان', animations: true }
+    ui: { user_name: 'سوشیان', animations: true },
+
+    // فراخوانی‌های سیستم پلاگین (فاز ۷) — پیش‌فرض خالی: فعال/غیرفعالِ
+    // پلاگین‌ها با همان کلیدهای فیچریِ بالا (news.enabled و ...) کار می‌کند.
+    // override صریحِ هر پلاگین: plugins['<id>'] = { enabled: false }
+    // (اولویت: override ← کلید فیچری ← پیش‌فرض مانیفست ← true).
+    // فهرست idها و توضیح کامل در config.yaml دسکتاپ (منبع حقیقت).
+    plugins: {}
   };
 
   // ادغام عمیق تنظیمات کاربر (از حافظهٔ گوشی) با پیش‌فرض‌ها

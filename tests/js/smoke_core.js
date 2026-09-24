@@ -346,6 +346,20 @@ group('۶) config-bridge — چهار سطح اولویت (کلیدهای *مو�
   ok(state['fundamental-news'] === false && reg.byId('fundamental-news').enabled === false,
     'applyConfigState باید پلاگین را طبق config خاموش کند');
   ok(state['x-none'] === true, 'بدون اتصال → روشن می‌ماند');
+
+  // فاز ۷: enabled_key نقطه‌ای (dot-path) — آینهٔ test_core.py
+  const mVeto = _mk('veto-weekend-x', ['odin.judge.veto@1'], null, 'judge', 100,
+    { section: 'judge', enabled_key: 'veto.weekend', default: true });
+  ok(core.pluginEnabled({ judge: { veto: { weekend: false } } }, mVeto) === false,
+    'dot-path: judge.veto.weekend=false → غیرفعال');
+  ok(core.pluginEnabled({ judge: { veto: { weekend: true } } }, mVeto) === true,
+    'dot-path: judge.veto.weekend=true → فعال');
+  ok(core.pluginEnabled({ judge: {} }, mVeto) === true,
+    'dot-path مفقود → پیش‌فرض مانیفست');
+  ok(core.pluginEnabled({ judge: { veto: {} } }, mVeto) === true,
+    'dot-path نیمه‌مفقود → پیش‌فرض مانیفست');
+  ok(core.pluginEnabled({ judge: { veto: { weekend: true } }, plugins: { 'veto-weekend-x': { enabled: false } } }, mVeto) === false,
+    'override صریح plugins بر dot-path هم برنده است');
 }
 
 // ══════════════════════════════════════════════════════════════

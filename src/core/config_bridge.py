@@ -22,6 +22,21 @@ from typing import Any, Dict, Optional
 from .manifest import PluginManifest
 
 
+def _resolve_enabled_key(section: Any, key: str) -> tuple:
+    """مقدارِ کلید (مسطح یا dot-path) درون بخش — (مقدار، پیدا شد).
+
+    فاز ۷: `enabled_key` می‌تواند مسیر نقطه‌ای باشد (مثل "veto.weekend"
+    در بخش judge) تا کلیدهای تودرتوی *موجود* هم زیر مانیفست بیایند —
+    بدون هیچ کلید جدیدی. مسیر مفقود → (None, False) → پیش‌فرض مانیفست.
+    """
+    cur = section
+    for part in str(key).split("."):
+        if not isinstance(cur, dict) or part not in cur:
+            return None, False
+        cur = cur[part]
+    return cur, True
+
+
 def plugin_enabled(cfg: Dict[str, Any], manifest: PluginManifest) -> bool:
     """آیا این پلاگین طبق config فعال است؟ (تصمیم خالص — بدون side-effect)"""
     cfg = cfg or {}
@@ -31,12 +46,14 @@ def plugin_enabled(cfg: Dict[str, Any], manifest: PluginManifest) -> bool:
     if isinstance(over, dict) and "enabled" in over:
         return bool(over["enabled"])
 
-    # ۲) کلید فیچری موجود
+    # ۲) کلید فیچری موجود (مسطح یا dot-path — فاز ۷)
     c = manifest.config
     if isinstance(c, dict) and c.get("section"):
         section = cfg.get(c["section"])
-        if isinstance(section, dict) and c.get("enabled_key", "enabled") in section:
-            return bool(section[c["enabled_key"]])
+        if isinstance(section, dict):
+            val, found = _resolve_enabled_key(section, c.get("enabled_key", "enabled"))
+            if found:
+                return bool(val)
         # ۳) پیش‌فرض مانیفست
         return bool(c.get("default", True))
 
