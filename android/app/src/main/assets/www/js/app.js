@@ -289,24 +289,47 @@
     var log = opts.log || function () { };
     var nowMs = Date.now();
     var prevNewsSnap = S.state ? S.state.newsSnap : null;
-    // فاز ۶: قابلیت‌ها از registry (caps) مصرف می‌شوند + رویدادهای BUS.
-    // نگاشت رویدادها با engine پایتون — ۹ از ۱۲ (سه رویداد معادلِ درون‌چرخه‌ای
-    // در JS ندارند و منتشر نمی‌شوند): cycle.start · market.collected و
-    // fundamental.collected (داخل runPipeline) · journal.resolved · judge.done ·
-    // signal.created · signal.sent (لحظهٔ dispatch/ژورنال — JS تلگرام ندارد) ·
-    // alerts.fired · cycle.end. report.rendered/telegram.sent/vetoes.computed
-    // معادل JS ندارند (رندر توسط UI جدا انجام می‌شود؛ وتوهای تقویمِ
-    // نماد-محور فقط در engine دسکتاپ‌اند).
+    // ۶c (v0.28): چرخه روی ۱۱ مرحلهٔ نام‌دارِ createPipelineAsync — آینهٔ
+    // run_cycle پایتون (همان ترتیب کانونیکال: fundamental *بعد از* journal_pre
+    // و early-exit = stop در journal_pre). رویدادهای BUS: ۹ رویداد استانداردِ
+    // امروز سرِ همان نقطه‌ها + stage.start/stage.done برای هر مرحله. نگاشتِ
+    // صادقانهٔ مراحلِ بدونِ‌کار در JS: compute_vetoes (وتوهای نماد-محورِ
+    // تقویم فقط در دسکتاپ‌اند — در JS وتوها داخل judgeAll‌اند) و render
+    // (رندر توسط UI جدا انجام می‌شود) — هر دو no-op با stage.* هستند.
+    // report.rendered/telegram.sent/vetoes.computed معادل JS ندارند (مثل قبل).
     var caps = O.makeCaps(S.cfg);
+    // اسکلت خالی — اگر collect_market قرنطینه شود، مراحل بعد با دادهٔ خالیِ
+    // صادقانه stop می‌کنند (نه آبشارِ TypeError)
+    var mkt = {
+      analyses: [], datasets: {}, ranking: [], tvMap: {}, tvTf: '4h',
+      sourceName: 'yahoo', errors: 0
+    };
+    var status = null;
+    var resolved = [];
+    var judgments = [];
+    var signals = [];
+    var newSignals = [];                    // سیگنال‌های تازه (غیرتکراری) این چرخه — برای اعلان
+    var stats = null;
+    var firedAlerts = [];
+
     O.BUS.emit(O.core.EVENTS.CYCLE_START, { simulated: false });
 
-    return O.runPipeline(S.cfg, S.storage, log).then(function (mkt) {
+    var pipe = O.core.createPipelineAsync({ bus: O.BUS, log: log, registry: caps.reg });
+
+    // ── ۱) collect_market ─────────────────────────────────────
+    pipe.add('collect_market', function () {
+      return O.collectMarket(S.cfg, S.storage, log, caps).then(function (m) {
+        mkt = m;
+      });
+    });
+
+    // ── ۲) journal_pre (عمداً قبل از بررسی موفقیت داده — مثل دسکتاپ) ──
+    pipe.add('journal_pre', function () {
       // سخت‌گیری فاز ۷: session غایب (فقط FAILED/override — binding ندارد)
       // → status=null و بلوک داور صادقانه رد می‌شود (نه TypeError بی‌صدا)
-      var status = caps.session ? caps.session.marketStatus(new Date(nowMs)) : null;
+      status = caps.session ? caps.session.marketStatus(new Date(nowMs)) : null;
 
       // ژورنال اول (مثل دسکتاپ): سیگنال‌های باز از روی کندل‌ها بسته می‌شوند
-      var resolved = [];
       try {
         if (S.cfg.journal.enabled !== false) {
           if (caps.journal) {
@@ -318,8 +341,24 @@
       } catch (e) { log('[!] پیگیری ژورنال ناموفق: ' + e); }
       O.BUS.emit(O.core.EVENTS.JOURNAL_RESOLVED, { resolved: resolved.length });
 
-      // داور
-      var judgments = [];
+      // early-exit کانونیکال (آینهٔ پایتون): هیچ تحلیل نیست → stop در
+      // journal_pre؛ مراحل بعد هرگز اجرا نمی‌شوند (داور/اعلان/هشدار بی‌معنا).
+      // state.last در epilogue صادقانه نوشته می‌شود (UI وضعیت قطعی را ببیند).
+      if (!mkt.analyses.length) {
+        return O.core.stageResult({ stage: 'journal_pre', stop: true });
+      }
+    });
+
+    // ── ۳) collect_fundamental ────────────────────────────────
+    pipe.add('collect_fundamental', function () {
+      return O.collectFundamental(S.cfg, S.storage, mkt, log, caps);
+    });
+
+    // ── ۴) compute_vetoes — no-op صادقانه (نگاشت مستند) ────────
+    pipe.add('compute_vetoes', function () { });
+
+    // ── ۵) judge ──────────────────────────────────────────────
+    pipe.add('judge', function () {
       if (S.cfg.judge.enabled !== false) {
         if (!caps.judge || !caps.session) {   // سخت‌گیری فاز ۷ (آینهٔ پایتون)
           log('[!] پلاگین داور/سشن در دسترس نیست — قضاوتی در این چرخه انجام نشد (unavailable)');
@@ -340,7 +379,7 @@
         log('[i] داور امتیازدهی در تنظیمات غیرفعال است');
       }
 
-      var signals = judgments.filter(function (j) { return j.signal; }).map(function (j) { return j.signal; });
+      signals = judgments.filter(function (j) { return j.signal; }).map(function (j) { return j.signal; });
       O.BUS.emit(O.core.EVENTS.JUDGE_DONE,
         { judgments: judgments.length, signals: signals.length });
       signals.forEach(function (sg) {
@@ -350,10 +389,15 @@
       log(signals.length
         ? 'داور: ' + O.faNum(signals.length) + ' سیگنال صادر شد'
         : 'داور: هیچ سیگنالی صادر نشد (دلیل هر نماد در صفحهٔ سیگنال‌ها هست)');
+    });
 
+    // ── ۶) render — no-op (رندر توسط UI جدا انجام می‌شود) ──────
+    pipe.add('render', function () { });
+
+    // ── ۷) dispatch_signals (+ اعلان‌ها — ترتیب notify امروز حفظ شود) ──
+    pipe.add('dispatch_signals', function () {
       // ثبت در ژورنال با کنترل اسپم (cooldown)
       var sentState = {};
-      var newSignals = [];                    // سیگنال‌های تازه (غیرتکراری) این چرخه — برای اعلان
       try { sentState = JSON.parse(S.storage.get('sent_signals.json') || '{}'); } catch (e) { }
       signals.forEach(function (sig) {
         // ضداسپم هرگز نباید با غیبت پلاگین بمیرد (آینهٔ تصمیم پایتون:
@@ -376,32 +420,8 @@
       });
       try { S.storage.set('sent_signals.json', JSON.stringify(sentState)); } catch (e) { }
 
-      // آمار + وضعیت ماندگار
-      var stats = null;
-      try { stats = (caps.journal || O).computeStats(S.journal.load(), nowMs); } catch (e) { }
-      var sparks = {};
-      Object.keys(mkt.datasets).forEach(function (k) {
-        sparks[k] = mkt.datasets[k].m15.slice(-60).map(function (x) { return x.c; });
-      });
-      S.state = {
-        ranAt: nowMs, errors: mkt.errors, sourceName: mkt.sourceName,
-        analyses: mkt.analyses, ranking: mkt.ranking, tvMap: mkt.tvMap, tvTf: mkt.tvTf,
-        calSnap: mkt.calSnap || null, newsSnap: mkt.newsSnap || null,
-        judgments: judgments, resolvedCount: resolved.length, sparks: sparks
-      };
-      // قلاب _dup روی signalها برای رندر — داخل judgments هم هست (ref مشترک)
-      S.stats = stats;
-      try { S.storage.set('state.last', JSON.stringify(S.state)); } catch (e) { }
-      // کش نمودار (v0.17.0) — ۳۶۰ کندل H1 اخیر هر نماد برای صفحهٔ نمودار
-      // (H4 با resample4h از همین‌ها ساخته می‌شود؛ مشترک بین UI و سرویس)
-      try {
-        Object.keys(mkt.datasets).forEach(function (k) {
-          var h1 = mkt.datasets[k] && mkt.datasets[k].h1;
-          if (h1 && h1.length) S.storage.set('chart.' + k, JSON.stringify(h1.slice(-360)));
-        });
-      } catch (e) { }
-
-      // اعلان اندروید: سیگنال تازه + خبر فوری (فقط در برابر چرخهٔ قبل)
+      // اعلان اندروید: سیگنال تازه + خبر فوری (فقط در برابر چرخهٔ قبل) —
+      // عمداً در همین مرحله (D4): ترتیب notifyهای امروز بایت‌به‌بایت می‌ماند
       if (S.settings.notify_enabled !== false) {
         if (newSignals.length) {
           var nTitle = newSignals.length === 1
@@ -423,14 +443,19 @@
           }
         }
       }
+    });
 
+    // ── ۸) price_alerts ───────────────────────────────────────
+    pipe.add('price_alerts', function () {
       // هشدارهای قیمت (v0.16.0) — در هسته چک می‌شوند تا هم رابط و هم
       // سرویس پس‌زمینه (اپ بسته) آن‌ها را فعال کنند؛ حذفِ پس‌از‌فعال‌شدن
       // تضمین می‌کند یک هشدار دو بار اعلان نمی‌شود.
-      var firedAlerts = [];
+      // (مصرف mkt.analyses به‌جای S.state.analyses — همان مرجع؛ نوشتنِ
+      //  S.state در مرحلهٔ dashboard است که در ترتیب کانونیکال بعد از این
+      //  مرحله می‌آید. مقدار بایت‌به‌بایت همان است.)
       try {
         if (caps.alerts) {
-          firedAlerts = caps.alerts.checkAlerts(S.storage, S.state.analyses, nowMs);
+          firedAlerts = caps.alerts.checkAlerts(S.storage, mkt.analyses, nowMs);
         } else {   // سخت‌گیری فاز ۷
           log('[!] پلاگین هشدار قیمت در دسترس نیست — بررسی رد شد (unavailable)');
         }
@@ -446,10 +471,50 @@
             (f.a.sticky ? ' · هشدار تکرارشونده' : ''));
         });
       }
-
       O.BUS.emit(O.core.EVENTS.ALERTS_FIRED, { fired: firedAlerts.length });
-      O.BUS.emit(O.core.EVENTS.CYCLE_END, { ok: true, signals: newSignals.length });
+    });
 
+    // ── ۹) chart_cache ────────────────────────────────────────
+    pipe.add('chart_cache', function () {
+      // کش نمودار (v0.17.0) — ۳۶۰ کندل H1 اخیر هر نماد برای صفحهٔ نمودار
+      // (H4 با resample4h از همین‌ها ساخته می‌شود؛ مشترک بین UI و سرویس)
+      try {
+        Object.keys(mkt.datasets).forEach(function (k) {
+          var h1 = mkt.datasets[k] && mkt.datasets[k].h1;
+          if (h1 && h1.length) S.storage.set('chart.' + k, JSON.stringify(h1.slice(-360)));
+        });
+      } catch (e) { }
+    });
+
+    // ── ۱۰) dashboard — آمار + وضعیت ماندگار ──────────────────
+    function writeDashboard() {
+      try { stats = (caps.journal || O).computeStats(S.journal.load(), nowMs); } catch (e) { }
+      var sparks = {};
+      Object.keys(mkt.datasets).forEach(function (k) {
+        sparks[k] = mkt.datasets[k].m15.slice(-60).map(function (x) { return x.c; });
+      });
+      S.state = {
+        ranAt: nowMs, errors: mkt.errors, sourceName: mkt.sourceName,
+        analyses: mkt.analyses, ranking: mkt.ranking, tvMap: mkt.tvMap, tvTf: mkt.tvTf,
+        calSnap: mkt.calSnap || null, newsSnap: mkt.newsSnap || null,
+        judgments: judgments, resolvedCount: resolved.length, sparks: sparks
+      };
+      // قلاب _dup روی signalها برای رندر — داخل judgments هم هست (ref مشترک)
+      S.stats = stats;
+      try { S.storage.set('state.last', JSON.stringify(S.state)); } catch (e) { }
+    }
+    pipe.add('dashboard', writeDashboard);
+
+    // ── ۱۱) archive_notify — JS آرشیو/تلگرام ندارد؛ جایگاهِ cycle.end
+    //        آینهٔ پایتون است (درون این مرحله، پیش از stage.done) ──
+    pipe.add('archive_notify', function () {
+      O.BUS.emit(O.core.EVENTS.CYCLE_END, { ok: true, signals: newSignals.length });
+    });
+
+    return pipe.run({ nowMs: nowMs }).then(function (res) {
+      // early-exit: state.last صادقانه برای UI (قطعیِ اینترنت باید دیده شود) —
+      // آینهٔ «errors=max و بازگشت» پایتون با همان shape خروجیِ امروز
+      if (res.stoppedAt !== null) writeDashboard();
       return {
         mkt: mkt, judgments: judgments, signals: signals, newSignals: newSignals,
         resolved: resolved, stats: stats, nowMs: nowMs, firedAlerts: firedAlerts

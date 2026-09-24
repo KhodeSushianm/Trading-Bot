@@ -332,9 +332,16 @@
   // فاز ۶: قابلیت‌ها از registry مصرف می‌شوند (caps) — ترتیب/لاگ‌ها/خروجی
   // بایت‌به‌بایت همان قبلی (میخ: tests/js/test_cycle_switch.js). رویدادهای
   // BUS افزودنی‌اند: بدون listener هیچ اثر رفتاری ندارند.
-  O.runPipeline = function (cfg, storage, onProgress) {
-    var log = onProgress || function () { };
-    var caps = O.makeCaps(cfg);
+  /* ۶c (v0.28): runPipeline به دو بخشِ نام‌دار شکافته شد — collectMarket و
+   * collectFundamental — تا cycleCore بتواند آن‌ها را در مراحلِ کانونیکالِ
+   * pipeline بگذارد (ترتیبِ پایتون: fundamental *بعد از* journal_pre).
+   * caps توسط صداکننده ساخته/رد می‌شود (چرخه یک caps دارد، نه دو تا)؛
+   * بدون آن، هر بخش caps خودش را می‌سازد (رفتارِ مستقل حفظ شود).
+   * wrapperِ O.runPipeline امضا و رفتارِ قدیم را بایت‌به‌بایت نگه می‌دارد:
+   * fundamental فقط وقتی analyses هست (early-out امروز). */
+  O.collectMarket = function (cfg, storage, log, caps) {
+    log = log || function () { };
+    caps = caps || O.makeCaps(cfg);
     var mkt = {
       analyses: [], datasets: {}, ranking: [], tvMap: {}, tvTf: '4h',
       sourceName: 'yahoo', errors: 0
@@ -389,6 +396,13 @@
       // و هم‌زمان با فاندامنتال واکشی می‌شود؛ در پایتون بخشی از collect_market است)
       O.BUS.emit(O.core.EVENTS.MARKET_COLLECTED,
         { analyses: mkt.analyses.length, errors: mkt.errors });
+      return mkt;
+    });
+  };
+
+  O.collectFundamental = function (cfg, storage, mkt, log, caps) {
+    log = log || function () { };
+    caps = caps || O.makeCaps(cfg);
 
       var tvCfg = cfg.tradingview || {};
       mkt.tvTf = tvCfg.timeframe || '4h';
@@ -435,6 +449,15 @@
         });
         return mkt;
       });
+  };
+
+  // wrapper سازگار: همان امضا/رفتارِ پیش از ۶c (مصرف‌کننده‌های مستقل نشکنند)
+  O.runPipeline = function (cfg, storage, onProgress) {
+    var log = onProgress || function () { };
+    var caps = O.makeCaps(cfg);
+    return O.collectMarket(cfg, storage, log, caps).then(function (mkt) {
+      if (!mkt.analyses.length) return mkt;   // early-out امروز: fundamental واکشی نمی‌شود
+      return O.collectFundamental(cfg, storage, mkt, log, caps);
     });
   };
 })(typeof ODIN !== 'undefined' ? ODIN : (globalThis.ODIN = {}));

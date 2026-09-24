@@ -424,9 +424,16 @@ async function runScenario(name, busSink) {
 
 function subscribeBus(app, sink) {
   if (!app.O.BUS || typeof app.O.BUS.on !== 'function') return;   // قبل از سوییچ: BUS نیست
+  // ۶c: stage.start/stage.done اضافه شدند — sink سه‌تایی [name, stage, stop]
+  // (آینهٔ _subscribe در tests/test_pipeline_switch.py پایتون)
   const names = ['cycle.start', 'market.collected', 'fundamental.collected', 'journal.resolved',
-    'judge.done', 'signal.created', 'signal.sent', 'alerts.fired', 'cycle.end', 'plugin.failed'];
-  names.forEach((n) => app.O.BUS.on(n, (p) => sink.push([n, p && p.stage ? p.stage : null])));
+    'judge.done', 'signal.created', 'signal.sent', 'alerts.fired', 'cycle.end', 'plugin.failed',
+    'stage.start', 'stage.done'];
+  names.forEach((n) => app.O.BUS.on(n, (p) => sink.push([
+    n,
+    (p && p.stage !== undefined && p.stage !== null) ? p.stage : null,
+    n === 'stage.done' ? !!(p && p.stop) : null
+  ])));
 }
 
 const SCENARIOS = ['svc_cycle_signals', 'svc_gated_no_strategy', 'svc_settings_strategies_off', 'svc_settings_min_agree_2', 'data_outage', 'duplicate_cooldown', 'alerts_fired',

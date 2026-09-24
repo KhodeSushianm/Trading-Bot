@@ -243,12 +243,107 @@ async function testAsyncUnit() {
 }
 
 // ══════════════════════════════════════════════════════════════
+//  بخش B — توالی رویدادهای چرخهٔ سرویس (آینهٔ tests/test_pipeline_switch.py)
+// ══════════════════════════════════════════════════════════════
+const gen = require('./golden/gen_cycle_golden.js');
+
+// توالی چرخهٔ کامل با ۱ سیگنال — دقیقاً فهرستِ expected پایتون منهای سه
+// رویدادی که معادل JS ندارند (report.rendered/telegram.sent/vetoes.computed)
+const FULL_EXPECTED = [
+  ['cycle.start', null, null],
+  ['stage.start', 'collect_market', null],
+  ['market.collected', null, null],
+  ['stage.done', 'collect_market', false],
+  ['stage.start', 'journal_pre', null],
+  ['journal.resolved', null, null],
+  ['stage.done', 'journal_pre', false],
+  ['stage.start', 'collect_fundamental', null],
+  ['fundamental.collected', null, null],
+  ['stage.done', 'collect_fundamental', false],
+  ['stage.start', 'compute_vetoes', null],
+  ['stage.done', 'compute_vetoes', false],
+  ['stage.start', 'judge', null],
+  ['judge.done', null, null],
+  ['signal.created', null, null],
+  ['stage.done', 'judge', false],
+  ['stage.start', 'render', null],
+  ['stage.done', 'render', false],
+  ['stage.start', 'dispatch_signals', null],
+  ['signal.sent', null, null],
+  ['stage.done', 'dispatch_signals', false],
+  ['stage.start', 'price_alerts', null],
+  ['alerts.fired', null, null],
+  ['stage.done', 'price_alerts', false],
+  ['stage.start', 'chart_cache', null],
+  ['stage.done', 'chart_cache', false],
+  ['stage.start', 'dashboard', null],
+  ['stage.done', 'dashboard', false],
+  ['stage.start', 'archive_notify', null],
+  ['cycle.end', null, null],
+  ['stage.done', 'archive_notify', false]
+];
+
+// early-exit — بایت‌به‌بایت همان ۷ رویدادِ پایتون (stop=true در journal_pre)
+const OUTAGE_EXPECTED = [
+  ['cycle.start', null, null],
+  ['stage.start', 'collect_market', null],
+  ['market.collected', null, null],
+  ['stage.done', 'collect_market', false],
+  ['stage.start', 'journal_pre', null],
+  ['journal.resolved', null, null],
+  ['stage.done', 'journal_pre', true]
+];
+
+async function testCycleSequences() {
+  const sink1 = [];
+  await gen.runScenario('svc_cycle_signals', sink1);
+  if (JSON.stringify(sink1) !== JSON.stringify(FULL_EXPECTED)) {
+    const diffs = [];
+    for (let i = 0; i < Math.max(sink1.length, FULL_EXPECTED.length); i++) {
+      const a = JSON.stringify(sink1[i] || null), b = JSON.stringify(FULL_EXPECTED[i] || null);
+      if (a !== b) diffs.push('  [' + i + '] اکنون ' + a + ' ≠ انتظار ' + b);
+    }
+    throw new Error('توالی رویدادهای چرخهٔ کامل فرق دارد:\n' + diffs.slice(0, 8).join('\n'));
+  }
+  A(true, '۳۱ رویداد به ترتیب قطعی: ۱۱ مرحله (start/done) + ۹ رویداد استاندارد'
+    + ' — آینهٔ ۳۳ رویداد پایتون (منهای ۳ بی‌معادلِ مستند)');
+  A(!sink1.some((x) => x[0] === 'plugin.failed'),
+    'چرخهٔ سالم هیچ plugin.failed منتشر نمی‌کند');
+
+  const sink2 = [];
+  await gen.runScenario('data_outage', sink2);
+  if (JSON.stringify(sink2) !== JSON.stringify(OUTAGE_EXPECTED)) {
+    throw new Error('توالی early-exit فرق دارد: ' + JSON.stringify(sink2));
+  }
+  A(true, 'early-exit = دقیقاً ۷ رویداد با stop=true در journal_pre (بایت‌به‌بایت پایتون)');
+  A(!sink2.some((x) => x[0] === 'stage.start'
+    && ['collect_fundamental', 'judge', 'render', 'archive_notify'].indexOf(x[1]) >= 0),
+    'پس از stop هیچ مرحلهٔ بعدی شروع نشد (آینهٔ پایتون)');
+
+  // چرخهٔ دروازه‌دار (S3/S4) هم از pipeline کامل رد می‌شود — stop ندارد،
+  // فقط judge سیگنال نمی‌سازد: توالی رویدادها مثل چرخهٔ کامل منهای
+  // signal.created/signal.sent
+  const sink3 = [];
+  await gen.runScenario('svc_gated_no_strategy', sink3);
+  const names3 = sink3.map((x) => x[0]);
+  A(names3.indexOf('signal.created') < 0 && names3.indexOf('signal.sent') < 0
+    && names3[names3.length - 1] === 'stage.done'
+    && names3.indexOf('cycle.end') === names3.length - 2,
+    'چرخهٔ NO_STRATEGY: بدون رویداد سیگنال، cycle.end سرِ جایش (stop نخورده)');
+  const done3 = sink3.filter((x) => x[0] === 'stage.done').map((x) => x[1]);
+  A(done3.length === 11 && done3.every((x, i) => x === FULL_EXPECTED
+    .filter((e) => e[0] === 'stage.done').map((e) => e[1])[i]),
+    '۱۱ stage.done به ترتیب کانونیکال در چرخهٔ دروازه‌دار');
+}
+
+// ══════════════════════════════════════════════════════════════
 async function main() {
   await testAsyncUnit();
-  // بخش B (توالی رویدادهای چرخه) در کامیت سوییچ (C2) فعال می‌شود
+  await testCycleSequences();
   console.log('✅ PIPELINE-EVENTS TESTS OK — ' + COUNT + ' بررسی پاس؛ '
     + 'createPipelineAsync آینهٔ رفتاریِ createPipeline است (ترتیب/stop/unavailable/'
-    + 'قرنطینهٔ throw و promise-ردشده/رویدادها/هم‌رفتاری بایت‌به‌بایت)');
+    + 'قرنطینه/هم‌رفتاری بایت‌به‌بایت) + توالی رویدادهای چرخه (۳۱ کامل · ۷ early-exit) '
+    + 'آینهٔ test_pipeline_switch.py سبز است');
   process.exit(0);
 }
 

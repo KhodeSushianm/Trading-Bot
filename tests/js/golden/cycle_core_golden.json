@@ -893,8 +893,7 @@
    "[odin-svc] (۶/۷) USDCHF",
    "[odin-svc] [!] دادهٔ XAUUSD ناقص است — رد شد",
    "[odin-svc] (۷/۷) XAUUSD",
-   "[odin-svc] هیچ نمادی تحلیل نشد — اینترنت را بررسی کنید",
-   "[odin-svc] داور: هیچ سیگنالی صادر نشد (دلیل هر نماد در صفحهٔ سیگنال‌ها هست)"
+   "[odin-svc] هیچ نمادی تحلیل نشد — اینترنت را بررسی کنید"
   ],
   "consoleErrors": [],
   "notify": [],
@@ -914,7 +913,6 @@
    "tampered": false
   },
   "storage": {
-   "sent_signals.json": {},
    "state.last": {
     "ranAt": 1790172000000,
     "errors": 7,

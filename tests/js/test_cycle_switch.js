@@ -206,27 +206,51 @@ async function testBusEventsWhenPresent() {
     A(true, 'skip');
     return;
   }
-  // ۱) چرخهٔ کامل با سیگنال: ترتیب دقیق ۹ رویداد (آینهٔ ۱۲ رویداد پایتون
-  //    منهای report.rendered/telegram.sent/vetoes.computed که معادل JS ندارند)
+  // ۱) چرخهٔ کامل با سیگنال (۶c): ۳۱ رویداد = ۱۱ مرحله × start/done +
+  //    ۹ رویداد استانداردِ امروز — آینهٔ ۳۳ رویداد پایتون منهای
+  //    report.rendered/telegram.sent/vetoes.computed که معادل JS ندارند
+  //    (توالی دقیق در test_pipeline_events.js پین شده؛ اینجا نام‌ها)
   const sink = [];
   const s1 = await gen.runScenario('svc_cycle_signals', sink);
   const seq = sink.map((x) => x[0]);
-  const expected = ['cycle.start', 'market.collected', 'fundamental.collected',
-    'journal.resolved', 'judge.done', 'signal.created', 'signal.sent',
-    'alerts.fired', 'cycle.end'];
-  A(JSON.stringify(seq) === JSON.stringify(expected),
-    'ترتیب رویدادهای bus در چرخهٔ کامل: ' + JSON.stringify(seq));
+  const expectedNames = ['cycle.start',
+    'stage.start', 'market.collected', 'stage.done',
+    'stage.start', 'journal.resolved', 'stage.done',
+    'stage.start', 'fundamental.collected', 'stage.done',
+    'stage.start', 'stage.done',
+    'stage.start', 'judge.done', 'signal.created', 'stage.done',
+    'stage.start', 'stage.done',
+    'stage.start', 'signal.sent', 'stage.done',
+    'stage.start', 'alerts.fired', 'stage.done',
+    'stage.start', 'stage.done',
+    'stage.start', 'stage.done',
+    'stage.start', 'cycle.end', 'stage.done'];
+  A(JSON.stringify(seq) === JSON.stringify(expectedNames),
+    'ترتیب رویدادهای bus در چرخهٔ کامل (۶c — ۳۱ رویداد): ' + JSON.stringify(seq));
+  const stagesDone = sink.filter((x) => x[0] === 'stage.done').map((x) => x[1]);
+  A(stagesDone.join(',') === ['collect_market', 'journal_pre', 'collect_fundamental',
+    'compute_vetoes', 'judge', 'render', 'dispatch_signals', 'price_alerts',
+    'chart_cache', 'dashboard', 'archive_notify'].join(','),
+    '۱۱ مرحله به ترتیب کانونیکال (همان STAGES پایتون): ' + stagesDone.join(','));
   A(s1.notify.length === 1, 'رویدادها افزودنی‌اند — خروجی چرخه عوض نشد');
 
-  // ۲) early-exit: بدون fundamental.collected (واکشی هرگز انجام نشد)
+  // ۲) early-exit (۶c — هم‌تراز پایتون): stop در journal_pre → دقیقاً ۷
+  //    رویداد، بدون fundamental/judge/alerts و بدون cycle.end
   const sink2 = [];
   await gen.runScenario('data_outage', sink2);
-  const seq2 = sink2.map((x) => x[0]);
-  A(seq2.indexOf('cycle.start') === 0 && seq2[seq2.length - 1] === 'cycle.end',
-    'outage: cycle.start اول و cycle.end آخر');
-  A(seq2.indexOf('fundamental.collected') < 0 && seq2.indexOf('market.collected') >= 0,
-    'outage: market.collected هست ولی fundamental.collected نه (early-exit قبل از واکشی)');
-  A(seq2.indexOf('plugin.failed') < 0, 'outage: هیچ plugin.failed منتشر نشد');
+  const expected2 = [
+    ['cycle.start', null, null],
+    ['stage.start', 'collect_market', null],
+    ['market.collected', null, null],
+    ['stage.done', 'collect_market', false],
+    ['stage.start', 'journal_pre', null],
+    ['journal.resolved', null, null],
+    ['stage.done', 'journal_pre', true]
+  ];
+  A(JSON.stringify(sink2) === JSON.stringify(expected2),
+    'outage: دقیقاً ۷ رویداد با stop=true در journal_pre (آینهٔ پایتون): '
+    + JSON.stringify(sink2));
+  A(!sink2.some((x) => x[0] === 'plugin.failed'), 'outage: هیچ plugin.failed منتشر نشد');
 }
 
 async function testRegistryWhenPresent() {
