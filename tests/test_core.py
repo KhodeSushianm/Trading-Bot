@@ -76,7 +76,8 @@ class FakeInstance:
 
 # ══════════════════════════════════════════════════════════════
 def test_contracts() -> None:
-    A(len(CONTRACTS) == 15, f"باید ۱۵ قرارداد باشد، {len(CONTRACTS)} است")
+    A(len(CONTRACTS) == 16, f"باید ۱۶ قرارداد باشد، {len(CONTRACTS)} است")
+    # (v0.26: odin.strategy@1 افزودنی شد — تصمیم مالک: استراتژی‌های ورود)
     for cid in CONTRACTS:
         A(is_valid_contract_id(cid), f"شناسهٔ قرارداد بدشکل: {cid}")
     A(not is_valid_contract_id("odin.foo@1"), "قرارداد ثبت‌نشده باید نامعتبر باشد")

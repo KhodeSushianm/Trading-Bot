@@ -106,7 +106,8 @@ function arrEq(a, b) {
 group('۱) contracts — شناسه‌ها و اعتبارسنج ساختاری');
 {
   const ids = Object.keys(core.CONTRACTS);
-  ok(ids.length === 15, 'باید ۱۵ قرارداد باشد، ' + ids.length + ' است');
+  // v0.26: odin.strategy@1 افزودنی شد (۱۵→۱۶) — قراردادِ استراتژی‌های ورود
+  ok(ids.length === 16, 'باید ۱۶ قرارداد باشد، ' + ids.length + ' است');
   ok(ids.every((cid) => core.isValidContractId(cid)), 'همهٔ شناسه‌های قرارداد باید معتبر باشند');
   ok(!core.isValidContractId('odin.foo@1'), 'قرارداد ثبت‌نشده باید نامعتبر باشد');
   ok(core.isWellformedContractId('odin.foo@1'), 'شکل صحیح ولی ناشناخته → wellformed');
@@ -522,9 +523,9 @@ group('۹) پاریتیِ سورس — فهرست‌ها مستقیماً از s
   const cStart = contractsPy.indexOf('CONTRACTS: Dict[str, type] = {');
   const cBody = contractsPy.slice(cStart, contractsPy.indexOf('}', cStart));
   const pyContracts = (cBody.match(/"([a-z0-9.]+@\d+)":/g) || []).map((s) => s.slice(1, -2));
-  ok(pyContracts.length === 15 && pyContracts.every((cid) => cid in core.CONTRACTS)
-     && Object.keys(core.CONTRACTS).length === 15,
-    'CONTRACTS باید دقیقاً همان ۱۵ کلید contracts.py باشد');
+  ok(pyContracts.length === 16 && pyContracts.every((cid) => cid in core.CONTRACTS)
+     && Object.keys(core.CONTRACTS).length === 16,
+    'CONTRACTS باید دقیقاً همان ۱۶ کلید contracts.py باشد');
 
   // STATES از کلاس PluginState
   const stBody = lifecyclePy.slice(lifecyclePy.indexOf('class PluginState'),

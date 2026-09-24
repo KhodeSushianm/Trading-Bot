@@ -129,6 +129,36 @@ def load_config(path: str | None = None) -> dict:
                  ("catchup_window_minutes", 120)):
         jw.setdefault(k, v)
 
+    # ── استراتژی‌ها (v0.26) — منبعِ جهت + دروازهٔ صدور سیگنال ────
+    # config.yamlهای قدیمیِ نصب‌شده این بخش را ندارند؛ پیش‌فرض‌های کامل اینجا
+    # ساخته می‌شوند تا رفتار بدونِ ویرایشِ دستی هم تعریف‌شده بماند.
+    st = cfg.setdefault("strategies", {})
+    st.setdefault("min_agree", 1)
+    stp = st.setdefault("trend_pullback", {})
+    for k, v in (("enabled", True), ("adx_min", 20),
+                 ("rsi_buy", [30, 45]), ("rsi_sell", [55, 70])):
+        stp.setdefault(k, v)
+    slb = st.setdefault("london_breakout", {})
+    for k, v in (("enabled", True), ("asia_start_hour", 0),
+                 ("asia_end_hour", 7), ("london_open_hour", 7),
+                 ("trade_window_hours", 4), ("asia_min_bars", 5),
+                 ("min_range_atr", 0.5), ("max_range_atr", 3.0),
+                 ("breakout_margin_atr", 0.15)):
+        slb.setdefault(k, v)
+    scy = st.setdefault("carry", {})
+    for k, v in (("enabled", True), ("min_diff", 1.5), ("news_min_score", 4)):
+        scy.setdefault(k, v)
+    srt = scy.setdefault("rates", {})
+    srt.setdefault("as_of", "2026-09")
+    # ⚠️ seed از منابع عمومی (2026-09): Fed/ECB/SNB رسمی، GBP/JPY/AUD/CAD
+    #    از aggregator — تأییدِ مالک لازم است (یادداشتِ کامل در config.yaml).
+    srt.setdefault("values", {"USD": 3.88, "EUR": 2.50, "GBP": 3.75,
+                              "JPY": 1.25, "AUD": 4.35, "CAD": 2.25,
+                              "CHF": 0.00, "XAU": None})
+    srt.setdefault("bias", {c: "neutral" for c in
+                            ("USD", "EUR", "GBP", "JPY", "AUD", "CAD",
+                             "CHF", "XAU")})
+
     # ── رابط کاربری ─────────────────────────────────────────────
     u = cfg.setdefault("ui", {})
     for k, v in (("user_name", "سوشیان"), ("splash", True), ("animations", True)):

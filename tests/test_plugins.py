@@ -126,6 +126,10 @@ EXPECTED_IDS = {
     "veto-event", "veto-vol-spike", "veto-breaking-news",
     "ev-trend", "ev-level", "ev-fundamental", "ev-momentum",
     "ev-strength", "ev-news", "ev-tv", "ev-session",
+    # v0.26 (S1) — استراتژی‌های ورود با قراردادِ افزودنیِ odin.strategy@1
+    # (تصمیم مالک: «سیگنال بر اساس استراتژی‌ها») — افزودنیِ ساختاری؛
+    # مصرف‌کننده در S3 وصل می‌شود و تا آن زمان رفتار چرخه عوض نمی‌شود.
+    "strategy-trend-pullback", "strategy-london-breakout", "strategy-carry",
 }
 # از فاز ۴ همهٔ قراردادها فراهم‌کننده دارند (veto@1/evidence@1 پر شدند)
 PROVIDED_NOW = set(CONTRACTS)

@@ -196,6 +196,30 @@ class RiskCalculator(Protocol):
         ...
 
 
+@runtime_checkable
+class StrategyRule(Protocol):
+    """`odin.strategy@1` — استراتژی ورود (v0.26؛ تصمیم مالک).
+
+    قراردادِ افزودنیِ تازه — اولین قراردادِ پس از مهاجرت. شکل بازگشتی
+    (dataclass `src/strategies/base.py::StrategyVerdict` یا معادل dict):
+      key: str            — شناسهٔ استراتژی (trend_pullback و ...)
+      name_fa: str        — نام فارسی برای گزارش
+      direction: str      — BUY | SELL | NONE
+      strength: float     — 0..1 (قدرت ستاپ؛ برای اولویت‌بندیِ تعارض‌ها)
+      proposes: bool      — آیا منبعِ جهتِ سیگنال است؟ (carry = False:
+                            فقط در دروازهٔ توافق شرکت می‌کند)
+      reasons_fa: list    — دلایل عددی/فارسی (قابل نمایش)
+      detail_fa: str      — یک خط خلاصهٔ صادقانه
+
+    ارزیابی باید خالص و قطعی باشد (بدون I/O؛ زمان فقط از ctx.now) تا
+    آینهٔ JS (js/strategies.js) در fixtures پاریتی بایت‌به‌بایت مطابقت کند.
+    """
+
+    def evaluate(self, a: Any, md: Any, ctx: Any) -> Any:
+        """a=SymbolAnalysis، md=MarketData|None، ctx=JudgeContext → StrategyVerdict."""
+        ...
+
+
 # ══════════════════════════════════════════════════════════════
 #  ژورنال · اعلان · هشدار · گزارش
 # ══════════════════════════════════════════════════════════════
@@ -267,6 +291,7 @@ CONTRACTS: Dict[str, type] = {
     "odin.judge.veto@1": VetoRule,
     "odin.judge.evidence@1": EvidenceRule,
     "odin.judge.risk@1": RiskCalculator,
+    "odin.strategy@1": StrategyRule,
     "odin.journal@1": JournalService,
     "odin.notify@1": Notifier,
     "odin.alerts.price@1": PriceAlertChecker,

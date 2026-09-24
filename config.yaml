@@ -201,6 +201,68 @@ judge:
     max_risk_percent: 1.0    # فقط برای نمایش در پیام سیگنال
 
 # ══════════════════════════════════════════════════════════════
+#  استراتژی‌های ورود (v0.26) — 🎯 سیگنال بر اساس استراتژی
+# ══════════════════════════════════════════════════════════════
+# سه استراتژیِ مستقل (src/strategies + پلاگین‌های strategy-*) جهتِ ورود را
+# «پیشنهاد» می‌دهند و داور فقط وقتی سیگنال می‌سازد که دست‌کم min_agree
+# استراتژیِ فعال با جهتِ سیگنال هم‌جهت باشند. وتوها، جدول امتیاز (۱۱) و
+# آستانهٔ min_score بدون تغییر باقی می‌مانند — استراتژی لایهٔ دروازه است،
+# نه جایگزینِ داور.
+#   • trend_pullback  — روند H4+H1 + پولبک RSI + تأیید ادامهٔ حرکت (کندل H1)
+#   • london_breakout — شکستِ معتبرِ محدودهٔ آسیا در پنجرهٔ صبحِ لندن
+#   • carry           — صرفِ نرخ بهره + هم‌جهتی فاندامنتال (فقط «توافق»؛
+#                       به‌تنهایی سیگنال نمی‌سازد — proposes=false)
+strategies:
+  min_agree: 1               # حداقل تعداد استراتژی‌های هم‌جهت برای صدور سیگنال
+  trend_pullback:
+    enabled: true
+    adx_min: 20              # حداقل ADX برای روندِ معتبر (هم‌عدد با analysis)
+    rsi_buy: [30, 45]        # منطقهٔ پولبک برای ستاپ خرید (RSI در M15)
+    rsi_sell: [55, 70]       # منطقهٔ اصلاح رو به بالا برای ستاپ فروش
+  london_breakout:
+    enabled: true
+    asia_start_hour: 0       # سشن آسیا (UTC) — محدودهٔ High/Low از H1
+    asia_end_hour: 7
+    london_open_hour: 7      # شروع سشن لندن (مطابق جدول سشن‌ها)
+    trade_window_hours: 4    # فقط تا این‌قدر ساعت بعد از باز شدن لندن (۰۷–۱۱ UTC)
+    asia_min_bars: 5         # حداقل کندل آسیایی برای ساختن Range معتبر
+    min_range_atr: 0.5       # کف عرض محدوده نسبت به ATR (تنگ‌تر = نویز)
+    max_range_atr: 3.0       # سقف عرض محدوده نسبت به ATR (پهن‌تر = حرکت رفته)
+    breakout_margin_atr: 0.15  # حداقل نفوذ فراتر از سطح برای «شکست معتبر»
+  carry:
+    enabled: true
+    min_diff: 1.5            # حداقل اختلاف نرخ (واحد درصد) برای سوگیری
+    news_min_score: 4        # آستانهٔ امتیاز خبر برای فیلتر هم‌جهتی
+    rates:
+      # ⚠️ جدولِ دستیِ نرخ‌های سیاستی — محدودیتِ صادقانهٔ مستند (§8.1 داور):
+      #    منبعِ کلیدآزادِ زنده وجود ندارد. Seed از منابع عمومی در 2026-09:
+      #    USD (FOMC 16 Sep: 3.75–4.00 → میانه 3.88) · EUR (ECB deposit 2.50)
+      #    · CHF (SNB رسمی 0.00) · GBP/JPY/AUD/CAD از aggregator — تأییدِ
+      #    مالک لازم است. به‌روزرسانی: بعد از هر تصمیمِ مهمِ بانک مرکزی،
+      #    همین‌جا + as_of را عوض کنید. XAU نرخ بهره ندارد → carry روی طلا NONE.
+      as_of: "2026-09"
+      values:
+        USD: 3.88
+        EUR: 2.50
+        GBP: 3.75
+        JPY: 1.25
+        AUD: 4.35
+        CAD: 2.25
+        CHF: 0.00
+        XAU: null
+      # برچسبِ جهتِ سیاست پولی (hawkish|neutral|dovish) — دستی. پیش‌فرضِ همه
+      # neutral یعنی فیلتر بی‌اثر است تا خودتان به‌روزش کنید.
+      bias:
+        USD: neutral
+        EUR: neutral
+        GBP: neutral
+        JPY: neutral
+        AUD: neutral
+        CAD: neutral
+        CHF: neutral
+        XAU: neutral
+
+# ══════════════════════════════════════════════════════════════
 #  مرحله ۴ — 📔 ژورنال سیگنال و آمار دقت (حلقهٔ صداقت)
 # ══════════════════════════════════════════════════════════════
 # هر سیگنال در logs/signals.jsonl ثبت می‌شود (append-only، مقاوم به کرش).
@@ -255,7 +317,8 @@ telegram:
 #   · fundamental-news · judge-core · judge-risk · veto-data · veto-weekend
 #   · veto-tf-conflict · veto-range · veto-event · veto-vol-spike
 #   · veto-breaking-news · ev-trend · ev-level · ev-fundamental · ev-momentum
-#   · ev-strength · ev-news · ev-tv · ev-session · journal · notify-telegram
+#   · ev-strength · ev-news · ev-tv · ev-session · strategy-trend-pullback
+#   · strategy-london-breakout · strategy-carry · journal · notify-telegram
 #   · alerts-price · report-renderer
 # مثال (فقط شکل را نشان می‌دهد — به‌صورت پیش‌فرض فعال نکنید):
 #   plugins:
