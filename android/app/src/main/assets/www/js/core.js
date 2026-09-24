@@ -992,6 +992,148 @@
     return runner;
   };
 
+  // ════════════════════════════════════════════════════════════
+  //  pipeline ناهمگام (۶c — v0.28) — آینهٔ createPipeline با زنجیرهٔ promise
+  // ════════════════════════════════════════════════════════════
+  // همان opts/همان add/همان معناها (StageResult/stop/unavailable/قرنطینه با
+  // همان لاگ فارسی و رویداد plugin.failed) — تنها تفاوت: handlerها می‌توانند
+  // promise برگردانند و run یک Promise resolves با همان shape خروجیِ همگام
+  // می‌دهد ({ok, stoppedAt, stages, context, stage()}). ترتیب رویدادها
+  // (stage.start → … → stage.done) و ترتیب هندلرها (priority, order) دقیقاً
+  // مثل نسخهٔ همگام است — پینِ «هم‌رفتاری» در test_pipeline_events.js.
+  // ES5 خالص: بدون async/await — زنجیرهٔ then (نگهبان smoke_core).
+  core.createPipelineAsync = function (opts) {
+    opts = opts || {};
+    var registry = opts.registry || null;
+    var bus = opts.bus || core.createBus();
+    var log = (typeof opts.log === 'function') ? opts.log : function () {};
+    var stages = opts.stages ? opts.stages.slice() : STAGES.slice();
+
+    var handlers = {};
+    for (var s = 0; s < stages.length; s++) handlers[stages[s]] = [];
+
+    function buildChain(stage) {
+      // هندلرهای صریح (sorted) + هوک‌های پلاگین (append) — ترتیب قطعی
+      // (بایت‌به‌بایت همان ساختِ نسخهٔ همگام)
+      var chain = handlers[stage].slice().sort(function (a, b) {
+        return (a[0] - b[0]) || (a[1] - b[1]);
+      });
+      if (registry) {
+        var recs = registry.byStage(stage);      // فقط activeها (onlyActive پیش‌فرض)
+        for (var i = 0; i < recs.length; i++) {
+          (function (rec, idx) {
+            var hook = rec.instance ? rec.instance.run : null;
+            if (typeof hook === 'function' && rec.state === STATES.STARTED) {
+              chain.push([rec.manifest.priority, 1000 + idx, function (c) {
+                return hook.call(rec.instance, c);
+              }]);
+            }
+          })(recs[i], i);
+        }
+      }
+      return chain;
+    }
+
+    function runStageAsync(stage, ctx) {
+      bus.emit(EVENTS.STAGE_START, { stage: stage });
+      var out = core.stageResult({ stage: stage });
+      var chain = buildChain(stage);
+      var broken = false;
+
+      function quarantine(e) {                   // قرنطینهٔ مرحله — ادامه هست
+        out.ok = false;
+        out.unavailable = true;
+        out.error = (e && e.message !== undefined) ? String(e.message) : String(e);
+        var failure = core.makeFailure('stage:' + stage, 'run', out.error);
+        log(core.failureFaMessage(failure));
+        bus.emit(EVENTS.PLUGIN_FAILED, failure);
+      }
+
+      function step(j) {
+        if (broken || j >= chain.length) return Promise.resolve();
+        var value;
+        try {
+          value = chain[j][2](ctx);
+        } catch (e) {
+          quarantine(e);
+          broken = true;
+          return Promise.resolve();
+        }
+        return Promise.resolve(value).then(function (v) {
+          if (core.isStageResult(v)) {           // کنترل صریح stop/unavailable
+            if (v.stop) {
+              out.stop = true;
+              out.value = v.value;
+              broken = true;
+              return undefined;
+            }
+            if (v.unavailable) {
+              out.unavailable = true;
+              out.error = v.error;
+              out.value = v.value;
+              broken = true;
+              return undefined;
+            }
+            out.value = v.value;
+          } else {
+            out.value = v;
+          }
+          return step(j + 1);
+        }, function (e) {                        // promise ردشده = throw همگام
+          quarantine(e);
+          broken = true;
+        });
+      }
+
+      return step(0).then(function () {
+        bus.emit(EVENTS.STAGE_DONE,
+          { stage: stage, ok: out.ok, unavailable: out.unavailable, stop: out.stop });
+        return out;
+      });
+    }
+
+    var runner = {
+      stages: stages,
+
+      add: function (stage, fn, priority) {
+        if (!hasOwn(handlers, stage)) {
+          throw coreError('ValueError',
+            'مرحلهٔ ناشناخته «' + stage + '» — مراحل معتبر: ' + stages.join(', '));
+        }
+        handlers[stage].push([(priority !== undefined) ? priority : 100,
+                              handlers[stage].length, fn]);
+      },
+
+      run: function (ctx, onlyStages) {
+        var res = { ok: true, stoppedAt: null, stages: [], context: ctx };
+        var list = onlyStages || stages;
+        var p = Promise.resolve();
+        for (var i = 0; i < list.length; i++) {
+          (function (idx) {
+            p = p.then(function () {
+              if (res.stoppedAt !== null) return undefined;   // stop = بقیه هرگز
+              return runStageAsync(list[idx], ctx).then(function (sr) {
+                res.stages.push(sr);
+                if (sr.stop) { res.stoppedAt = list[idx]; }
+                else if (!sr.ok) { res.ok = false; }
+              });
+            });
+          })(i);
+        }
+        return p.then(function () {
+          res.stage = function (name) {
+            for (var k = 0; k < res.stages.length; k++) {
+              if (res.stages[k].stage === name) return res.stages[k];
+            }
+            return null;
+          };
+          return res;
+        });
+      }
+    };
+    return runner;
+  };
+
   // ثابت‌ها منجمد — سهوِ «تغییر ترتیب مراحل» در زمان اجرا گرفته می‌شود
   function deepFreeze(obj) {
     Object.freeze(obj);
