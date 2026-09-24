@@ -37,7 +37,7 @@ const GOLDEN_PATH = path.join(HERE, 'cycle_core_golden.json');
 
 // ترتیب بارگذاری = ترتیب index.html؛ core/plugins (فاز ۵/۶) اگر حاضر باشند اول‌اند
 const BASE_FILES = ['md5.js', 'fa.js', 'icons.js', 'license.js', 'config.js', 'indicators.js',
-  'session.js', 'technical.js', 'calendar.js', 'news.js', 'judge.js', 'journal.js', 'data.js',
+  'session.js', 'technical.js', 'calendar.js', 'news.js', 'judge.js', 'strategies.js', 'journal.js', 'data.js',
   'alerts.js', 'chart.js', 'sharecard.js', 'briefing.js', 'components.js', 'ui.js', 'app.js'];
 
 function fileList() {

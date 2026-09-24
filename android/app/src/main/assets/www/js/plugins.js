@@ -22,6 +22,10 @@
  *   است و قواعد را از registry به judgeAll تزریق می‌کند (fallback صادقانه:
  *   بدون registry → delegation سادهٔ قبلی).
  *
+ * ⚠️ S2 (v0.26): سه استراتژی ورود هم ثبت‌اند (strategy-*×۳ با قرارداد
+ *   odin.strategy@1 — آینهٔ src/plugins/strategies.py). هنوز مصرف‌کننده
+ *   ندارند (چرخه/داور دست‌نخورده) — سوییچ دروازهٔ توافق در S3.
+ *
  * سبک: ES5 خالص (var/function) — نگهبانش بخش مشروطِ test_cycle_switch.js.
  */
 (function (O) {
@@ -190,6 +194,27 @@
     return fn(a, ctx, direction);
   };
 
+  // ── adapter استراتژی (S2) — آینهٔ StrategyAdapter پایتون ──
+  // shape: odin.strategy@1 → evaluate(a, md, ctx) → verdict
+  // scfg در ساخت گرفته می‌شود (context.cfg.strategies[key]) — factory در هر
+  // makeCaps با cfg جاری ساخته می‌شود، پس تغییرات config بین چرخه‌ها درست
+  // دیده می‌شود (dict(...) پایتون = کپی سطحی).
+  function StrategyAdapter(key, cfg) {
+    this.key = key;
+    var strategies = (cfg && cfg.strategies) || {};
+    var sc = strategies[key];
+    var scfg = {};
+    if (sc && typeof sc === 'object') {
+      for (var k in sc) {
+        if (Object.prototype.hasOwnProperty.call(sc, k)) scfg[k] = sc[k];
+      }
+    }
+    this._scfg = scfg;
+  }
+  StrategyAdapter.prototype.evaluate = function (a, md, ctx) {
+    return O.strategyFor(this.key).evaluate(a, md, this._scfg, ctx);
+  };
+
   // ── تعریف پلاگین‌ها — manifestها آینهٔ همتاهای پایتون در src/plugins/ ──
   // (id/stage/priority/config یکسان؛ platforms فقط android)
   var DEFS = [
@@ -307,6 +332,26 @@
       id: d[0], provides: ['odin.judge.evidence@1'], config: null,
       stage: 'judge', priority: 10 * (i + 1),
       factory: function () { return new EvidenceRuleAdapter(d[1], d[2], d[3]); }
+    });
+  });
+
+  // ── استراتژی‌های ورود (S2) — id/ترتیب/binding آینهٔ src/plugins/strategies.py ──
+  // (plugin-id, strategy_key) — priority ۱۰..۳۰ = ترتیب ارزیابی قطعی؛
+  // اتصال به strategies.<key>.enabled (dot-path فاز ۷). مصرف‌کننده در S3
+  // وصل می‌شود — تا آن زمان این ثبت‌ها بی‌اثرند (چرخه دست‌نخورده).
+  var STRATEGY_DEFS = [
+    ['strategy-trend-pullback', 'trend_pullback'],
+    ['strategy-london-breakout', 'london_breakout'],
+    ['strategy-carry', 'carry']
+  ];
+  STRATEGY_DEFS.forEach(function (d, i) {
+    DEFS.push({
+      id: d[0], provides: ['odin.strategy@1'],
+      config: { section: 'strategies', enabled_key: d[1] + '.enabled', 'default': true },
+      stage: 'judge', priority: 10 * (i + 1),
+      factory: function (context) {
+        return new StrategyAdapter(d[1], (context && typeof context === 'object') ? context.cfg : null);
+      }
     });
   });
 

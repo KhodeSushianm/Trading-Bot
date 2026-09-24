@@ -58,9 +58,13 @@ async function main() {
     const app = gen.createApp({});
     const O = app.O;
     const built = O.buildDefaultRegistry(O.deepFill(O.CONFIG, {}), 'android');
-    ok(built.registry.all().length === 26
+    // S2 (v0.26): ۲۶→۲۹ — سه پلاگین strategy-* (قرارداد odin.strategy@1،
+    // آینهٔ src/plugins/strategies.py) افزوده شد. مصرف‌کننده هنوز ندارند
+    // (سوییچ داور در S3) — صرفِ ثبت، رفتاری را عوض نمی‌کند. دلیلِ تغییرِ
+    // پین، همان الگوی S1 (قراردادها ۱۵→۱۶) است: افزودنیِ ثبت‌شده و مستند.
+    ok(built.registry.all().length === 29
        && built.registry.all().every((r) => r.enabled),
-      'config پیش‌فرض: هر ۲۶ پلاگین فعال (۱۱ فاز ۶ + ۱۵ قاعدهٔ داور فاز ۶b)');
+      'config پیش‌فرض: هر ۲۹ پلاگین فعال (۱۱ فاز ۶ + ۱۵ قاعدهٔ داور فاز ۶b + ۳ استراتژی S2)');
 
     const off = O.deepFill(O.CONFIG, { judge: { enabled: false } });
     const b2 = O.buildDefaultRegistry(off, 'android');

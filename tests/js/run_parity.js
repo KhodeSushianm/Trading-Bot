@@ -21,7 +21,7 @@ const FIX = JSON.parse(fs.readFileSync(path.join(HERE, 'fixtures.json'), 'utf8')
 
 // ── بارگذاری ماژول‌های اپ (بدون DOM) ─────────────────────────
 const FILES = ['core.js', 'plugins.js', 'md5.js', 'fa.js', 'icons.js', 'license.js', 'config.js', 'indicators.js', 'session.js', 'technical.js',
-  'calendar.js', 'news.js', 'judge.js', 'journal.js', 'data.js', 'alerts.js', 'chart.js', 'sharecard.js', 'briefing.js', 'components.js', 'ui.js', 'app.js'];
+  'calendar.js', 'news.js', 'judge.js', 'strategies.js', 'journal.js', 'data.js', 'alerts.js', 'chart.js', 'sharecard.js', 'briefing.js', 'components.js', 'ui.js', 'app.js'];
 for (const f of FILES) {
   const code = fs.readFileSync(path.join(JS_DIR, f), 'utf8');
   try {
@@ -402,6 +402,41 @@ O.http = async function (url, opts) {
         deepEq(`judge.${tag}[${exp[i].symbol}]`, exp[i], act[i], 1e-9);
       }
     });
+  }
+
+  // ── ۱۰ب) استراتژی‌ها (S2 — پاریتی افزودنی؛ مصرف‌کننده تا S3 ندارند) ──
+  // آینهٔ js/strategies.js در برابر اوراکل پایتون روی دادهٔ *واقعی* بازار —
+  // مکملِ طلاییِ مصنوعی (tests/js/golden/strategies_golden.json). ranking
+  // همان مسیر محاسبهٔ JS داور است (پاریتیِ خودش جدا پین شده) تا ctx دو طرف
+  // هم‌معنا بماند.
+  if (FIX.strategies) {
+    for (const tag of ['live', 'sim']) {
+      const fxs = FIX.strategies[tag];
+      check(`strategies ${tag}`, () => {
+        const ctx = {
+          nowMs: fxs.nowMs,
+          ranking: O.currencyStrength(datasets, O.CONFIG.analysis.strength_lookback_h1),
+          newsSnap: newsSnap
+        };
+        const mods = {
+          trend_pullback: O.strategies.trendPullback,
+          london_breakout: O.strategies.londonBreakout,
+          carry: O.strategies.carry
+        };
+        fxs.rows.forEach((row) => {
+          const a = analyses.filter((x) => x.symbol === row.symbol)[0];
+          if (!a) { fails.push(`strategies.${tag}: تحلیلِ ${row.symbol} پیدا نشد`); return; }
+          const act = {};
+          Object.keys(row.verdicts).forEach((key) => {
+            act[key] = mods[key].evaluate(a, datasets[row.symbol],
+              O.CONFIG.strategies[key], ctx);
+          });
+          deepEq(`strategies.${tag}[${row.symbol}]`, row.verdicts, act, 1e-9);
+        });
+      });
+    }
+  } else {
+    fails.push('fixtures.json بخش strategies ندارد — gen_fixtures.py کهنه است (S2)');
   }
 
   // ── ۱۱) ژورنال: tracker + stats ───────────────────────────

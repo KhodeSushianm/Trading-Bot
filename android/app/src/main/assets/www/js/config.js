@@ -77,6 +77,29 @@
       }
     },
 
+    // استراتژی‌های ورود (v0.26 — S2) — پورتِ بخش strategies در config.yaml
+    // (منبع حقیقت همان YAML است؛ جدول نرخ‌ها دستی و با تأیید مالک ۲۰۲۶-۰۹-۲۴
+    // به‌روز می‌شود). در S2 مصرف‌کننده ندارند؛ دروازهٔ توافقِ داور در S3.
+    strategies: {
+      min_agree: 1,
+      trend_pullback: {
+        enabled: true, adx_min: 20, rsi_buy: [30, 45], rsi_sell: [55, 70]
+      },
+      london_breakout: {
+        enabled: true, asia_start_hour: 0, asia_end_hour: 7,
+        london_open_hour: 7, trade_window_hours: 4, asia_min_bars: 5,
+        min_range_atr: 0.5, max_range_atr: 3.0, breakout_margin_atr: 0.15
+      },
+      carry: {
+        enabled: true, min_diff: 1.5, news_min_score: 4,
+        rates: {
+          as_of: '2026-09',
+          values: { USD: 3.88, EUR: 2.50, GBP: 3.75, JPY: 1.25, AUD: 4.35, CAD: 2.25, CHF: 0.00, XAU: null },
+          bias: { USD: 'neutral', EUR: 'neutral', GBP: 'neutral', JPY: 'neutral', AUD: 'neutral', CAD: 'neutral', CHF: 'neutral', XAU: 'neutral' }
+        }
+      }
+    },
+
     journal: { enabled: true, expiry_hours: 48, conservative_both_touch: true },
 
     ui: { user_name: 'سوشیان', animations: true },

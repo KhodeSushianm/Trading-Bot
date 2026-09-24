@@ -41,6 +41,8 @@ from src.journal.store import Journal                         # noqa: E402
 from src.journal.tracker import resolve_open_signals          # noqa: E402
 from src.judge.scoring import JudgeContext, judge_all, judge_config  # noqa: E402
 from src.judge.session import market_status                   # noqa: E402
+from src.plugins.strategies import STRATEGY_RULES             # noqa: E402
+from src.strategies import carry, london_breakout, trend_pullback  # noqa: E402
 
 UA = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
       "(KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36")
@@ -93,6 +95,7 @@ def main() -> None:
     gen_tv_fixtures(cfg)
     gen_news_fixtures(cfg, now_ms)
     gen_judge_fixtures(cfg, now_ms)
+    gen_strategy_fixtures(cfg, now_ms)
     gen_journal_fixtures(now_ms)
 
     OUT.write_text(json.dumps(FX, ensure_ascii=False), encoding="utf-8")
@@ -557,6 +560,50 @@ def gen_judge_fixtures(cfg: dict, now_ms: int) -> None:
         sigs = [j for j in judgments if j.signal]
         log(f"  ✓ {tag}: {len(sigs)} سیگنال از {len(judgments)} نماد")
     FX["judge"] = out
+
+
+def gen_strategy_fixtures(cfg: dict, now_ms: int) -> None:
+    """S2 (افزودنی — پاریتی زندهٔ استراتژی‌ها): verdict سه استراتژی برای هر
+    نماد، با همان ctx/دادهٔ fixtures داور. سمت JS در run_parity.js بازسازی و
+    بایت‌به‌بایت مقایسه می‌شود (آینهٔ js/strategies.js == اوراکل پایتون).
+
+    نکته: مصرف‌کننده هنوز ندارند (سوییچ S3) — این بخش فقط پاریتیِ آینه‌ها را
+    روی دادهٔ *واقعی* بازار قفل می‌کند (مکملِ طلاییِ مصنوعیِ
+    golden/strategies_golden.json).
+    """
+    log("🎯 استراتژی‌ها...")
+    cal_snap = SHARED.get("cal_snap")
+    news_snap = SHARED.get("news_snap")
+    tv_map = SHARED.get("tv_map", {})
+    datasets = SHARED["datasets"]
+    analyses = SHARED["analyses"]
+    ranking = [(c, v) for c, v in FX["ranking"]]
+    jcfg = judge_config(cfg)
+    mods = {"trend_pullback": trend_pullback, "london_breakout": london_breakout,
+            "carry": carry}
+    scfg_root = cfg.get("strategies") or {}
+
+    out = {}
+    for tag, ms in (("live", now_ms), ("sim", pick_sim_now(now_ms))):
+        now = datetime.fromtimestamp(ms / 1000, tz=timezone.utc)
+        ctx = JudgeContext(
+            jcfg=jcfg, acfg=cfg["analysis"], symbols_cfg=cfg["symbols"],
+            ranking=ranking, tv_map=tv_map, cal_snap=cal_snap, news_snap=news_snap,
+            now=now, status=market_status(now),
+            event_veto_minutes=float((cfg.get("fundamental") or {}).get("veto_minutes_before", 30)))
+        rows = []
+        for a in analyses:
+            verdicts = {}
+            for _pid, key in STRATEGY_RULES:
+                v = mods[key].evaluate(a, datasets.get(a.symbol),
+                                       scfg_root.get(key) or {}, ctx)
+                verdicts[key] = v.to_dict()
+            rows.append({"symbol": a.symbol, "verdicts": verdicts})
+        out[tag] = {"nowMs": ms, "rows": rows}
+        n_dir = sum(1 for r in rows for v in r["verdicts"].values()
+                    if v["direction"] != "NONE")
+        log(f"  ✓ {tag}: {n_dir} جهتِ غیرNONE از {len(rows) * 3} ارزیابی")
+    FX["strategies"] = out
 
 
 # ── ژورنال (سنتتیک و قطعی) ────────────────────────────────────

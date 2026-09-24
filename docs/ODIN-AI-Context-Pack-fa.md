@@ -1,6 +1,6 @@
 # 🎒 بستهٔ زمینهٔ ODIN — برای هوش مصنوعی و توسعه‌دهندهٔ تازه‌وارد
 
-> **نسخهٔ سند:** v0.25.0 (۲۰۲۶-۰۹-۲۳) — پایان مهاجرت معماری پلاگین
+> **نسخهٔ سند:** v0.25.0+ (۲۰۲۶-۰۹-۲۴) — پایان مهاجرت معماری پلاگین + S1/S2 سه‌گامِ استراتژی‌ها (v0.26)
 > **مخاطب:** هر AI یا انسانی که قرار است روی این ریپو کار کند. این فایل
 > «حداقل زمینهٔ لازم برای کارِ امن» است — جزئیات طراحی در
 > [`plugin-architecture-fa.md`](plugin-architecture-fa.md) و تاریخچهٔ کامل در
@@ -48,8 +48,11 @@ src/core/        🔌 هستهٔ پلاگین پایتون (فقط stdlib): cont
                  manifest · registry · resolver(Kahn+آبشار+حلقه پرسروصدا) ·
                  lifecycle(۷ وضعیت+قرنطینه) · config_bridge(۴ سطح اولویت،
                  dot-path) · bus(همگام ایزوله) · pipeline(۱۱ مرحله+stop)
-src/plugins/     🔌 ۳۰ پلاگین پایتون — adapter نازک (فقط delegation با import
+src/plugins/     🔌 ۳۳ پلاگین پایتون — adapter نازک (فقط delegation با import
                  تنبل) + مانیفست اعلانی. build_default_registry() نقطهٔ ورود.
+src/strategies/  🎯 سه استراتژی ورود (v0.26 — S1): trend_pullback ·
+                 london_breakout · carry — توابع خالص evaluate(a, md, scfg, ctx)
+                 با قرارداد odin.strategy@1. مصرف‌کننده: داور در S3.
 src/engine.py    چرخهٔ تحلیل روی PipelineRunner (run_cycle) + BotLoop +
                  بریفینگ/هشدار رویداد/کارنامه. BUS ماژول‌محور. _Caps = دسترسی
                  قابلیت‌محور با نمونه‌های تنبل (خراب→throw، خاموش→None).
@@ -61,7 +64,9 @@ android/app/src/main/assets/www/
   index.html     ترتیب بارگذاری: core.js ← plugins.js ← ۲۰ ماژول (پین‌شده)
   js/core.js     🔌 آینهٔ ES5 هستهٔ پایتون (O.core) — smoke_core پاریتیِ
                  فهرست‌ها را *از سورس پایتون* استخراج و مقایسه می‌کند
-  js/plugins.js  🔌 ۲۶ پلاگین JS (O.buildDefaultRegistry/O.makeCaps/O.BUS)
+  js/plugins.js  🔌 ۲۹ پلاگین JS (O.buildDefaultRegistry/O.makeCaps/O.BUS)
+  js/strategies.js 🎯 آینهٔ ES5 بایت‌به‌بایتِ src/strategies (S2 — طلاییِ
+                 ۷۸ سناریو از اوراکل پایتون؛ مصرف‌کننده: S3)
   js/app.js      cycleCore/svcTick/svcStart/boot — مصرف caps + ۹ رویداد bus
   js/data.js     runPipeline (واکشی داده→تحلیل→فاندامنتال) — مصرف caps
   js/judge.js    داور JS: O.veto*/O.ev*/VETO_RULES/EVIDENCE_RULES + تزریق
@@ -106,11 +111,13 @@ docs/            این بسته + plugin-architecture-fa.md (سند مادر م
 | `tests/golden/run_cycle_golden.json` + `test_engine_switch.py`(۴۷) | چرخهٔ کامل mock پایتون: result+۱۷ لاگ+تلگرام | ❌ میخ — فقط با دلیل موجه و بازضبط عمدی |
 | `tests/test_judge_rules.py`(۱۸۸)+`golden/judge_rules_golden.json` | ۷ وتو+۳۸ شاخهٔ شاهد+داوری+ریسک (پایتون) | ❌ میخ |
 | `tests/test_pipeline_switch.py`(۱۰) | توالی ۳۳ رویداد/early-exit stop | ❌ میخ |
-| `tests/test_core.py`(۸۷) / `js/smoke_core.js`(۱۳۶) | واحدِ هسته (دو زبان، فهرست‌ها از سورس هم) | ➕ افزودنی مجاز؛ موجودی‌ها نه |
-| `tests/test_plugins.py`(۱۷۲) | adapter==direct + registry parity + فاز۷ | در سوییچ‌ها به‌روز می‌شود (سابقه دارد) |
+| `tests/test_core.py`(۸۸) / `js/smoke_core.js`(۱۳۶) | واحدِ هسته (دو زبان، فهرست‌ها از سورس هم) | ➕ افزودنی مجاز؛ موجودی‌ها نه |
+| `tests/test_strategies.py`(۷۷) | میخ‌های سه استراتژی پایتون (هر شاخهٔ رد + طلایی + registry) | ❌ میخ — در S3 هم بدون تغییر سبز می‌ماند |
+| `js/golden/strategies_golden.json` + `test_strategies_switch.js`(۵۷۴) | پاریتیِ بایت‌به‌بایت آینهٔ JS == اوراکل پایتون (۷۸ سناریو) + مسیر registry | ❌ میخ — بازضبط فقط با دلیل موجه |
+| `tests/test_plugins.py`(۱۷۳) | adapter==direct + registry parity + فاز۷ | در سوییچ‌ها به‌روز می‌شود (سابقه دارد) |
 | `js/golden/cycle_core_golden.json` + `test_cycle_switch.js`(۵۴) | ۸ سناریوی چرخهٔ سرویس JS (لاگ/اعلان/storage بایت‌به‌بایت) | ❌ میخ |
 | `js/golden/judge_rules_js_golden.json` + `test_judge_switch.js`(۱۷۹) | ۵۸ سناریوی داور JS (== طلایی پایتون) | ❌ میخ |
-| `js/run_parity.js`(۲۵ زنده) | موتور JS == اوراکل پایتون روی دادهٔ زنده | ❌ اوراکل — فقط افزودنی |
+| `js/run_parity.js`(۲۷ زنده) | موتور JS == اوراکل پایتون روی دادهٔ زنده (judge + strategies live/sim) | ❌ اوراکل — فقط افزودنی |
 | `js/smoke_*` (۱۱) | UI/لایسنس/تم(۲۱۱)/چیدمان/آیکون/هشدار/نمودار/اشتراک/خوش‌آمد/پلاگین‌ها | ساختاری‌ها با مستندسازی |
 | `js/smoke_service.js` (زنده) | رصد پس‌زمینهٔ end-to-end | ❌ |
 | `main.py --selftest` · `tests/check_config.py` · `tests/manual/*`(۱۶) | خودآزمایی/کانفیگ/سناریوهای دستی | موردی |
@@ -173,9 +180,16 @@ docs/            این بسته + plugin-architecture-fa.md (سند مادر م
 - **journal/anti-spam عمداً binding ندارد** (config=None): ضداسپم و سند
   صداقت نباید با یک کلید بمیرند.
 
-## ۱۰) وضعیت در یک نگاه (v0.25.0)
+## ۱۰) وضعیت در یک نگاه (v0.25.0 + S1/S2)
 
 مهاجرت معماری **کامل** است: فازهای ۱·۲·۳a·۳b·۴·۵·۶·۶b·۷·۸ انجام شده‌اند
 (تاریخچهٔ دقیق با کامیت‌ها: جدول پیشرفتِ `plugin-architecture-fa.md`).
 هر دو موتور ۱۰۰٪ پلاگین‌محورند؛ افزودن قابلیت جدید = یک adapter با مانیفست
 در `src/plugins/` و `js/plugins.js` + تست طلایی — **بدون دست‌زدن به هسته**.
+
+**جریانِ فعال (v0.26):** سه‌گامِ استراتژی‌ها — S1 ✅ (استراتژی‌های پایتون،
+۷۷ میخ) · S2 ✅ (آینهٔ JS + پاریتیِ طلایی ۷۸ سناریو/۵۷۴ بررسی + پاریتی
+زندهٔ افزودنی) · **S3 ⏳** (سوییچ مصرف در داورِ هر دو موتور — اولین تغییر
+رفتارِ عمدا؛ Preview جدا + بازضبط مستندِ میخ‌های متأثر + تصمیم v0.26.0).
+هر دو گامِ انجام‌شده «مرده»‌اند (بدون مصرف‌کننده) — رفتار اپ تا S3 دقیقاً
+همان v0.25.0 است. جزئیات: §۶ `plugin-architecture-fa.md`.
