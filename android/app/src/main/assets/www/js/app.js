@@ -48,7 +48,15 @@
     fund_enabled: true, news_enabled: true, tv_enabled: true,
     auto_refresh_enabled: true, auto_refresh_min: 15, notify_enabled: true,
     background_enabled: true,     // v0.13: رصد پس‌زمینه (در خوش‌آمدگویی پرسیده می‌شود)
-    animations_enabled: true      // v0.21: همتای ui.animations در config.yaml دسکتاپ
+    animations_enabled: true,     // v0.21: همتای ui.animations در config.yaml دسکتاپ
+    // S4 (v0.27): استراتژی‌های ورود — کلیدهای فیچریِ strategies.<key>.enabled
+    // و strategies.min_agree از راه buildCfg به همان آبشارِ فاز ۷ می‌رسند
+    // (override ← کلید فیچری ← پیش‌فرض مانیفست). رکوردهای settings قدیمی
+    // این کلیدها را ندارند → deepFill پیش‌فرض‌ها را می‌گذارد = رفتار امروز.
+    strategy_tp_enabled: true,
+    strategy_lb_enabled: true,
+    strategy_carry_enabled: true,
+    strategy_min_agree: 1
   };
 
   function buildCfg() {
@@ -58,7 +66,15 @@
       judge: { enabled: st.judge_enabled, min_score: st.min_score, veto: st.veto },
       fundamental: { enabled: st.fund_enabled },
       news: { enabled: st.news_enabled },
-      tradingview: { enabled: st.tv_enabled }
+      tradingview: { enabled: st.tv_enabled },
+      // S4: deepFill بقیهٔ بخش (نرخ‌ها/پارامترها) را از O.CONFIG حفظ
+      // می‌کند — تنظیمات گوشی فقط enable/disable و min_agree را می‌سازد
+      strategies: {
+        min_agree: (st.strategy_min_agree | 0),
+        trend_pullback: { enabled: st.strategy_tp_enabled !== false },
+        london_breakout: { enabled: st.strategy_lb_enabled !== false },
+        carry: { enabled: st.strategy_carry_enabled !== false }
+      }
     });
   }
 
@@ -686,6 +702,14 @@
         } else if (key === 'auto_refresh_min') {
           var cur = S.settings.auto_refresh_min || 15;
           S.settings.auto_refresh_min = Math.max(5, Math.min(120, cur + delta * 5));
+          saveSettings();
+          O.navigate('settings');
+        } else if (key === 'strategy_min_agree') {
+          // S4: clamp ۰..۳ — ۰ = دروازه خاموش (opt-out صریح)، ۳ = حداکثرِ
+          // ممکن با سه استراتژی (بسیار سخت‌گیرانه)
+          var curA = S.settings.strategy_min_agree;
+          curA = (typeof curA === 'number' && isFinite(curA)) ? (curA | 0) : 1;
+          S.settings.strategy_min_agree = Math.max(0, Math.min(3, curA + delta));
           saveSettings();
           O.navigate('settings');
         }

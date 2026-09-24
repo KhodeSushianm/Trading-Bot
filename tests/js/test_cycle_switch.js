@@ -11,7 +11,7 @@
  *     سوییچ فعال — چون bus و registry رفتاری *افزودنی* بدون listener هستند
  *     (دقیقاً همان الگویی که در فاز ۳a پایتون جواب داد).
  *
- * طلاییِ ۹ سناریو: tests/js/golden/cycle_core_golden.json (با
+ * طلاییِ ۱۱ سناریو: tests/js/golden/cycle_core_golden.json (با
  * tests/js/golden/gen_cycle_golden.js ضبط شده — FakeDate ثابت، لایسنس تریال،
  * ODINNative ساختگی، seamهای fetcher پچ‌شده؛ کندل‌ها با فرمول‌های همان
  * gen_engine_golden.py پایتون → EURUSD BUY 8/11 در هر دو موتور).
@@ -104,6 +104,32 @@ async function testInlinePins() {
     'بدون سیگنال → رکوردی در ژورنال نیست (حلقهٔ صداقت دست‌نخورده)');
   A(hasLog(s1g, 'هیچ سیگنالی صادر نشد'),
     'لاگِ صادقانهٔ «هیچ سیگنالی صادر نشد» در چرخهٔ دروازه‌دار');
+
+  // ۱پ) S4 — مسیرِ *تنظیمات گوشی*: هر سه استراتژی خاموش → config-bridge →
+  // registry → دروازهٔ fail-closed (بدون جهشِ مستقیمِ CONFIG — سیم‌کشی واقعی)
+  const s1s = await gen.runScenario('svc_settings_strategies_off');
+  A(s1s.notify.length === 0, 'تنظیمات: خاموشِ همهٔ استراتژی‌ها → بدون اعلان سیگنال');
+  const st10 = s1s.storage['state.last'];
+  const eur10 = st10 && st10.judgments.filter((j) => j.symbol === 'EURUSD')[0];
+  A(eur10 && eur10.reject_reason === 'NO_STRATEGY' && eur10.hasSignal === false
+    && eur10.score >= 7,
+    'تنظیمات: EURUSDِ آماده با امتیاز ≥ آستانه → NO_STRATEGY (fail-closed)');
+  const set10 = s1s.storage['settings'] || {};
+  A(set10.strategy_tp_enabled === false && set10.strategy_lb_enabled === false
+    && set10.strategy_carry_enabled === false && set10.judge_enabled !== false,
+    'settings ذخیره‌شده: سه کلید استراتژی خاموش (داور دست‌نخورده)');
+  A(!Array.isArray(s1s.storage['journal.jsonl']),
+    'بدون سیگنال → ژورنال رکوردی نگرفت');
+
+  // ۱ت) S4 — min_agree=2 از تنظیمات: EURUSD فقط یک موافق دارد → رد
+  const s1m = await gen.runScenario('svc_settings_min_agree_2');
+  const st11 = s1m.storage['state.last'];
+  const eur11 = st11 && st11.judgments.filter((j) => j.symbol === 'EURUSD')[0];
+  A(eur11 && eur11.reject_reason === 'NO_STRATEGY' && eur11.hasSignal === false,
+    'تنظیمات: min_agree=2 → تک‌موافق کافی نیست → NO_STRATEGY');
+  A((s1m.storage['settings'] || {}).strategy_min_agree === 2
+    && s1m.notify.length === 0,
+    'min_agree=2 در settings ذخیره و بدون اعلان سیگنال');
 
   // ۲) قطعی داده — early-exit صادقانه
   const s2 = await gen.runScenario('data_outage');
@@ -310,7 +336,7 @@ async function main() {
     process.exit(1);
   }
   console.log('✅ CYCLE-SWITCH TESTS OK — ' + COUNT + ' بررسی پاس؛ میخ‌های رفتاری موتور JS '
-    + '(۹ سناریوی طلایی svcTick/cycleCore/runPipeline + پین‌های inline'
+    + '(۱۱ سناریوی طلایی svcTick/cycleCore/runPipeline + پین‌های inline'
     + ' + بخش‌های مشروط bus/registry) سبز‌اند');
   process.exit(0);
 }
