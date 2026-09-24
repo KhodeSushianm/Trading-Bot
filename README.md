@@ -141,6 +141,13 @@ TwelveData  ────┤ زاپاس خودکار       ForexFactory         R
 
 طراحی کامل: [`docs/signal-assistant-design.md`](docs/signal-assistant-design.md)
 
+> **از v0.25.0 این جریان روی معماری پلاگین اجرا می‌شود:** هستهٔ موتور فقط
+> «قرارداد»ها را می‌شناسد (۱۵ قرارداد مشترک بین دو زبان) و قابلیت‌ها
+> پلاگین‌هایی با مانیفست‌اند (۳۰ پلاگین پایتون / ۲۶ پلاگین JS) — با ۱۱
+> مرحلهٔ نام‌دارِ چرخه، event bus، enable/disable یکپارچه زیر مانیفست و
+> Failure Isolation (پلاگین خراب → unavailable صادقانه، نه کرش).
+> طراحی کامل + تاریخچهٔ فازها: [`docs/plugin-architecture-fa.md`](docs/plugin-architecture-fa.md)
+
 ---
 
 ## 🧠 مغز متفکر: داور و وتوها
@@ -279,10 +286,14 @@ Trading-Bot/
 ├── assets/                   ← 🖥️ منجمد: آیکون و فونت نسخهٔ ویندوز
 ├── docs/                     ← مستندات فارسی (docs/README.md = فهرست) + گزارش پروژه
 │                              🖥️ اسکرین‌شات‌ها همه از نسخهٔ ویندوزِ منجمد‌اند
-├── tests/                    ← ۱۱ سوئیت JS + ۱۴ سوئیت دستی پایتون
+├── tests/                    ← ۱۴ سوئیت JS (اسموک/parity/میخ‌های طلایی) + ۶ سوئیت
+│                              واحد پایتون + ۱۶ تست دستی + tests/golden/
 ├── tools/                    ← ابزار گزارش‌گیری (make_project_report.py)
 └── src/
-    ├── engine.py             ← چرخهٔ تحلیل، بریفینگ، هشدار، ضداسپم
+    ├── core/                 ← 🔌 هستهٔ پلاگین (فقط stdlib): قراردادها/مانیفست/
+    │                             registry/resolver/lifecycle/config-bridge/bus/pipeline
+    ├── plugins/              ← 🔌 ۳۰ پلاگین داخلی (adapter نازک + مانیفست اعلانی)
+    ├── engine.py             ← چرخهٔ تحلیل روی pipeline (۱۱ مرحله)، بریفینگ، هشدار، ضداسپم
     ├── data/ analysis/       ← منابع داده وب + تکنیکال + قدرت ارزها
     ├── fundamental/          ← تقویم اقتصادی + اخبار جهت‌دار
     ├── judge/                ← ⚖️ وتوها + مدارک + ریاضی ریسک
@@ -299,7 +310,8 @@ Trading-Bot/
 
 | ماژول | نقش |
 |---|---|
-| `js/{data,technical,indicators,calendar,news,judge,journal,session}.js` | موتور — با ۲۴ تست برابری قفل شده |
+| `js/core.js` + `js/plugins.js` | 🔌 آینهٔ ES5 هستهٔ پلاگین + ۲۶ پلاگین (همان شناسه‌ها/ترتیب‌ها/bindingهای پایتون) — موتور قابلیت‌ها را از registry مصرف می‌کند |
+| `js/{data,technical,indicators,calendar,news,judge,journal,session}.js` | موتور — با **۲۵ تست برابری** (parity زنده در برابر اوراکل پایتون) + دو طلاییِ رفتاری (چرخهٔ سرویس + قواعد داور) قفل شده |
 | `js/components.js` | اجزای Aurora Glass 2.0 (پورت `src/ui/widgets.py`) |
 | `js/license.js` | لایسنس HMAC + تریال + قفل دستگاه (مشترک با پایتون) |
 | `style.css` | ۴۱ توکن رنگ، **هم‌نام و هم‌مقدار** با `src/ui/theme.py` |
