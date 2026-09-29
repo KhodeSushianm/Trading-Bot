@@ -81,6 +81,10 @@ DEFAULTS: dict = {
         "level_buffer_atr": 0.3,       # حد ضرر کمی آن‌سوی سطح
         "reward_risk": 2.0,            # نسبت سود به ریسک هدف
         "max_risk_percent": 1.0,       # فقط برای نمایش در پیام
+        # v0.29: برآوردِ اسپرد برای Rِ خالص. صریحاً «برآورد» است چون ODIN
+        # به بروکر وصل نیست. پیش‌فرضِ خالی = 0.0 = R خالص == R ناخالص.
+        "spread": {"enabled": True, "default_pips": 0.0,
+                   "warn_at_risk_fraction": 0.25, "per_symbol": {}},
     },
 }
 
@@ -174,6 +178,9 @@ class Signal:
     # پیش‌تر این دو یکی فرض می‌شدند و تا یک ساعت اختلاف داشتند — همان باگِ
     # «ورودِ کهنه». None = دادهٔ زمانی نبود → tracker رفتارِ قبلی را نگه می‌دارد.
     entry_ts: Optional[datetime] = None
+    # v0.29 (فاز ۳): برآوردِ اسپرد (پیپ) — ژورنال نگهش می‌دارد تا tracker
+    # بتواند Rِ *خالص* را کنارِ Rِ ناخالص بنویسد. صفر = هزینه مدل نمی‌شود.
+    spread_pips: float = 0.0
 
     @property
     def direction_fa(self) -> str:
@@ -204,6 +211,9 @@ class Signal:
             "risk_pips": round(self.risk_pips, 1),
             "reward_pips": round(self.reward_pips, 1),
             "rr": self.rr,
+            # v0.29 (فاز ۳): برای Rِ خالص. رکوردهای قدیمی ندارند → 0.0 →
+            # R خالص == R ناخالص (سازگار، بدون حدس).
+            "spread_pips": round(float(self.spread_pips or 0.0), 3),
             "score": self.score,
             "max_score": self.max_score,
             "session": self.session_fa,
@@ -627,6 +637,29 @@ _EVIDENCE_RULES: tuple = (ev_trend, ev_level, ev_fundamental, ev_momentum,
 # ══════════════════════════════════════════════════════════════
 #  محاسبهٔ ورود / حد ضرر / هدف
 # ══════════════════════════════════════════════════════════════
+def spread_pips_for(symbol: str, rcfg: dict) -> float:
+    """برآوردِ اسپردِ این نماد (پیپ) — برای محاسبهٔ Rِ خالص.
+
+    ⚠️ صادقانه: ODIN به هیچ بروکری وصل نیست، پس اسپردِ *واقعیِ* کاربر را
+    نمی‌داند. این عدد از ``judge.risk.spread`` در config می‌آید و یک
+    **برآوردِ محافظه‌کارانه** است که کاربر باید با بروکرِ خودش تنظیم کند.
+
+    ``spread.enabled=false`` یا نبودِ بخش → ``0.0`` → Rِ خالص دقیقاً برابرِ
+    Rِ ناخالص می‌شود (رفتارِ پیش از v0.29، بدون تغییر). هیچ‌وقت عددِ
+    ساختگی حدس زده نمی‌شود.
+    """
+    sp = (rcfg or {}).get("spread") or {}
+    if not sp.get("enabled", True):
+        return 0.0
+    per = sp.get("per_symbol") or {}
+    raw = per.get(symbol, sp.get("default_pips", 0.0))
+    try:
+        v = float(raw)
+    except (TypeError, ValueError):
+        return 0.0
+    return v if v > 0 else 0.0
+
+
 def compute_levels(direction: str, entry: float, atr: float,
                    support: Optional[float], resistance: Optional[float],
                    rcfg: dict) -> tuple[float, float, float, bool]:
@@ -835,6 +868,18 @@ def judge_symbol(a: SymbolAnalysis, sym_cfg: dict, md: Optional[MarketData],
                           f"پیشنهاد می‌دهد")
 
     pip = a.pip or 0.0001
+    # v0.29 (فاز ۳): هزینهٔ معامله — صریح و قابلِ دیدن، نه پنهان در آمار
+    spread_pips = spread_pips_for(a.symbol, rcfg)
+    risk_pips_v = risk / pip if pip else 0.0
+    warn_frac = float((rcfg.get("spread") or {})
+                      .get("warn_at_risk_fraction", 0.25))
+    if spread_pips > 0 and risk_pips_v > 0 and \
+            (spread_pips / 2.0) / risk_pips_v >= warn_frac:
+        j.warnings.append(
+            f"⚠️ اسپردِ برآوردی ({fa_num(f'{spread_pips:.1f}')} پیپ) نسبت به "
+            f"ریسکِ این معامله ({fa_num(f'{risk_pips_v:.1f}')} پیپ) بزرگ است — "
+            f"بخشِ قابل‌توجهی از سود را هزینه می‌خورد. حد ضررِ تنگ‌تر از این "
+            f"روی این نماد توصیه نمی‌شود")
     j.signal = Signal(
         symbol=a.symbol, fa_name=a.fa_name, direction=j.direction,
         sid=f"{a.symbol}-{j.direction}-{ctx.now:%Y%m%d%H%M%S}-{round(exec_p, 6)}",
@@ -847,6 +892,7 @@ def judge_symbol(a: SymbolAnalysis, sym_cfg: dict, md: Optional[MarketData],
         evidences=j.evidences, warnings=j.warnings, sl_capped=capped,
         strategies=j.strategies,
         entry_ts=getattr(a, "exec_ts", None),
+        spread_pips=spread_pips,
     )
     return j
 

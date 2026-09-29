@@ -47,7 +47,7 @@ def _iso(dt: datetime) -> str:
 def signal(sid: str, symbol: str, direction: str, entry: float, sl: float,
            tp: float, ts: datetime, *, rr: float = 2.0, risk_pips: float = 20.0,
            pip: float = 0.0001, score: int = 8, entry_ts=None,
-           rules_version=None) -> dict:
+           rules_version=None, spread_pips: float = 0.0) -> dict:
     """یک رکورد ``kind=signal`` — همان قالبی که ``Signal.to_journal`` می‌نویسد."""
     rec = {
         "kind": "signal", "id": sid, "ts": _iso(ts), "symbol": symbol,
@@ -64,6 +64,8 @@ def signal(sid: str, symbol: str, direction: str, entry: float, sl: float,
         rec["entry_ts"] = _iso(entry_ts) if isinstance(entry_ts, datetime) else entry_ts
     if rules_version is not None:
         rec["rules_version"] = rules_version
+    if spread_pips:
+        rec["spread_pips"] = spread_pips
     return rec
 
 
@@ -254,7 +256,40 @@ def scenarios() -> list:
         ],
     })
 
-    # ── ۱۰) فروش با ورودِ کهنه (تقارنِ جهت) ──────────────────────
+    # ── ۱۰) هزینهٔ اسپرد — مدلِ net_r (فاز ۳) ────────────────────
+    #     risk=۲۰ پیپ، اسپرد=۲ پیپ. انتظارِ دقیق از مدل:
+    #       TP       → ۰٫۵×۲/۲۰ = ۰٫۰۵  →  net = 2.00 − 0.05 = +1.95
+    #       SL       → ۱٫۰×۲/۲۰ = ۰٫۱۰  →  net = −1.00 − 0.10 = −1.10
+    #       EXPIRED  → ۱٫۰×۲/۲۰ = ۰٫۱۰  →  net = gross − 0.10
+    S.append({
+        "name": "spread_cost_model",
+        "now": _iso(NOW), "cfg": CFG_STD,
+        "signals": [
+            signal("sp_tp", "EURUSD", "BUY", 1.1000, 1.0980, 1.1040, T0,
+                   spread_pips=2.0),
+            signal("sp_sl", "GBPUSD", "BUY", 1.3000, 1.2980, 1.3040, T0,
+                   spread_pips=2.0),
+            signal("sp_exp", "AUDUSD", "BUY", 0.7000, 0.6980, 0.7040,
+                   NOW - timedelta(hours=60), spread_pips=2.0),
+        ],
+        "datasets": [
+            dataset("EURUSD", bar0, [[1.1045, 1.1020, 1.1040]]),
+            dataset("GBPUSD", bar0, [[1.3010, 1.2975, 1.2980]]),
+            dataset("AUDUSD", NOW - timedelta(hours=60),
+                    [[0.7010, 0.6990, 0.7005], [0.7012, 0.6995, 0.7010]]),
+        ],
+    })
+
+    # ── ۱۱) رکوردِ بدون اسپرد → net_r == r بایت‌به‌بایت ───────────
+    #     پینِ سازگاری: افزودنِ لایهٔ هزینه هیچ عددِ موجود را عوض نمی‌کند.
+    S.append({
+        "name": "spread_absent_is_noop",
+        "now": _iso(NOW), "cfg": CFG_STD,
+        "signals": [signal("nospread", "EURUSD", "BUY", 1.1000, 1.0980, 1.1040, T0)],
+        "datasets": [dataset("EURUSD", bar0, [[1.1045, 1.1020, 1.1040]])],
+    })
+
+    # ── ۱۲) فروش با ورودِ کهنه (تقارنِ جهت) ──────────────────────
     #       قیمتِ واقعیِ لحظهٔ صدور 1.2970 است؛ TP=1.2960 فقط ۱۰ پیپ
     #       پایین‌تر → ثبتِ ۲٫۰R در برابرِ ۰٫۵Rِ دست‌یافتنی.
     S.append({

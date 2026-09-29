@@ -28,6 +28,13 @@ class Bucket:
     losses: int = 0
     expired: int = 0
     r_sum: float = 0.0
+    # v0.29 (فاز ۳): جمعِ Rِ *خالص* و شمارِ رکوردهایی که واقعاً هزینه
+    # دارند. `net_closed` جدا از `closed` است چون رکوردهای قدیمی
+    # spread_pips ندارند و net_r‌شان عیناً r است — قاطی‌کردنِ این دو یعنی
+    # میانگینِ بی‌معنی. صادقانه: فقط آن‌هایی که هزینه‌شان مدل شده شمرده
+    # می‌شوند.
+    net_r_sum: float = 0.0
+    net_closed: int = 0
 
     @property
     def hit_rate(self) -> Optional[float]:
@@ -40,7 +47,17 @@ class Bucket:
 
     @property
     def avg_r(self) -> Optional[float]:
+        """میانگین Rِ *ناخالص* — برای پیوستگیِ تاریخچه (همان عددِ پیش از v0.29)."""
         return (self.r_sum / self.closed) if self.closed else None
+
+    @property
+    def avg_net_r(self) -> Optional[float]:
+        """میانگین Rِ *خالصِ* پس‌از‌هزینه (v0.29).
+
+        None یعنی «هیچ رکوردِ هزینه‌داری در این سطل نیست» — عمداً صفر
+        برنمی‌گردانیم، چون صفر یک ادعایِ گمراه‌کننده است (یعنی سربه‌سر).
+        """
+        return (self.net_r_sum / self.net_closed) if self.net_closed else None
 
     def add(self, e: Entry) -> None:
         self.closed += 1
@@ -51,6 +68,13 @@ class Bucket:
         else:
             self.expired += 1
         self.r_sum += (e.r or 0.0)
+        # فقط رکوردهایی که هزینه‌شان *واقعاً* مدل شده، در میانگینِ خالص
+        # می‌آیند. net_r == r یعنی spread_pips صفر بوده → مدل نشده.
+        nr = getattr(e, "net_r", None)
+        sp = float(getattr(e, "spread_pips", 0.0) or 0.0)
+        if nr is not None and sp > 0.0:
+            self.net_r_sum += nr
+            self.net_closed += 1
 
 
 @dataclass
@@ -82,8 +106,20 @@ class Stats:
 
     @property
     def expectancy(self) -> Optional[float]:
-        """میانگین R به ازای هر سیگنال بسته‌شده (عدد کلیدی سودمندی)."""
+        """میانگین R به ازای هر سیگنال بسته‌شده (عدد کلیدی سودمندی).
+
+        ⚠️ این عدد *ناخالص* است — همان تعریفِ پیش از v0.29، تا تاریخچه
+        قابلِ مقایسه بماند. برای تصمیم‌گیری ``expectancy_net`` را ببینید.
+        """
         return self.overall.avg_r
+
+    @property
+    def expectancy_net(self) -> Optional[float]:
+        """میانگین Rِ خالصِ پس‌از‌هزینه (v0.29) — عددِ درست برای تصمیم.
+
+        None = هنوز رکوردِ هزینه‌داری نداریم (صادقانه، نه صفر).
+        """
+        return self.overall.avg_net_r
 
 
 def _score_bucket(score: int) -> str:

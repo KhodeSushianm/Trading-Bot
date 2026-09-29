@@ -18,6 +18,7 @@
       "both_touch": {
         "close_price": 1.348,
         "is_open": false,
+        "net_r": -1.0,
         "note": "هر دو سطح در یک کندل خوردند؛ محتاطانه ضرر شمرده شد",
         "outcome": "SL",
         "r": -1.0
@@ -25,6 +26,7 @@
       "buy_sl": {
         "close_price": 149.8,
         "is_open": false,
+        "net_r": -1.0,
         "note": "",
         "outcome": "SL",
         "r": -1.0
@@ -32,6 +34,7 @@
       "buy_tp": {
         "close_price": 1.104,
         "is_open": false,
+        "net_r": 2.0,
         "note": "",
         "outcome": "TP",
         "r": 2.0
@@ -39,6 +42,7 @@
       "expired": {
         "close_price": 0.701,
         "is_open": false,
+        "net_r": 0.5,
         "note": "تا 48 ساعت نه هدف خورد نه حد ضرر؛ با قیمت لحظهٔ انقضا بسته شد",
         "outcome": "EXPIRED",
         "r": 0.5
@@ -46,6 +50,7 @@
       "sell_tp": {
         "close_price": 1.296,
         "is_open": false,
+        "net_r": 2.0,
         "note": "",
         "outcome": "TP",
         "r": 2.0
@@ -79,6 +84,7 @@
       "stale_loss": {
         "close_price": 1.098,
         "is_open": false,
+        "net_r": -1.0,
         "note": "",
         "outcome": "SL",
         "r": -1.0
@@ -97,6 +103,7 @@
       "stale_sell": {
         "close_price": 1.296,
         "is_open": false,
+        "net_r": 2.0,
         "note": "",
         "outcome": "TP",
         "r": 2.0
@@ -115,6 +122,7 @@
       "stale_win": {
         "close_price": 1.104,
         "is_open": false,
+        "net_r": 2.0,
         "note": "",
         "outcome": "TP",
         "r": 2.0
@@ -133,6 +141,7 @@
       "bt": {
         "close_price": 1.354,
         "is_open": false,
+        "net_r": 2.0,
         "note": "",
         "outcome": "TP",
         "r": 2.0
@@ -152,6 +161,7 @@
         "close_price": 1.104,
         "entry_ts": "2026-09-14T10:30:00+00:00",
         "is_open": false,
+        "net_r": 2.0,
         "note": "",
         "outcome": "TP",
         "r": 2.0
@@ -170,6 +180,7 @@
       "nodata": {
         "close_price": null,
         "is_open": false,
+        "net_r": 0.0,
         "note": "تا 48 ساعت نه هدف خورد نه حد ضرر؛ قیمت لحظهٔ انقضا در دسترس نبود پس R صفر ثبت شد",
         "outcome": "EXPIRED",
         "r": 0.0
@@ -202,6 +213,7 @@
       "rv_new": {
         "close_price": 1.104,
         "is_open": false,
+        "net_r": 2.0,
         "note": "",
         "outcome": "TP",
         "r": 2.0
@@ -209,6 +221,7 @@
       "rv_old": {
         "close_price": 1.304,
         "is_open": false,
+        "net_r": 2.0,
         "note": "",
         "outcome": "TP",
         "r": 2.0
@@ -221,6 +234,64 @@
     "resolved_first_call": [
       "rv_new",
       "rv_old"
+    ],
+    "resolved_second_call": []
+  },
+  "spread_absent_is_noop": {
+    "entries": {
+      "nospread": {
+        "close_price": 1.104,
+        "is_open": false,
+        "net_r": 2.0,
+        "note": "",
+        "outcome": "TP",
+        "r": 2.0
+      }
+    },
+    "logs": [
+      "📔 ژورنال: EURUSD BUY → 🎯 هدف خورد (R=+2.00)"
+    ],
+    "resolved_first_call": [
+      "nospread"
+    ],
+    "resolved_second_call": []
+  },
+  "spread_cost_model": {
+    "entries": {
+      "sp_exp": {
+        "close_price": 0.701,
+        "is_open": false,
+        "net_r": 0.4,
+        "note": "تا 48 ساعت نه هدف خورد نه حد ضرر؛ با قیمت لحظهٔ انقضا بسته شد",
+        "outcome": "EXPIRED",
+        "r": 0.5
+      },
+      "sp_sl": {
+        "close_price": 1.298,
+        "is_open": false,
+        "net_r": -1.1,
+        "note": "",
+        "outcome": "SL",
+        "r": -1.0
+      },
+      "sp_tp": {
+        "close_price": 1.104,
+        "is_open": false,
+        "net_r": 1.95,
+        "note": "",
+        "outcome": "TP",
+        "r": 2.0
+      }
+    },
+    "logs": [
+      "📔 ژورنال: EURUSD BUY → 🎯 هدف خورد (R=+2.00 · خالص=+1.95)",
+      "📔 ژورنال: GBPUSD BUY → 🛑 حد ضرر خورد (R=-1.00 · خالص=-1.10)",
+      "📔 ژورنال: AUDUSD BUY → ⏳ بدون برخورد منقضی شد (R=+0.50 · خالص=+0.40)"
+    ],
+    "resolved_first_call": [
+      "sp_tp",
+      "sp_sl",
+      "sp_exp"
     ],
     "resolved_second_call": []
   }

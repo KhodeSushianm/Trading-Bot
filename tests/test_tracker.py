@@ -125,6 +125,39 @@ A(actual.get("bar_at_ts_is_skipped", {}).get("entries", {})
   .get("edge", {}).get("is_open") is True,
   "کندلی که دقیقاً روی ts باز می‌شود رد می‌شود (پینِ `bar.t <= ts`)")
 
+# ── مدلِ هزینهٔ اسپرد (v0.29 فاز ۳) ────────────────────────────
+# risk=۲۰ پیپ، اسپرد=۲ پیپ → TP نیم‌اسپرد (maker) و SL/انقضا یک‌اسپرد
+# (stop → بازار). عددها دستی حساب شده‌اند تا مدل پین شود نه صرفاً «چیزی
+# نوشته شده».
+_sp = actual.get("spread_cost_model", {}).get("entries", {})
+
+
+def _net(sid):
+    return _sp.get(sid, {}).get("net_r")
+
+
+def _gro(sid):
+    return _sp.get(sid, {}).get("r")
+
+
+A(_sp.get("sp_tp", {}).get("outcome") == TP, "اسپرد: سناریوی TP بسته شد")
+A(_gro("sp_tp") == 2.0, f"اسپرد: Rِ ناخالصِ TP دست‌نخورده ۲٫۰ است ({_gro('sp_tp')})")
+A(_net("sp_tp") is not None and abs(_net("sp_tp") - 1.95) < 1e-9,
+  f"اسپرد TP = ۰٫۵×۲/۲۰ → net=+1.95 (واقعی {_net('sp_tp')})")
+A(_sp.get("sp_sl", {}).get("outcome") == SL, "اسپرد: سناریوی SL بسته شد")
+A(_net("sp_sl") is not None and abs(_net("sp_sl") + 1.10) < 1e-9,
+  f"اسپرد SL = ۱٫۰×۲/۲۰ → net=−1.10 (واقعی {_net('sp_sl')})")
+A(_sp.get("sp_exp", {}).get("outcome") == EXPIRED, "اسپرد: سناریوی انقضا بسته شد")
+A(_net("sp_exp") is not None and abs(_net("sp_exp") - (_gro("sp_exp") - 0.10)) < 1e-9,
+  f"اسپرد انقضا = ۱٫۰×۲/۲۰ → net=gross−0.10 (واقعی {_net('sp_exp')})")
+A(all((_net(k) or 0) <= (_gro(k) or 0) for k in ("sp_tp", "sp_sl", "sp_exp")),
+  "هزینه هیچ‌وقت R را *بزرگ‌تر* نمی‌کند (جهتِ درستِ کسر)")
+
+_ns = actual.get("spread_absent_is_noop", {}).get("entries", {}).get("nospread", {})
+A(_ns.get("net_r") == _ns.get("r") and _ns.get("r") == 2.0,
+  f"رکوردِ بدون اسپرد → net_r عیناً r می‌ماند (net={_ns.get('net_r')}, "
+  f"r={_ns.get('r')}) — افزودنِ لایهٔ هزینه هیچ عددِ موجود را عوض نکرد")
+
 print(f"   {CHECKS} بررسی تا اینجا")
 
 # ══════════════════════════════════════════════════════════════

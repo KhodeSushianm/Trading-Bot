@@ -55,6 +55,31 @@ def _r_for(entry: Entry, outcome: str, close_price: float) -> float:
     return diff / risk
 
 
+def _net_r(entry: Entry, outcome: str, gross_r: Optional[float]) -> Optional[float]:
+    """Rِ خالصِ پس‌از‌هزینه (v0.29 فاز ۳).
+
+    مدلِ هزینه — صریح و مستند، نه ضریبِ جادویی:
+      • ورود همیشه سفارشِ بازار است (taker) → نصفِ اسپرد
+      • هدف (TP) یک سفارشِ limit است (maker) → بدون جریمهٔ خروج
+      • حد ضرر یک stop است که به بازار تبدیل می‌شود (taker) → نصفِ اسپرد
+      • انقضا هم با بازار بسته می‌شود (taker) → نصفِ اسپرد
+    پس:  TP → ۰٫۵×اسپرد   ·   SL / EXPIRED → ۱٫۰×اسپرد
+
+    اسپرد و ریسک هر دو پیپ‌اند پس واحد حذف می‌شود و نیازی به قیمت نیست.
+    اسپرد صفر (رکوردهای قدیمی، یا spread.enabled=false) → **همان Rِ
+    ناخالص** برمی‌گردد، نه صفر و نه None. یعنی افزودنِ این لایه هیچ عددِ
+    موجود را خراب نمی‌کند.
+    """
+    if gross_r is None:
+        return None
+    sp = float(getattr(entry, "spread_pips", 0.0) or 0.0)
+    risk = float(getattr(entry, "risk_pips", 0.0) or 0.0)
+    if sp <= 0.0 or risk <= 0.0:
+        return gross_r
+    factor = 0.5 if outcome == TP else 1.0
+    return gross_r - factor * sp / risk
+
+
 def _in_scope(entry: Entry, bar_ts: datetime) -> bool:
     """آیا این کندل در بازهٔ اسکن است؟
 
@@ -158,12 +183,17 @@ def resolve_open_signals(journal: Journal, datasets: dict,
             continue
 
         r = r_override if r_override is not None else _r_for(entry, outcome, close_price)
-        journal.add_outcome(entry.id, outcome, close_price, r, note, ts=now)
+        net_r = _net_r(entry, outcome, r)
+        journal.add_outcome(entry.id, outcome, close_price, r, note, ts=now,
+                            net_r=net_r)
         entry.outcome, entry.close_price, entry.r, entry.note = outcome, close_price, r, note
+        entry.net_r = net_r
         entry.outcome_ts = now
         resolved.append(entry)
+        # لاگ هر دو را نشان می‌دهد وقتی هزینه مدل شده — پنهان نمی‌کنیم
+        _cost = f" · خالص={net_r:+.2f}" if net_r is not None and net_r != r else ""
         on_log(f"📔 ژورنال: {entry.symbol} {entry.direction} → {OUTCOME_FA.get(outcome, outcome)} "
-               f"(R={r:+.2f})")
+               f"(R={r:+.2f}{_cost})")
     return resolved
 
 

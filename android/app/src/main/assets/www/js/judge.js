@@ -340,6 +340,17 @@
   ];
 
   // ── ورود / حد ضرر / هدف (پورت compute_levels) ────────────────
+  // برآوردِ اسپردِ نماد (پیپ) — آینهٔ spread_pips_for پایتون.
+  // spread.enabled=false یا نبودِ بخش → 0 → net_r عیناً r می‌ماند.
+  O.spreadPipsFor = function (symbol, rcfg) {
+    var sp = (rcfg && rcfg.spread) || {};
+    if (sp.enabled === false) return 0;
+    var per = sp.per_symbol || {};
+    var raw = (per[symbol] != null) ? per[symbol] : (sp.default_pips != null ? sp.default_pips : 0);
+    var v = +raw;
+    return (isNaN(v) || v <= 0) ? 0 : v;
+  };
+
   O.computeLevels = function (direction, entry, atr, support, resistance, rcfg) {
     var sign = direction === 'BUY' ? 1 : -1;
     if (atr <= 0) {
@@ -524,6 +535,17 @@
 
     var pip = a.pip || 0.0001;
     var risk = Math.abs(execP - lv.sl);
+    // v0.29 (فاز ۳): هزینهٔ معامله — صریح و قابلِ دیدن، نه پنهان در آمار.
+    // متنِ هشدار بایت‌به‌بایت آینهٔ پایتون است (پاریتی).
+    var spreadPips = O.spreadPipsFor(a.symbol, rcfg);
+    var riskPipsV = pip ? risk / pip : 0;
+    var warnFrac = +(((rcfg.spread || {}).warn_at_risk_fraction != null)
+      ? (rcfg.spread || {}).warn_at_risk_fraction : 0.25);
+    if (spreadPips > 0 && riskPipsV > 0 && (spreadPips / 2) / riskPipsV >= warnFrac) {
+      j.warnings.push('⚠️ اسپردِ برآوردی (' + O.faNum(O.pyFixed(spreadPips, 1)) +
+        ' پیپ) نسبت به ریسکِ این معامله (' + O.faNum(O.pyFixed(riskPipsV, 1)) +
+        ' پیپ) بزرگ است — بخشِ قابل‌توجهی از سود را هزینه می‌خورد. حد ضررِ تنگ‌تر از این روی این نماد توصیه نمی‌شود');
+    }
     j.signal = {
       symbol: a.symbol, fa_name: a.fa_name, direction: j.direction,
       sid: a.symbol + '-' + j.direction + '-' + sidStamp(new Date(ctx.nowMs)) + '-' + (Math.round(execP * 1e6) / 1e6),
@@ -538,7 +560,8 @@
       // v0.29 (فاز ۱+۲): زمانِ بسته‌شدنِ کندلی که `entry` از آن آمده.
       // آینهٔ Signal.entry_ts پایتون. null = دادهٔ زمانی نبود → tracker
       // به رفتارِ قبلی برمی‌گردد.
-      entry_ts: (a.exec_ts != null ? a.exec_ts : null)
+      entry_ts: (a.exec_ts != null ? a.exec_ts : null),
+      spread_pips: spreadPips
     };
     return j;
   };
@@ -583,7 +606,10 @@
       pip: s.pip, atr: Math.round(s.atr * 1e6) / 1e6,
       risk_pips: Math.round(s.risk_pips * 10) / 10,
       reward_pips: Math.round(s.reward_pips * 10) / 10,
-      rr: s.rr, score: s.score, max_score: s.max_score, session: s.session_fa,
+      rr: s.rr,
+      // v0.29 (فاز ۳): برای Rِ خالص. رکوردهای قدیمی ندارند → 0 → net==gross
+      spread_pips: Math.round((+s.spread_pips || 0) * 1000) / 1000,
+      score: s.score, max_score: s.max_score, session: s.session_fa,
       evidences: s.evidences.map(function (e) { return e.key + ':' + e.points + '/' + e.max_points; }),
       // S3: کلیدِ استراتژی‌های هم‌جهت (آینهٔ to_journal پایتون — رکوردهای
       // قدیمیِ ژورنال این کلید را ندارند؛ tracker/stats فقط کلیدهای

@@ -506,6 +506,7 @@
      "sent": true,
      "session": "لندن + نیویورک (هم‌پوشانی — بهترین نقدینگی ⭐)",
      "sl": 1.1483,
+     "spread_pips": 1.0,
      "strategies": [
       "trend_pullback"
      ],
@@ -872,6 +873,7 @@
      "sent": true,
      "session": "لندن + نیویورک (هم‌پوشانی — بهترین نقدینگی ⭐)",
      "sl": 1.1483,
+     "spread_pips": 1.0,
      "strategies": [
       "trend_pullback"
      ],
@@ -1370,6 +1372,7 @@
      "sent": true,
      "session": "لندن + نیویورک (هم‌پوشانی — بهترین نقدینگی ⭐)",
      "sl": 1.1483,
+     "spread_pips": 1.0,
      "strategies": [
       "trend_pullback"
      ],
@@ -1596,6 +1599,7 @@
      "sent": true,
      "session": "لندن + نیویورک (هم‌پوشانی — بهترین نقدینگی ⭐)",
      "sl": 1.1497,
+     "spread_pips": 1.0,
      "strategies": [
       "trend_pullback"
      ],
@@ -2052,6 +2056,7 @@
      "sent": true,
      "session": "لندن + نیویورک (هم‌پوشانی — بهترین نقدینگی ⭐)",
      "sl": 1.1483,
+     "spread_pips": 1.0,
      "strategies": [
       "trend_pullback"
      ],
@@ -2864,6 +2869,7 @@
      "sent": true,
      "session": "لندن + نیویورک (هم‌پوشانی — بهترین نقدینگی ⭐)",
      "sl": 1.1483,
+     "spread_pips": 1.0,
      "strategies": [],
      "symbol": "EURUSD",
      "tp": 1.1504,
@@ -3084,6 +3090,7 @@
      "sent": true,
      "session": "لندن + نیویورک (هم‌پوشانی — بهترین نقدینگی ⭐)",
      "sl": 1.1483,
+     "spread_pips": 1.0,
      "strategies": [
       "trend_pullback"
      ],
@@ -3701,6 +3708,7 @@
      "sent": true,
      "session": "بازار بسته 🔒",
      "sl": 1.1483,
+     "spread_pips": 1.0,
      "strategies": [
       "trend_pullback"
      ],

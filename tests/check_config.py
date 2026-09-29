@@ -127,6 +127,33 @@ need(float(r.get("level_buffer_atr", -1)) >= 0,
 need(0 < float(r.get("max_risk_percent", 0)) <= 5,
      f"judge.risk.max_risk_percent = {r.get('max_risk_percent')} (بیش از ۵٪ پرخطر است)")
 
+# v0.29 (فاز ۳): بلوک اسپرد. اختیاری است (نبود = هزینه مدل نمی‌شود و
+# R خالص == R ناخالص)، ولی اگر هست باید سالم باشد — عددِ منفی یا رشتهٔ
+# بی‌معنی نباید بی‌صدا به Rِ اشتباه تبدیل شود.
+_sp = r.get("spread")
+if _sp is None:
+    print("  ⚠️ judge.risk.spread نیست → Rِ خالص == Rِ ناخالص (هزینه مدل نمی‌شود)")
+else:
+    need(isinstance(_sp.get("enabled", True), bool),
+         f"judge.risk.spread.enabled = {_sp.get('enabled')}")
+    need(float(_sp.get("default_pips", -1)) >= 0,
+         f"judge.risk.spread.default_pips = {_sp.get('default_pips')} (منفی مجاز نیست)")
+    _wf = float(_sp.get("warn_at_risk_fraction", 0.25))
+    need(0 < _wf <= 1,
+         f"judge.risk.spread.warn_at_risk_fraction = {_wf} (باید در ۰..۱ باشد)")
+    _per = _sp.get("per_symbol") or {}
+    need(isinstance(_per, dict),
+         f"judge.risk.spread.per_symbol باید نگاشت باشد (هست: {type(_per).__name__})")
+    _bad = [k for k, v in _per.items() if not isinstance(v, (int, float)) or float(v) < 0]
+    need(not _bad,
+         f"judge.risk.spread.per_symbol: عددِ منفی/ناموجود = {_bad or 'هیچ ✅'}")
+    _known = {s_.get("name") for s_ in syms}
+    _unknown = sorted(set(_per) - _known)
+    need(not _unknown,
+         f"judge.risk.spread.per_symbol: نمادِ ناشناخته (تایپو؟) = {_unknown or 'هیچ ✅'}")
+    print(f"  ✅ judge.risk.spread = {len(_per)} نماد · پیش‌فرض "
+          f"{_sp.get('default_pips')} پیپ · هشدار در {_wf:.0%} ریسک")
+
 lv = j["level"]
 need(0 < float(lv.get("close_atr", 0)) < float(lv.get("near_atr", 0)),
      f"judge.level: close_atr={lv.get('close_atr')} < near_atr={lv.get('near_atr')}")

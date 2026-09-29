@@ -31,8 +31,12 @@ def _r(v: Optional[float]) -> str:
 
 def _bucket_line(b) -> str:
     hr = _pct(b.hit_rate)
-    return (f"بسته {fa_num(b.closed)} · برد {fa_num(b.wins)} · باخت {fa_num(b.losses)} · "
+    line = (f"بسته {fa_num(b.closed)} · برد {fa_num(b.wins)} · باخت {fa_num(b.losses)} · "
             f"منقضی {fa_num(b.expired)} · نرخ برد {hr} · میانگین R {_r(b.avg_r)}")
+    # v0.29: خالص فقط وقتی که واقعاً محاسبه شده — وگرنه خط دست‌نخورده می‌ماند
+    if getattr(b, "avg_net_r", None) is not None:
+        line += f" · خالص {_r(b.avg_net_r)}"
+    return line
 
 
 def render_stats(stats: Stats, open_entries: list[Entry] | None = None,
@@ -54,6 +58,16 @@ def render_stats(stats: Stats, open_entries: list[Entry] | None = None,
         f"   میانگین R هر معامله: {_r(o.avg_r)}   "
         f"| مجموع R: {_r(o.r_sum)}",
     ]
+    # v0.29 (فاز ۳): Rِ *خالصِ* پس‌از‌هزینه — عددِ درست برای تصمیم.
+    # هر دو چاپ می‌شوند، هیچ‌کدام پنهان نمی‌شود. None یعنی هنوز رکوردِ
+    # هزینه‌داری نداریم (صادقانه «—»، نه صفرِ گمراه‌کننده).
+    if o.avg_net_r is not None:
+        lines.append(
+            f"   میانگین R خالص (پس‌از‌اسپرد): {_r(o.avg_net_r)}   "
+            f"| روی {fa_num(o.net_closed)} سیگنالِ هزینه‌دار")
+    else:
+        lines.append("   میانگین R خالص (پس‌از‌اسپرد): — "
+                     "(هنوز رکوردِ هزینه‌داری ثبت نشده)")
 
     # هفتهٔ جاری در برابر هفتهٔ قبل
     tw, lw = stats.this_week_key, stats.last_week_key

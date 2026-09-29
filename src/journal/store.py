@@ -58,12 +58,18 @@ class Entry:
     # (دیوارساعتِ صدور). رکوردهای قدیمی این فیلد را ندارند → None →
     # رفتارِ دقیقاً قبلی (سازگاریِ backward بدون حدس).
     entry_ts: Optional[datetime] = None
+    # v0.29 (فاز ۳): برآوردِ اسپرد (پیپ) در لحظهٔ صدور — برای Rِ خالص.
+    # رکوردهای قدیمی ندارند → 0.0 → net_r == r (سازگار، بدون حدس).
+    spread_pips: float = 0.0
 
     # نتیجه
     outcome: Optional[str] = None          # None = هنوز باز
     outcome_ts: Optional[datetime] = None
     close_price: Optional[float] = None
     r: Optional[float] = None
+    # v0.29 (فاز ۳): Rِ *خالصِ* پس‌از‌هزینه، کنارِ `r`ِ ناخالص. هیچ‌وقت
+    # جایگزینِ `r` نمی‌شود — هر دو گزارش می‌شوند تا تاریخچه گم نشود.
+    net_r: Optional[float] = None
     note: str = ""
 
     # ── ویژگی‌ها ────────────────────────────────────────────
@@ -147,6 +153,7 @@ class Journal:
             sent=bool(rec.get("sent", True)),
             strategies=[str(k) for k in (rec.get("strategies") or [])],
             entry_ts=_parse_dt(rec.get("entry_ts")),
+            spread_pips=float(rec.get("spread_pips") or 0.0),
         )
 
     @staticmethod
@@ -155,6 +162,7 @@ class Journal:
         e.outcome_ts = _parse_dt(rec.get("ts"))
         e.close_price = rec.get("close_price")
         e.r = rec.get("r")
+        e.net_r = rec.get("net_r")
         e.note = rec.get("note", "")
 
     # ── نوشتن ───────────────────────────────────────────────
@@ -164,12 +172,20 @@ class Journal:
             f.write(json.dumps(rec, ensure_ascii=False) + "\n")
 
     def add_outcome(self, sid: str, outcome: str, close_price: float,
-                    r: float, note: str = "", ts: Optional[datetime] = None) -> None:
+                    r: float, note: str = "", ts: Optional[datetime] = None,
+                    net_r: Optional[float] = None) -> None:
+        """رکوردِ نتیجه را الحاق می‌کند.
+
+        ``net_r`` (v0.29 فاز ۳) اختیاری است: None یعنی «هزینه مدل نشده»
+        و خواننده باید همان ``r`` را خالص بداند. امضای قدیمی بدون تغییر
+        کار می‌کند (سازگاریِ backward).
+        """
         self.append({"kind": "outcome", "id": sid,
                      "ts": (ts or _now()).isoformat(),
                      "outcome": outcome,
                      "close_price": round(close_price, 6) if close_price is not None else None,
                      "r": round(r, 3) if r is not None else None,
+                     "net_r": round(net_r, 3) if net_r is not None else None,
                      "note": note})
 
     # ── پرس‌وجو ──────────────────────────────────────────────

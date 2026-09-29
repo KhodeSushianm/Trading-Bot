@@ -48,13 +48,16 @@
   O.Journal.prototype.openEntries = function () { return this.load().filter(function (e) { return e.outcome == null; }); };
   O.Journal.prototype.closedEntries = function () { return this.load().filter(function (e) { return e.outcome != null; }); };
 
-  O.Journal.prototype.addOutcome = function (sid, outcome, closePrice, r, note, tsMs) {
+  // netR اختیاری است (v0.29 فاز ۳): null یعنی «هزینه مدل نشده» و خواننده
+  // باید همان r را خالص بداند. آینهٔ add_outcome پایتون.
+  O.Journal.prototype.addOutcome = function (sid, outcome, closePrice, r, note, tsMs, netRVal) {
     this.appendRec({
       kind: 'outcome', id: sid,
       ts: new Date(tsMs || Date.now()).toISOString(),
       outcome: outcome,
       close_price: closePrice != null ? Math.round(closePrice * 1e6) / 1e6 : null,
       r: r != null ? Math.round(r * 1000) / 1000 : null,
+      net_r: netRVal != null ? Math.round(netRVal * 1000) / 1000 : null,
       note: note || ''
     });
   };
@@ -88,7 +91,9 @@
         var v = Date.parse(rec.entry_ts);
         return isNaN(v) ? null : v;
       })(),
-      outcome: null, outcome_ts: null, close_price: null, r: null, note: ''
+      spread_pips: +rec.spread_pips || 0,
+      outcome: null, outcome_ts: null, close_price: null, r: null,
+      net_r: null, note: ''
     };
   }
 
@@ -97,6 +102,7 @@
     e.outcome_ts = rec.ts ? Date.parse(rec.ts) : null;
     e.close_price = rec.close_price != null ? rec.close_price : null;
     e.r = rec.r != null ? rec.r : null;
+    e.net_r = rec.net_r != null ? rec.net_r : null;
     e.note = rec.note || '';
   }
 
@@ -133,6 +139,18 @@
   };
 
   // ── تعیین خودکار نتیجهٔ سیگنال‌های باز (پورت tracker.py) ────
+  // Rِ خالصِ پس‌از‌هزینه (v0.29 فاز ۳) — آینهٔ _net_r پایتون.
+  // ورود taker (نصفِ اسپرد) · هدف limit/maker (بدون جریمه) · استاپ و انقضا
+  // taker (نصفِ دیگر). اسپرد صفر → همان Rِ ناخالص (نه صفر، نه null).
+  function netR(e, outcome, grossR) {
+    if (grossR == null) return null;
+    var sp = +(e.spread_pips || 0);
+    var risk = +(e.risk_pips || 0);
+    if (!(sp > 0) || !(risk > 0)) return grossR;
+    var factor = (outcome === O.TP) ? 0.5 : 1;
+    return grossR - factor * sp / risk;
+  }
+
   function rFor(e, outcome, closePrice) {
     if (outcome === O.TP) return +e.rr;
     if (outcome === O.SL) return -1;
@@ -214,29 +232,45 @@
       }
 
       var r = rOverride !== null ? rOverride : rFor(e, outcome, closePrice);
-      journal.addOutcome(e.id, outcome, closePrice, r, note, nowMs);
-      e.outcome = outcome; e.close_price = closePrice; e.r = r; e.note = note; e.outcome_ts = nowMs;
+      var nr = netR(e, outcome, r);
+      journal.addOutcome(e.id, outcome, closePrice, r, note, nowMs, nr);
+      e.outcome = outcome; e.close_price = closePrice; e.r = r; e.net_r = nr;
+      e.note = note; e.outcome_ts = nowMs;
       resolved.push(e);
+      // لاگ هر دو را نشان می‌دهد وقتی هزینه مدل شده — پنهان نمی‌کنیم
+      var costTxt = (nr != null && nr !== r)
+        ? (' · خالص=' + (nr >= 0 ? '+' : '-') + O.pyFixed(Math.abs(nr), 2)) : '';
       if (onLog) onLog('📔 ژورنال: ' + e.symbol + ' ' + e.direction + ' → ' +
-        (O.OUTCOME_FA[outcome] || outcome) + ' (R=' + (r >= 0 ? '+' : '-') + O.pyFixed(Math.abs(r), 2) + ')');
+        (O.OUTCOME_FA[outcome] || outcome) + ' (R=' + (r >= 0 ? '+' : '-') + O.pyFixed(Math.abs(r), 2) + costTxt + ')');
     });
     return resolved;
   };
 
   // ── آمار دقت (پورت stats.py) ────────────────────────────────
-  function Bucket() { return { closed: 0, wins: 0, losses: 0, expired: 0, r_sum: 0 }; }
+  function Bucket() {
+    return { closed: 0, wins: 0, losses: 0, expired: 0, r_sum: 0,
+             net_r_sum: 0, net_closed: 0 };
+  }
   function bucketAdd(b, e) {
     b.closed += 1;
     if (O.entryIsWin(e)) b.wins += 1;
     else if (O.entryIsLoss(e)) b.losses += 1;
     else b.expired += 1;
     b.r_sum += e.r || 0;
+    // فقط رکوردهایی که هزینه‌شان *واقعاً* مدل شده — آینهٔ Bucket.add پایتون
+    if (e.net_r != null && (+e.spread_pips || 0) > 0) {
+      b.net_r_sum += e.net_r;
+      b.net_closed += 1;
+    }
   }
   function bucketRates(b) {
     var d = b.wins + b.losses;
     b.hit_rate = d ? b.wins / d : null;
     b.closed_win_rate = b.closed ? b.wins / b.closed : null;
     b.avg_r = b.closed ? b.r_sum / b.closed : null;
+    // میانگینِ خالص؛ null یعنی «رکوردِ هزینه‌داری نداریم» — عمداً صفر نه،
+    // چون صفر یک ادعایِ گمراه‌کننده است (یعنی سربه‌سر).
+    b.avg_net_r = b.net_closed ? b.net_r_sum / b.net_closed : null;
     return b;
   }
 
@@ -284,6 +318,9 @@
     Object.keys(st.by_evidence).forEach(function (k) { bucketRates(st.by_evidence[k]); });
     Object.keys(st.by_strategy).forEach(function (k) { bucketRates(st.by_strategy[k]); });
     st.expectancy = st.overall.avg_r;
+    // v0.29 (فاز ۳): عددِ درست برای تصمیم، کنارِ عددِ ناخالصِ تاریخی.
+    // آینهٔ Stats.expectancy_net پایتون.
+    st.expectancy_net = st.overall.avg_net_r;
     var wks = Object.keys(st.by_week).sort();
     st.this_week_key = wks.length ? wks[wks.length - 1] : null;
     st.last_week_key = wks.length > 1 ? wks[wks.length - 2] : null;

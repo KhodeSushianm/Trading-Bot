@@ -635,13 +635,25 @@
     html += O.kpiRow([
       { icon: 'chart-bar', value: O.faPct(o.hit_rate), label: 'نرخ برد (قطعی)', tone: 'brand' },
       { icon: 'seal', value: O.faPct(o.closed_win_rate), label: 'نرخ برد محتاطانه', tone: '' },
-      { icon: 'scale', value: O.rFmt(o.avg_r), label: 'میانگین R (انتظار)', tone: (o.avg_r > 0 ? 'green' : (o.avg_r < 0 ? 'red' : '')) },
+      { icon: 'scale', value: O.rFmt(o.avg_r), label: 'میانگین R (ناخالص)', tone: (o.avg_r > 0 ? 'green' : (o.avg_r < 0 ? 'red' : '')) },
       { icon: 'book', value: O.faNum(entries.length), label: 'کل ثبت‌های ژورنال', tone: '' }
+    ]);
+
+    // v0.29 (فاز ۳): Rِ خالصِ پس‌از‌هزینه — عددِ درست برای تصمیم.
+    // null یعنی «هنوز رکوردِ هزینه‌داری نداریم» → صادقانه «—»، نه صفر.
+    var netTone = (o.avg_net_r > 0 ? 'green' : (o.avg_net_r < 0 ? 'red' : ''));
+    html += O.kpiRow([
+      { icon: 'coins', value: O.rFmt(o.avg_net_r), label: 'میانگین R خالص', tone: netTone },
+      { icon: 'info', value: (o.net_closed ? O.faNum(o.net_closed) : '—'),
+        label: 'سیگنالِ هزینه‌دار', tone: '' }
     ]);
 
     html += '<div class="card"><div class="stat-defs">نرخ برد (قطعی) = برد ÷ (برد+باخت) · ' +
       'محتاطانه = برد ÷ کل بسته‌شده‌ها (منقضی «نبرد» شمرده می‌شود) · ' +
-      'میانگین R = انتظار ریاضی هر سیگنال بسته. هر سه گزارش می‌شود تا عدد واحدی گمراه‌کننده نباشد.</div></div>';
+      'میانگین R ناخالص = انتظار ریاضی بدون هزینه · ' +
+      'میانگین R خالص = همان پس از کسرِ اسپردِ برآوردی (تنظیمات)، و این ' +
+      'عددِ درست برای تصمیم است. اسپردِ واقعی را ODIN نمی‌داند چون به ' +
+      'بروکر وصل نیست — عددِ برآوردی است. همه گزارش می‌شوند تا عدد واحدی گمراه‌کننده نباشد.</div></div>';
 
     // هفتهٔ جاری در برابر قبل
     if (stats.this_week_key && stats.by_week[stats.this_week_key]) {

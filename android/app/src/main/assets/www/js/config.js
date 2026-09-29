@@ -73,7 +73,14 @@
       level: { close_atr: 0.5, near_atr: 1.5 },
       risk: {
         sl_atr_multiplier: 1.5, max_sl_atr: 3.0, min_sl_atr: 0.6,
-        level_buffer_atr: 0.3, reward_risk: 2.0, max_risk_percent: 1.0
+        level_buffer_atr: 0.3, reward_risk: 2.0, max_risk_percent: 1.0,
+        // v0.29 (فاز ۳): برآوردِ اسپرد برای Rِ خالص — آینهٔ config.yaml.
+        // ⚠️ عددِ واقعی نیست (ODIN به بروکر وصل نیست)؛ منبع حقیقت YAML است.
+        spread: {
+          enabled: true, default_pips: 1.5, warn_at_risk_fraction: 0.25,
+          per_symbol: { EURUSD: 1.0, GBPUSD: 1.5, USDJPY: 1.2, USDCAD: 1.8,
+                        AUDUSD: 1.2, USDCHF: 1.8, XAUUSD: 0.5 }
+        }
       }
     },
 
