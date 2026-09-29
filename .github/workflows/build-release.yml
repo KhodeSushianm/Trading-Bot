@@ -110,6 +110,22 @@ jobs:
       - name: Pipeline-switch stage events + stop semantics (آفلاین)
         run: python tests/test_pipeline_switch.py
 
+      # سه‌گامِ استراتژی‌ها (v0.26 — S1): ۷۷ میخِ سه استراتژی ورود
+      # (trend_pullback / london_breakout / carry) + قرارداد odin.strategy@1
+      # + مسیر registry. ⚠️ این سوئیت پیش‌تر در CI نبود — در §۵ بستهٔ زمینه
+      # «میخ» نامیده شده بود ولی اجرا نمی‌شد. از v0.29 الزامی است.
+      - name: Strategies behavior pins (آفلاین)
+        run: python tests/test_strategies.py
+
+      # v0.29 فاز ۰: میخِ رفتاریِ تعیینِ نتیجهٔ سیگنال‌ها.
+      # ⚠️ چرا این سوئیت حیاتی است: resolve_open_signals پیش‌تر *هیچ* تستِ
+      # CI-محوری نداشت (تنها پوششش tests/manual/test_journal.py بود که اجرا
+      # نمی‌شد). همان خلأ باعث شد باگِ «ورودِ کهنه» ناشناخته بماند و
+      # کارنامهٔ دقت خوش‌بینانه گزارش شود (برد ۴ برابر و باخت ۲٫۵ برابر
+      # کم‌برآورد — اندازه‌گیری‌شده در بخش C همین سوئیت).
+      - name: Tracker behavior pins + stale-entry bias gauge (آفلاین)
+        run: python tests/test_tracker.py
+
       # تست‌های JS اپ اندروید — چرا اینجا هم؟ چون job «test» روی ubuntu اجرا
       # می‌شود و سریع است؛ این‌طور یک کامیتِ «فقط ویندوزی» هم نمی‌تواند
       # پاریتی تم یا رانش نسخهٔ اندروید را بی‌صدا بشکند.
@@ -139,6 +155,17 @@ jobs:
       # شده‌اند؛ بعد از سوییچ باید بدون تغییر سبز بمانند.
       - name: JS judge-rules behavior pins + golden battery (آفلاین)
         run: node tests/js/test_judge_switch.js
+
+      # v0.28 (۶c): واحدِ createPipelineAsync + توالی ۳۱/۷ رویدادِ چرخه —
+      # آینهٔ test_pipeline_switch پایتون. ⚠️ پیش‌تر در CI نبود؛ از v0.29 الزامی.
+      - name: JS pipeline-events pins (آفلاین)
+        run: node tests/js/test_pipeline_events.js
+
+      # v0.26 (S2): پاریتیِ بایت‌به‌بایتِ آینهٔ ES5 استراتژی‌ها با اوراکلِ
+      # پایتون — ۷۸ سناریو / ۵۷۴ بررسی، بزرگ‌ترین سوئیت JS ریپو.
+      # ⚠️ پیش‌تر در CI نبود؛ از v0.29 الزامی.
+      - name: JS strategies parity pins (آفلاین)
+        run: node tests/js/test_strategies_switch.js
 
       - name: Data-dir logic test (پرتابل vs نصب‌شده)
         run: python tests/manual/test_paths_install.py

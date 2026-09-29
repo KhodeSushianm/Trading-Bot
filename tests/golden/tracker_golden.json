@@ -1,0 +1,222 @@
+{
+  "bar_at_ts_is_skipped": {
+    "entries": {
+      "edge": {
+        "close_price": null,
+        "is_open": true,
+        "note": "",
+        "outcome": null,
+        "r": null
+      }
+    },
+    "logs": [],
+    "resolved_first_call": [],
+    "resolved_second_call": []
+  },
+  "base_outcomes": {
+    "entries": {
+      "both_touch": {
+        "close_price": 1.348,
+        "is_open": false,
+        "note": "هر دو سطح در یک کندل خوردند؛ محتاطانه ضرر شمرده شد",
+        "outcome": "SL",
+        "r": -1.0
+      },
+      "buy_sl": {
+        "close_price": 149.8,
+        "is_open": false,
+        "note": "",
+        "outcome": "SL",
+        "r": -1.0
+      },
+      "buy_tp": {
+        "close_price": 1.104,
+        "is_open": false,
+        "note": "",
+        "outcome": "TP",
+        "r": 2.0
+      },
+      "expired": {
+        "close_price": 0.701,
+        "is_open": false,
+        "note": "تا 48 ساعت نه هدف خورد نه حد ضرر؛ با قیمت لحظهٔ انقضا بسته شد",
+        "outcome": "EXPIRED",
+        "r": 0.5
+      },
+      "sell_tp": {
+        "close_price": 1.296,
+        "is_open": false,
+        "note": "",
+        "outcome": "TP",
+        "r": 2.0
+      },
+      "still_open": {
+        "close_price": null,
+        "is_open": true,
+        "note": "",
+        "outcome": null,
+        "r": null
+      }
+    },
+    "logs": [
+      "📔 ژورنال: EURUSD BUY → 🎯 هدف خورد (R=+2.00)",
+      "📔 ژورنال: GBPUSD SELL → 🎯 هدف خورد (R=+2.00)",
+      "📔 ژورنال: USDJPY BUY → 🛑 حد ضرر خورد (R=-1.00)",
+      "📔 ژورنال: USDCAD BUY → 🛑 حد ضرر خورد (R=-1.00)",
+      "📔 ژورنال: AUDUSD BUY → ⏳ بدون برخورد منقضی شد (R=+0.50)"
+    ],
+    "resolved_first_call": [
+      "buy_tp",
+      "sell_tp",
+      "buy_sl",
+      "both_touch",
+      "expired"
+    ],
+    "resolved_second_call": []
+  },
+  "bias_stale_entry_loss": {
+    "entries": {
+      "stale_loss": {
+        "close_price": 1.098,
+        "is_open": false,
+        "note": "",
+        "outcome": "SL",
+        "r": -1.0
+      }
+    },
+    "logs": [
+      "📔 ژورنال: EURUSD BUY → 🛑 حد ضرر خورد (R=-1.00)"
+    ],
+    "resolved_first_call": [
+      "stale_loss"
+    ],
+    "resolved_second_call": []
+  },
+  "bias_stale_entry_sell": {
+    "entries": {
+      "stale_sell": {
+        "close_price": 1.296,
+        "is_open": false,
+        "note": "",
+        "outcome": "TP",
+        "r": 2.0
+      }
+    },
+    "logs": [
+      "📔 ژورنال: GBPUSD SELL → 🎯 هدف خورد (R=+2.00)"
+    ],
+    "resolved_first_call": [
+      "stale_sell"
+    ],
+    "resolved_second_call": []
+  },
+  "bias_stale_entry_win": {
+    "entries": {
+      "stale_win": {
+        "close_price": 1.104,
+        "is_open": false,
+        "note": "",
+        "outcome": "TP",
+        "r": 2.0
+      }
+    },
+    "logs": [
+      "📔 ژورنال: EURUSD BUY → 🎯 هدف خورد (R=+2.00)"
+    ],
+    "resolved_first_call": [
+      "stale_win"
+    ],
+    "resolved_second_call": []
+  },
+  "both_touch_optimistic": {
+    "entries": {
+      "bt": {
+        "close_price": 1.354,
+        "is_open": false,
+        "note": "",
+        "outcome": "TP",
+        "r": 2.0
+      }
+    },
+    "logs": [
+      "📔 ژورنال: USDCAD BUY → 🎯 هدف خورد (R=+2.00)"
+    ],
+    "resolved_first_call": [
+      "bt"
+    ],
+    "resolved_second_call": []
+  },
+  "entry_ts_honoured": {
+    "entries": {
+      "with_ts": {
+        "close_price": null,
+        "is_open": true,
+        "note": "",
+        "outcome": null,
+        "r": null
+      }
+    },
+    "logs": [],
+    "resolved_first_call": [],
+    "resolved_second_call": []
+  },
+  "expired_no_data": {
+    "entries": {
+      "nodata": {
+        "close_price": null,
+        "is_open": false,
+        "note": "تا 48 ساعت نه هدف خورد نه حد ضرر؛ قیمت لحظهٔ انقضا در دسترس نبود پس R صفر ثبت شد",
+        "outcome": "EXPIRED",
+        "r": 0.0
+      }
+    },
+    "logs": [
+      "📔 ژورنال: XAUUSD BUY → ⏳ بدون برخورد منقضی شد (R=+0.00)"
+    ],
+    "resolved_first_call": [
+      "nodata"
+    ],
+    "resolved_second_call": []
+  },
+  "journal_disabled": {
+    "entries": {
+      "x": {
+        "close_price": null,
+        "is_open": true,
+        "note": "",
+        "outcome": null,
+        "r": null
+      }
+    },
+    "logs": [],
+    "resolved_first_call": [],
+    "resolved_second_call": []
+  },
+  "rules_version_tagged": {
+    "entries": {
+      "rv_new": {
+        "close_price": 1.104,
+        "is_open": false,
+        "note": "",
+        "outcome": "TP",
+        "r": 2.0
+      },
+      "rv_old": {
+        "close_price": 1.304,
+        "is_open": false,
+        "note": "",
+        "outcome": "TP",
+        "r": 2.0
+      }
+    },
+    "logs": [
+      "📔 ژورنال: EURUSD BUY → 🎯 هدف خورد (R=+2.00)",
+      "📔 ژورنال: GBPUSD BUY → 🎯 هدف خورد (R=+2.00)"
+    ],
+    "resolved_first_call": [
+      "rv_new",
+      "rv_old"
+    ],
+    "resolved_second_call": []
+  }
+}
