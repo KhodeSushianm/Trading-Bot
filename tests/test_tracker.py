@@ -495,6 +495,122 @@ if _j3.signal is not None:
 
 print("   A/B سرتاسری: بایاسِ ورودِ کهنه بسته شد")
 
+
+# ══════════════════════════════════════════════════════════════
+#  F) آمارِ نسخهٔ ۴ — MFE/MAE و تفکیکِ rules_version
+# ══════════════════════════════════════════════════════════════
+print("═" * 70)
+print("F) آمارِ نوسان (MFE/MAE) و تفکیکِ نسخهٔ قواعد")
+print("═" * 70)
+
+from src.journal.stats import compute_stats
+from src.journal.store import (JOURNAL_RULES_VERSION, LEGACY_RULES_VERSION,
+                               Entry as _Entry2)
+
+# F1: طلاییِ tracker حالا mfe_r/mae_r دارد و قراردادِ علامت رعایت شده
+for _sc, _sid in [("base_outcomes", "buy_tp"), ("base_outcomes", "buy_sl"),
+                  ("spread_cost_model", "sp_exp")]:
+    _e = actual.get(_sc, {}).get("entries", {}).get(_sid, {})
+    A(_e.get("mfe_r") is not None, f"F1: {_sc}/{_sid} mfe_r ثبت شده")
+    A(_e.get("mae_r") is not None, f"F1: {_sc}/{_sid} mae_r ثبت شده")
+    A(_e.get("mfe_r") is None or _e["mfe_r"] >= 0.0,
+      f"F1: قراردادِ mfe_r ≥ ۰ ({_e.get('mfe_r')})")
+    A(_e.get("mae_r") is None or _e["mae_r"] <= 0.0,
+      f"F1: قراردادِ mae_r ≤ ۰ ({_e.get('mae_r')})")
+
+# F2: سیگنالِ باز هیچ MFE/MAE ندارد — صفرِ ساختگی نه، بلکه None صادقانه
+_so = actual.get("base_outcomes", {}).get("entries", {}).get("still_open", {})
+A(_so.get("mfe_r") is None and _so.get("mae_r") is None,
+  f"F2: سیگنالِ باز mfe/mae ندارد (نه صفرِ ساختگی): {_so.get('mfe_r')}")
+
+# F3: MAEٔ معاملهٔ برندی که هرگز علیه‌اش نرفت = صفر، نه مثبتِ گیج‌کننده
+_st = actual.get("spread_cost_model", {}).get("entries", {}).get("sp_tp", {})
+A(_st.get("mae_r") == 0.0,
+  f"F3: بردِ بدونِ حرارت → mae_r = 0.0 (واقعی {_st.get('mae_r')})")
+A(_st.get("mfe_r") == 2.25,
+  f"F3: mfe_r = سقفِ واقعیِ کندل بر حسب R (۱٫۱۰۴۵ از ۱٫۱۰۰۰ با ریسکِ "
+  f"۰٫۰۰۲ = ۲٫۲۵) نه سطحِ هدف (واقعی {_st.get('mfe_r')})")
+
+# F4: آمارِ تجمیعی — Excursions و by_rules
+def _mk(i, out, r, mfe, mae, rv, sp, day):
+    e = _Entry2(id=str(i), ts=datetime.fromisoformat(day + "T10:00:00+00:00"),
+                symbol="EURUSD", direction="BUY", entry=1.1, sl=1.098, tp=1.104,
+                pip=0.0001, risk_pips=20.0, rr=2.0, spread_pips=sp,
+                rules_version=rv)
+    e.outcome, e.r, e.mfe_r, e.mae_r = out, r, mfe, mae
+    e.net_r = r - (0.5 if out == TP else 1.0) * sp / 20.0
+    return e
+
+_es = [_mk(1, TP, 2.0, 2.3, -0.2, 2, 1.0, "2026-09-28"),
+       _mk(2, SL, -1.0, 1.4, -1.0, 2, 1.0, "2026-09-28"),
+       _mk(3, SL, -1.0, 0.4, -1.0, 2, 1.0, "2026-09-28"),
+       _mk(4, TP, 2.0, 2.0, -1.2, 2, 1.0, "2026-09-28"),
+       # رکوردهای قدیمی: بدون MFE/MAE، بدون اسپرد، rules_version=None
+       _mk(5, TP, 2.0, None, None, None, 0.0, "2026-09-21"),
+       _mk(6, SL, -1.0, None, None, None, 0.0, "2026-09-21")]
+_stt = compute_stats(_es, datetime(2026, 9, 30, 12, 0, tzinfo=timezone.utc))
+
+A(JOURNAL_RULES_VERSION == 2 and LEGACY_RULES_VERSION == 1,
+  f"F4: نسخه‌ها ثابت‌اند ({JOURNAL_RULES_VERSION}/{LEGACY_RULES_VERSION})")
+A(set(_stt.by_rules) == {1, 2},
+  f"F4: دو سطلِ قواعد جدا ساخته شد ({sorted(_stt.by_rules)})")
+A(_stt.by_rules[2].closed == 4 and _stt.by_rules[1].closed == 2,
+  f"F4: رکوردهای بی‌فیلد به سطلِ LEGACY رفتند نه سطلِ جاری "
+  f"(v2={_stt.by_rules[2].closed}, v1={_stt.by_rules[1].closed})")
+A(_es[4].rules == LEGACY_RULES_VERSION and _es[0].rules == JOURNAL_RULES_VERSION,
+  "F4: Entry.rules نبودِ فیلد را LEGACY می‌شمارد، نه صفر و نه نسخهٔ جاری")
+A(_stt.overall.closed == 6,
+  "F4: overall همچنان همه را شامل می‌شود (پیوستگیِ تاریخچه حفظ شد)")
+
+_x = _stt.excursions
+A(_x.n == 4,
+  f"F4: Excursions فقط رکوردهای *دارایِ* داده را شمرد (۴ از ۶) — {_x.n}")
+A(_x.median_mfe == 1.7,
+  f"F4: میانهٔ MFE — [۲٫۳,۱٫۴,۰٫۴,۲٫۰] مرتب‌شده [۰٫۴,۱٫۴,۲٫۰,۲٫۳] → "
+  f"(۱٫۴+۲٫۰)/۲ = ۱٫۷ (واقعی {_x.median_mfe})")
+A(_x.median_mae == -1.0,
+  f"F4: میانهٔ MAE — [−۰٫۲,−۱٫۰,−۱٫۰,−۱٫۲] مرتب‌شده "
+  f"[−۱٫۲,−۱٫۰,−۱٫۰,−۰٫۲] → −۱٫۰ (واقعی {_x.median_mae})")
+A(_x.losers == 2 and _x.losers_reached_1r == 1,
+  f"F4: از ۲ باخت، ۱ مورد اول به ۱R+ رسیده بود "
+  f"({_x.losers_reached_1r}/{_x.losers})")
+A(_x.losers_reached_1r_rate == 0.5,
+  f"F4: نرخِ نامزدهای سر‌به‌سر = ۵۰٪ ({_x.losers_reached_1r_rate})")
+A(_x.winners == 2 and _x.winners_dipped_1r == 1,
+  f"F4: از ۲ برد، ۱ مورد ۱R حرارت دیده ({_x.winners_dipped_1r}/{_x.winners})")
+A(_x.winners_dipped_1r_rate == 0.5,
+  f"F4: بهایِ سر‌به‌سر هم گزارش می‌شود ({_x.winners_dipped_1r_rate}) — "
+  f"نیمهٔ دومِ معادله")
+A(_stt.expectancy is not None and _stt.expectancy_net is not None
+  and _stt.expectancy_net < _stt.expectancy,
+  f"F4: expectancy_net < expectancy (هزینه همیشه کم می‌کند): "
+  f"{_stt.expectancy:.3f} → {_stt.expectancy_net:.3f}")
+A(_stt.overall.net_closed == 4,
+  f"F4: net_closed فقط رکوردهای هزینه‌دار است ({_stt.overall.net_closed})")
+
+# F5: گزارش هر دو بخش را *واقعاً* چاپ می‌کند (وگرنه داده هست ولی دیده نمی‌شود)
+from src.report.journal import render_stats
+_txt = render_stats(_stt, [])
+A("نوسانِ درونِ معامله (MFE/MAE)" in _txt,
+  "F5: بخشِ MFE/MAE در کارنامه چاپ می‌شود")
+A("به تفکیکِ نسخهٔ قواعدِ اندازه‌گیری" in _txt,
+  "F5: بخشِ تفکیکِ قواعد در کارنامه چاپ می‌شود")
+A("پیش از v0.29" in _txt and "ورودِ کهنه" in _txt,
+  "F5: رکوردهای قدیمی با برچسبِ هشدارِ صریح نشان داده می‌شوند")
+A("دو دسته را با هم میانگین نگیرید" in _txt,
+  "F5: هشدارِ «قاطی نکنید» در خودِ گزارش هست")
+A("نامزدِ «سر‌به‌سر در ۱R»" in _txt and "بهایِ همان قاعده" in _txt,
+  "F5: هر دو نیمهٔ معادلهٔ سر‌به‌سر چاپ می‌شوند (نه فقط نیمهٔ جذاب)")
+
+# F6: Excursions خالی → None، نه صفر
+from src.journal.stats import Excursions as _Exc
+_e0 = _Exc()
+A(_e0.median_mfe is None and _e0.avg_mfe is None
+  and _e0.losers_reached_1r_rate is None,
+  "F6: Excursionsِ خالی None می‌دهد نه صفر — صفر یک ادعایِ گمراه‌کننده است")
+
+print("   آمارِ نسخهٔ ۴ میخ شد")
+
 # ══════════════════════════════════════════════════════════════
 print("═" * 70)
 if FAILS:

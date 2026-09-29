@@ -351,6 +351,12 @@
     return (isNaN(v) || v <= 0) ? 0 : v;
   };
 
+  // v0.29 (فاز ۴): نسخهٔ قواعدِ اندازه‌گیریِ ژورنال. باید با
+  // src/journal/store.py::JOURNAL_RULES_VERSION و
+  // js/journal.js::O.JOURNAL_RULES_VERSION هم‌عدد بماند — نگهبانِ پاریتی
+  // در smoke_core.js هر سه را از سورس استخراج و مقایسه می‌کند.
+  var JOURNAL_RULES_VERSION = 2;
+
   O.computeLevels = function (direction, entry, atr, support, resistance, rcfg) {
     var sign = direction === 'BUY' ? 1 : -1;
     if (atr <= 0) {
@@ -609,6 +615,16 @@
       rr: s.rr,
       // v0.29 (فاز ۳): برای Rِ خالص. رکوردهای قدیمی ندارند → 0 → net==gross
       spread_pips: Math.round((+s.spread_pips || 0) * 1000) / 1000,
+      // v0.29 (فاز ۴): آینهٔ to_journal پایتون — این رکورد زیرِ کدام قواعد
+      // سنجیده می‌شود. بدون آن، آمارِ پس از رفعِ بایاس با آمارِ بایاس‌دارِ
+      // قبلی قاطی می‌شد و هر دو بی‌معنی می‌شدند.
+      // ⚠️ عمداً ثابتِ *محلی* است نه O.JOURNAL_RULES_VERSION: آن یکی در
+      // journal.js تعریف می‌شود که بعد از judge.js بارگذاری می‌شود، پس
+      // undefined بود و JSON.stringify بی‌صدا حذفش می‌کرد (رکوردِ ژورنال
+      // بدون rules_version می‌شد — همان باگی که فاز ۴ آمده بود رفع کند).
+      // هم‌عددیِ سه تعریف با نگهبانِ پاریتی در tests/js/smoke_core.js سنجیده
+      // می‌شود؛ الگوی همان ثابت‌های محلیِ CORE_VERSION.
+      rules_version: JOURNAL_RULES_VERSION,
       score: s.score, max_score: s.max_score, session: s.session_fa,
       evidences: s.evidences.map(function (e) { return e.key + ':' + e.points + '/' + e.max_points; }),
       // S3: کلیدِ استراتژی‌های هم‌جهت (آینهٔ to_journal پایتون — رکوردهای

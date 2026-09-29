@@ -666,6 +666,61 @@
         '</div></div>';
     }
 
+    // v0.29 (فاز ۴): نوسانِ درونِ معامله (MFE/MAE) — آینهٔ report/journal.py.
+    // این بخش تزئینی نیست: پاسخِ «هدفِ ۲R زیادی دور بود؟» و «سر‌به‌سر در
+    // ۱R به درد می‌خورد؟» فقط از همین داده درمی‌آید.
+    var ex = stats.excursions;
+    if (ex && ex.n) {
+      var xr = O.excursionRates(ex);
+      html += '<div class="card"><div class="card-title">' + ct('chart-bar', 'نوسانِ درونِ معامله') + '</div>' +
+        '<div style="font-size:11.5px;color:var(--text-2);margin-top:6px">' +
+        'میانهٔ بیشینهٔ سودِ دیده‌شده: ' + O.rFmt(xr.median_mfe) + 'R' +
+        ' · میانهٔ بیشینهٔ زیان: ' + O.rFmt(xr.median_mae) + 'R' +
+        '<br>روی ' + O.faNum(ex.n) + ' سیگنالِ دارایِ این داده';
+      if (xr.losers_reached_1r_rate != null && xr.winners_dipped_1r_rate != null) {
+        html += '<br>از ' + O.faNum(ex.losers) + ' باخت، ' + O.faNum(ex.losers_reached_1r) +
+          ' مورد اول به ۱R+ رسیده بود (' + O.faPct(xr.losers_reached_1r_rate) + ')' +
+          '<br>از ' + O.faNum(ex.winners) + ' برد، ' + O.faNum(ex.winners_dipped_1r) +
+          ' مورد وسطِ راه ۱R علیه‌شان رفت (' + O.faPct(xr.winners_dipped_1r_rate) + ')';
+      }
+      html += '</div><div class="stat-defs" style="margin-top:6px">' +
+        'هر دو عدد با هم معنا دارند: «سر‌به‌سر در ۱R» گروهِ اول را نجات ' +
+        'می‌دهد و گروهِ دوم را می‌کُشد. تک‌عدد خواندن = تصمیمِ غلط.</div></div>';
+    } else if (entries.length) {
+      html += '<div class="card"><div class="card-title">' + ct('chart-bar', 'نوسانِ درونِ معامله') + '</div>' +
+        '<div style="font-size:11.5px;color:var(--text-2);margin-top:6px">' +
+        'رکوردهای بسته‌شدهٔ موجود پیش از این نسخه ثبت شده‌اند و این داده را ' +
+        'ندارند — از اولین سیگنالِ تازه این بخش پر می‌شود.</div></div>';
+    }
+
+    // v0.29 (فاز ۴): تفکیکِ نسخهٔ قواعدِ اندازه‌گیری.
+    // رکوردهای قدیمی زیرِ بایاسِ «ورودِ کهنه» سنجیده شده‌اند (R خوش‌بینانه)
+    // و هرگز نباید با رکوردهای تازه قاطی شوند.
+    var rulesKeys = Object.keys(stats.by_rules || {});
+    if (rulesKeys.length) {
+      html += '<div class="card"><div class="card-title">' + ct('seal', 'به تفکیکِ نسخهٔ قواعد') + '</div>' +
+        '<div style="font-size:11.5px;color:var(--text-2);margin-top:6px">';
+      rulesKeys.sort().forEach(function (k) {
+        var b = stats.by_rules[k];
+        var legacy = (+k) < O.JOURNAL_RULES_VERSION;
+        html += '<div style="margin-bottom:4px">' +
+          // نگهبانِ smoke_icons: در رابط هیچ ایموجی مجاز نیست — آیکون SVG
+          (legacy ? O.ico('alert', 11) + ' ' : '') + 'قواعدِ ' + O.faNum(k) + ' — ' +
+          (legacy ? 'پیش از v0.29 (ورودِ کهنه، R خوش‌بینانه)'
+                  : 'v0.29 به بعد (ورودِ تازه + هزینهٔ اسپرد)') +
+          '<br>بسته ' + O.faNum(b.closed) + ' · برد ' + O.faNum(b.wins) +
+          ' · باخت ' + O.faNum(b.losses) + ' · نرخ برد ' + O.faPct(b.hit_rate) +
+          ' · R ' + O.rFmt(b.avg_r) +
+          (b.avg_net_r != null ? ' · خالص ' + O.rFmt(b.avg_net_r) : '') + '</div>';
+      });
+      if (rulesKeys.length > 1) {
+        html += '<div class="stat-defs" style="margin-top:4px">دو دسته را با هم ' +
+          'میانگین نگیرید. کاشی‌های بالا هر دو را شامل می‌شوند و فقط برای ' +
+          'پیوستگیِ تاریخچه‌اند؛ برای تصمیم، فقط سطلِ قواعدِ تازه را بخوانید.</div>';
+      }
+      html += '</div></div>';
+    }
+
     // سیگنال‌های باز
     var open = entries.filter(function (e) { return e.outcome == null; });
     if (open.length) {

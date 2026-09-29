@@ -18,6 +18,8 @@
       "both_touch": {
         "close_price": 1.348,
         "is_open": false,
+        "mae_r": -1.25,
+        "mfe_r": 2.25,
         "net_r": -1.0,
         "note": "هر دو سطح در یک کندل خوردند؛ محتاطانه ضرر شمرده شد",
         "outcome": "SL",
@@ -26,6 +28,8 @@
       "buy_sl": {
         "close_price": 149.8,
         "is_open": false,
+        "mae_r": -1.25,
+        "mfe_r": 0.5,
         "net_r": -1.0,
         "note": "",
         "outcome": "SL",
@@ -34,6 +38,8 @@
       "buy_tp": {
         "close_price": 1.104,
         "is_open": false,
+        "mae_r": -0.25,
+        "mfe_r": 2.25,
         "net_r": 2.0,
         "note": "",
         "outcome": "TP",
@@ -42,6 +48,8 @@
       "expired": {
         "close_price": 0.701,
         "is_open": false,
+        "mae_r": -0.25,
+        "mfe_r": 0.6,
         "net_r": 0.5,
         "note": "تا 48 ساعت نه هدف خورد نه حد ضرر؛ با قیمت لحظهٔ انقضا بسته شد",
         "outcome": "EXPIRED",
@@ -50,6 +58,8 @@
       "sell_tp": {
         "close_price": 1.296,
         "is_open": false,
+        "mae_r": 0.0,
+        "mfe_r": 2.25,
         "net_r": 2.0,
         "note": "",
         "outcome": "TP",
@@ -84,6 +94,8 @@
       "stale_loss": {
         "close_price": 1.098,
         "is_open": false,
+        "mae_r": -1.25,
+        "mfe_r": 1.1,
         "net_r": -1.0,
         "note": "",
         "outcome": "SL",
@@ -103,6 +115,8 @@
       "stale_sell": {
         "close_price": 1.296,
         "is_open": false,
+        "mae_r": 0.0,
+        "mfe_r": 2.25,
         "net_r": 2.0,
         "note": "",
         "outcome": "TP",
@@ -122,6 +136,8 @@
       "stale_win": {
         "close_price": 1.104,
         "is_open": false,
+        "mae_r": 0.0,
+        "mfe_r": 2.1,
         "net_r": 2.0,
         "note": "",
         "outcome": "TP",
@@ -141,6 +157,8 @@
       "bt": {
         "close_price": 1.354,
         "is_open": false,
+        "mae_r": -1.25,
+        "mfe_r": 2.25,
         "net_r": 2.0,
         "note": "",
         "outcome": "TP",
@@ -161,6 +179,8 @@
         "close_price": 1.104,
         "entry_ts": "2026-09-14T10:30:00+00:00",
         "is_open": false,
+        "mae_r": 0.0,
+        "mfe_r": 2.5,
         "net_r": 2.0,
         "note": "",
         "outcome": "TP",
@@ -213,14 +233,19 @@
       "rv_new": {
         "close_price": 1.104,
         "is_open": false,
+        "mae_r": 0.0,
+        "mfe_r": 2.25,
         "net_r": 2.0,
         "note": "",
         "outcome": "TP",
-        "r": 2.0
+        "r": 2.0,
+        "rules_version": 2
       },
       "rv_old": {
         "close_price": 1.304,
         "is_open": false,
+        "mae_r": 0.0,
+        "mfe_r": 2.25,
         "net_r": 2.0,
         "note": "",
         "outcome": "TP",
@@ -242,6 +267,8 @@
       "nospread": {
         "close_price": 1.104,
         "is_open": false,
+        "mae_r": 0.0,
+        "mfe_r": 2.25,
         "net_r": 2.0,
         "note": "",
         "outcome": "TP",
@@ -261,6 +288,8 @@
       "sp_exp": {
         "close_price": 0.701,
         "is_open": false,
+        "mae_r": -0.25,
+        "mfe_r": 0.6,
         "net_r": 0.4,
         "note": "تا 48 ساعت نه هدف خورد نه حد ضرر؛ با قیمت لحظهٔ انقضا بسته شد",
         "outcome": "EXPIRED",
@@ -269,6 +298,8 @@
       "sp_sl": {
         "close_price": 1.298,
         "is_open": false,
+        "mae_r": -1.25,
+        "mfe_r": 0.5,
         "net_r": -1.1,
         "note": "",
         "outcome": "SL",
@@ -277,6 +308,8 @@
       "sp_tp": {
         "close_price": 1.104,
         "is_open": false,
+        "mae_r": 0.0,
+        "mfe_r": 2.25,
         "net_r": 1.95,
         "note": "",
         "outcome": "TP",

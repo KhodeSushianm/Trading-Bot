@@ -11,7 +11,8 @@ from typing import Optional
 
 from ..fa import fa_num
 from ..journal.stats import Stats
-from ..journal.store import Entry
+from ..journal.store import (JOURNAL_RULES_VERSION, LEGACY_RULES_VERSION,
+                             Entry)
 from ..journal.tracker import OUTCOME_FA
 
 SEP = "─" * 62
@@ -129,6 +130,51 @@ def render_stats(stats: Stats, open_entries: list[Entry] | None = None,
         lines.append("─── به تفکیک استراتژی ───")
         lines.append("   رکوردهای پیش از v0.26 برچسب استراتژی ندارند — از اولین"
                      " سیگنالِ v0.26 این بخش پر می‌شود.")
+
+    # ── v0.29 (فاز ۴): نوسانِ درون‌معامله‌ای (MFE/MAE) ──────────
+    # این بخش پاسخِ پرسش‌های تنظیمِ خروج است، نه تزئین. پیش از این ژورنال
+    # فقط می‌گفت «هدف خورد» یا «حد ضرر» — یعنی نمی‌شد فهمید هدفِ ۲R زیادی
+    # دور بوده یا نه.
+    ex = getattr(stats, "excursions", None)
+    if ex is not None and ex.n:
+        lines.append("─── نوسانِ درونِ معامله (MFE/MAE) ───")
+        lines.append(f"   میانهٔ بیشینهٔ سودِ دیده‌شده (MFE): {_r(ex.median_mfe)}R   "
+                     f"| میانهٔ بیشینهٔ زیانِ دیده‌شده (MAE): {_r(ex.median_mae)}R")
+        lines.append(f"   روی {fa_num(ex.n)} سیگنالِ دارایِ این داده")
+        lr = ex.losers_reached_1r_rate
+        wd = ex.winners_dipped_1r_rate
+        if lr is not None and wd is not None:
+            lines.append(f"   از {fa_num(ex.losers)} باخت، {fa_num(ex.losers_reached_1r)} مورد "
+                         f"اول به ۱R+ رسیده بود ({_pct(lr)}) — نامزدِ «سر‌به‌سر در ۱R»")
+            lines.append(f"   از {fa_num(ex.winners)} برد، {fa_num(ex.winners_dipped_1r)} مورد "
+                         f"وسطِ راه ۱R علیه‌شان رفت ({_pct(wd)}) — بهایِ همان قاعده")
+            lines.append("   ↳ ⚠️ هر دو عدد با هم معنا دارند: سر‌به‌سر در ۱R گروهِ اول را "
+                         "نجات می‌دهد و گروهِ دوم را می‌کُشد. تک‌عدد خواندن = تصمیمِ غلط.")
+        else:
+            lines.append("   هنوز باخت/بردِ کافی برای سنجشِ قاعدهٔ سر‌به‌سر ثبت نشده.")
+    elif o.closed:
+        lines.append("─── نوسانِ درونِ معامله (MFE/MAE) ───")
+        lines.append("   رکوردهای بسته‌شدهٔ موجود پیش از v0.29 ثبت شده‌اند و این داده را "
+                     "ندارند — از اولین سیگنالِ v0.29 این بخش پر می‌شود.")
+
+    # ── v0.29 (فاز ۴): تفکیکِ نسخهٔ قواعدِ اندازه‌گیری ────────────
+    # رکوردهای پیش از v0.29 زیرِ بایاسِ «ورودِ کهنه» سنجیده شده‌اند (برد
+    # ~۴ برابر بیش‌برآورد). قاطی‌کردنشان با رکوردهای تازه، هر دو عدد را
+    # بی‌معنی می‌کند. پس جدا گزارش می‌شوند، با برچسبِ صریح.
+    by_rules = getattr(stats, "by_rules", None) or {}
+    if len(by_rules) > 1 or (by_rules and LEGACY_RULES_VERSION in by_rules):
+        lines.append("─── به تفکیکِ نسخهٔ قواعدِ اندازه‌گیری ───")
+        for v in sorted(by_rules):
+            b = by_rules[v]
+            tag = ("v0.29 به بعد (ورودِ تازه + هزینهٔ اسپرد)"
+                   if v >= JOURNAL_RULES_VERSION else
+                   "⚠️ پیش از v0.29 (ورودِ کهنه — R خوش‌بینانه)")
+            lines.append(f"   قواعدِ {fa_num(v)} — {tag}")
+            lines.append(f"      {_bucket_line(b)}")
+        if LEGACY_RULES_VERSION in by_rules:
+            lines.append("   ↳ دو دسته را با هم میانگین نگیرید. عددِ بالا (کلی) هر دو را "
+                         "شامل می‌شود و فقط برای پیوستگیِ تاریخچه است؛ برای تصمیم، "
+                         "فقط سطلِ قواعدِ تازه را بخوانید.")
 
     # یادآوری صداقت دربارهٔ حجم نمونه
     lines.append("")

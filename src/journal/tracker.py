@@ -114,11 +114,59 @@ def _build_bars(md) -> list:
     return bars
 
 
-def _scan_bars(entry: Entry, bars, conservative: bool):
-    """بررسی ترتیبی کندل‌ها. برمی‌گرداند (outcome, close_price) یا None."""
+def _clamp(v: Optional[float]) -> Optional[float]:
+    """MFE را به قراردادِ ≥۰ می‌برد (None دست‌نخورده — یعنی «ثبت نشده»)."""
+    return None if v is None else max(0.0, v)
+
+
+def _clamp_a(v: Optional[float]) -> Optional[float]:
+    """MAE را به قراردادِ ≤۰ می‌برد (None دست‌نخورده)."""
+    return None if v is None else min(0.0, v)
+
+
+def _excursions(entry: Entry, high: float, low: float, risk: float):
+    """(سودِ این کندل, زیانِ این کندل) بر حسب R.
+
+    MFE/MAE عمداً **سقف/کفِ واقعیِ کندل** را می‌سنجد، نه قیمتِ بسته و نه
+    سطحِ هدف — چون پرسشِ «هدفِ ۲R زیادی دور بود؟» فقط با دیدنِ اینکه قیمت
+    *واقعاً* تا کجا رفت پاسخ دارد. اگر تا ۱٫۵R رفته و برگشته، همان ۱٫۵R
+    ثبت می‌شود نه ۲Rِ هدف.
+    """
+    if risk <= 0:
+        return None, None
+    if entry.direction == "BUY":
+        return (high - entry.entry) / risk, (low - entry.entry) / risk
+    return (entry.entry - low) / risk, (entry.entry - high) / risk
+
+
+def _scan_bars(entry: Entry, bars, conservative: bool,
+               until: Optional[datetime] = None):
+    """بررسی ترتیبی کندل‌ها.
+
+    Returns:
+        ``(hit, mfe_r, mae_r)`` که ``hit`` = ``(outcome, close_price)`` یا
+        ``None`` است. MFE/MAE روی **همهٔ** کندل‌های در بازه حساب می‌شود،
+        حتی وقتی برخوردی رخ نداده — چون سناریوی انقضا هم به آن نیاز دارد.
+
+        ``until`` کرانِ زمانیِ اسکن است (برای انقضا: ورود + expiry_hours) تا
+        MFE/MAEٔ یک معاملهٔ منقضی‌شده، حرکتِ پس از انقضا را هم قاطی نکند.
+    """
+    risk = entry.risk_price
+    mfe: Optional[float] = None
+    mae: Optional[float] = None
     for ts, high, low in bars:
         if not _in_scope(entry, ts):
             continue
+        if until is not None and ts > until:
+            break
+        fav, adv = _excursions(entry, high, low, risk)
+        if fav is not None:
+            mfe = fav if mfe is None else max(mfe, fav)
+            mae = adv if mae is None else min(mae, adv)
+        # قراردادِ استانداردِ MFE/MAE: mfe ≥ ۰ و mae ≤ ۰. اگر قیمت هرگز
+        # علیه ما نرفت، mae = 0 است نه یک عددِ مثبتِ گیج‌کننده. صریح
+        # clamp می‌کنیم تا خوانندهٔ آمار مجبور به حدسِ علامت نباشد.
+        # (مقدارِ خامِ هر کندل در _excursions بدون clamp است.)
         if entry.direction == "BUY":
             hit_tp = high >= entry.tp
             hit_sl = low <= entry.sl
@@ -126,12 +174,13 @@ def _scan_bars(entry: Entry, bars, conservative: bool):
             hit_tp = low <= entry.tp
             hit_sl = high >= entry.sl
         if hit_tp and hit_sl:
-            return (SL, entry.sl) if conservative else (TP, entry.tp)
+            hit = (SL, entry.sl) if conservative else (TP, entry.tp)
+            return hit, _clamp(mfe), _clamp_a(mae)
         if hit_tp:
-            return TP, entry.tp
+            return (TP, entry.tp), _clamp(mfe), _clamp_a(mae)
         if hit_sl:
-            return SL, entry.sl
-    return None
+            return (SL, entry.sl), _clamp(mfe), _clamp_a(mae)
+    return None, _clamp(mfe), _clamp_a(mae)
 
 
 def resolve_open_signals(journal: Journal, datasets: dict,
@@ -156,7 +205,8 @@ def resolve_open_signals(journal: Journal, datasets: dict,
     for entry in journal.open_entries():
         md = datasets.get(entry.symbol)
         bars = _build_bars(md)
-        hit = _scan_bars(entry, bars, conservative) if bars else None
+        hit, mfe, mae = (_scan_bars(entry, bars, conservative) if bars
+                         else (None, None, None))
 
         r_override = None
         if hit is None and (now - entry.ts) > timedelta(hours=expiry_h):
@@ -164,6 +214,11 @@ def resolve_open_signals(journal: Journal, datasets: dict,
             close = None
             if bars:
                 close = float(md.m15["Close"].iloc[-1])
+                # MFE/MAEٔ معاملهٔ منقضی باید تا لحظهٔ انقضا باشد، نه تا
+                # آخرین کندلِ موجود (که ممکن است روزها بعد باشد — مثلاً اگر
+                # اپ خاموش بوده). وگرنه آمارِ نوسانِ این دسته باد می‌کرد.
+                _until = entry.ts + timedelta(hours=expiry_h)
+                _, mfe, mae = _scan_bars(entry, bars, conservative, until=_until)
             outcome, close_price = EXPIRED, close
             if close is None:
                 # قیمتی در دسترس نیست ولی سیگنال قطعاً منقضی شده؛ نگه‌داشتنِ
@@ -185,9 +240,9 @@ def resolve_open_signals(journal: Journal, datasets: dict,
         r = r_override if r_override is not None else _r_for(entry, outcome, close_price)
         net_r = _net_r(entry, outcome, r)
         journal.add_outcome(entry.id, outcome, close_price, r, note, ts=now,
-                            net_r=net_r)
+                            net_r=net_r, mfe_r=mfe, mae_r=mae)
         entry.outcome, entry.close_price, entry.r, entry.note = outcome, close_price, r, note
-        entry.net_r = net_r
+        entry.net_r, entry.mfe_r, entry.mae_r = net_r, mfe, mae
         entry.outcome_ts = now
         resolved.append(entry)
         # لاگ هر دو را نشان می‌دهد وقتی هزینه مدل شده — پنهان نمی‌کنیم

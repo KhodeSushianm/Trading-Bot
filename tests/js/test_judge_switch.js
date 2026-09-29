@@ -404,9 +404,69 @@ function testStrategyGatePins() {
 }
 
 // ══════════════════════════════════════════════════════════════
+// v0.29 (فاز ۳+۴): طرحِ رکوردِ ژورنال — فیلدهای تازه باید *واقعاً* در
+// JSONِ نوشته‌شده حاضر باشند.
+//
+// چرا این بررسی لازم است: یک باگِ واقعی حینِ توسعه گرفته شد. judge.js به
+// O.JOURNAL_RULES_VERSION ارجاع داده بود که در journal.js تعریف می‌شود و
+// *بعد از* judge.js بارگذاری می‌شود → undefined → و JSON.stringify کلیدِ
+// undefined را بی‌صدا حذف می‌کند. نتیجه: رکوردهای ژورنال بدون
+// rules_version نوشته می‌شدند، یعنی همان چیزی که فاز ۴ آمده بود رفع کند.
+// طلایی‌ها این را نمی‌گرفتند چون خودشان هم از همان مسیر تولید می‌شوند.
+function testJournalRecordSchema() {
+  const sig = {
+    sid: 'EURUSD-BUY-20260923140000-1.1', now: 0, symbol: 'EURUSD',
+    direction: 'BUY', entry: 1.1, sl: 1.09, tp: 1.12, pip: 0.0001,
+    atr: 0.001, risk_pips: 100, reward_pips: 200, rr: 2, score: 9,
+    max_score: 11, session_fa: 'لندن', evidences: [], warnings: [],
+    strategies: [], entry_ts: Date.UTC(2026, 8, 23, 13, 45), spread_pips: 1.5
+  };
+  // رفت‌وبرگشتِ واقعیِ JSON — همان کاری که appendRec روی گوشی می‌کند
+  const rec = JSON.parse(JSON.stringify(O.signalToJournal(sig, true)));
+
+  A(rec.rules_version === O.JOURNAL_RULES_VERSION,
+    'رکوردِ ژورنال باید rules_version=' + O.JOURNAL_RULES_VERSION +
+    ' داشته باشد (واقعی: ' + rec.rules_version + ') — undefined یعنی ' +
+    'JSON.stringify بی‌صدا حذفش کرده');
+  A(typeof rec.entry_ts === 'string',
+    'entry_ts باید به ISO رشته شود (واقعی: ' + rec.entry_ts + ')');
+  A(rec.entry_ts === new Date(sig.entry_ts).toISOString(),
+    'entry_ts = ISOِ همان لحظهٔ قیمتِ اجرا');
+  A(rec.spread_pips === 1.5,
+    'spread_pips در رکورد حاضر است (واقعی: ' + rec.spread_pips + ')');
+
+  // رفت‌وبرگشت از طریق Journal واقعی: بازخوانی باید همان را بدهد
+  const mem = {};
+  const jr = new O.Journal({ get: (k) => mem[k] || '', set: (k, v) => { mem[k] = v; } });
+  jr.appendRec(rec);
+  const back = jr.load()[0];
+  A(back.rules_version === O.JOURNAL_RULES_VERSION,
+    'Entry.rules_version از فایل بازخوانی شد (' + back.rules_version + ')');
+  A(O.entryRules(back) === O.JOURNAL_RULES_VERSION,
+    'O.entryRules نسخهٔ جاری را برمی‌گرداند');
+  A(back.spread_pips === 1.5, 'Entry.spread_pips بازخوانی شد');
+  A(back.entry_ts === sig.entry_ts,
+    'Entry.entry_ts به ms بازخوانی شد (' + back.entry_ts + ')');
+
+  // رکوردِ قدیمی (بدون فیلدهای v0.29) → نسخهٔ LEGACY، بدون حدس
+  jr.appendRec({ kind: 'signal', id: 'legacy-1', ts: new Date(0).toISOString(),
+    symbol: 'EURUSD', direction: 'BUY', entry: 1.1, sl: 1.09, tp: 1.12,
+    pip: 0.0001, risk_pips: 100, rr: 2, score: 8 });
+  const legacy = jr.load().filter((e) => e.id === 'legacy-1')[0];
+  A(legacy.rules_version === null,
+    'رکوردِ قدیمی rules_version ندارد → null (نه صفر، نه نسخهٔ جاری)');
+  A(O.entryRules(legacy) === O.LEGACY_RULES_VERSION,
+    'O.entryRules رکوردِ بی‌فیلد را LEGACY=' + O.LEGACY_RULES_VERSION +
+    ' می‌شمارد (واقعی: ' + O.entryRules(legacy) + ')');
+  A(legacy.entry_ts === null && legacy.spread_pips === 0 && legacy.net_r === null,
+    'رکوردِ قدیمی: entry_ts=null · spread=0 · net_r=null (بدون عددِ ساختگی)');
+}
+
+// ══════════════════════════════════════════════════════════════
 function main() {
   const tests = [testGoldenBattery, testVetoPins, testEvidencePins,
-    testJudgePathPins, testStrategyGatePins, testRegistryRulesWhenPresent];
+    testJudgePathPins, testStrategyGatePins, testRegistryRulesWhenPresent,
+    testJournalRecordSchema];
   const fails = [];
   tests.forEach((t) => {
     try { t(); } catch (e) { fails.push(t.name + ': ' + (e && e.message || e)); }
@@ -418,7 +478,7 @@ function main() {
   }
   console.log('✅ JUDGE-SWITCH TESTS OK — ' + COUNT + ' بررسی پاس؛ میخ‌های رفتاری '
     + 'داور JS (۶۶ سناریوی طلایی + پین‌های متنی/امتیازی + دروازهٔ توافق S3 '
-    + '+ بخش مشروط registry) سبز‌اند');
+    + '+ بخش مشروط registry + طرحِ رکوردِ ژورنال v0.29) سبز‌اند');
   process.exit(0);
 }
 

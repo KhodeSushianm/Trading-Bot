@@ -18,7 +18,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Optional
 
-from .store import Entry
+from .store import LEGACY_RULES_VERSION, JOURNAL_RULES_VERSION, Entry  # noqa: F401
 
 
 @dataclass
@@ -78,6 +78,89 @@ class Bucket:
 
 
 @dataclass
+class Excursions:
+    """آمارِ نوسانِ درون‌معامله‌ای (v0.29 فاز ۴).
+
+    چرا این کلاس وجود دارد: تا پیش از این، ژورنال فقط می‌گفت «هدف خورد» یا
+    «حد ضرر». ولی پرسش‌های واقعیِ تنظیمِ خروج — «هدفِ ۲R زیادی دور بود؟»
+    «سر‌به‌سر در ۱R چند باخت را نجات می‌داد؟» «برنده‌ها چقدر حرارت دیدند؟»
+    — بدونِ دانستنِ اینکه قیمت *در میانهٔ معامله* تا کجا رفت، پاسخ ندارند.
+    این کلاس همان داده را جمع می‌کند.
+
+    ⚠️ همبستگی ≠ علیت: «سر‌به‌سر در ۱R این باخت‌ها را نجات می‌داد» یک
+    گزارهٔ *بازخوانیِ گذشته* است. معامله‌ای که به ۱R رسیده و برگشته، با
+    استاپِ سر‌به‌سر صفر می‌شد — ولی همان قاعده، معامله‌های دیگری را که
+    در ۱R استاپ خورده و بعد به هدف رسیده‌اند هم می‌کُشد. این عدد فقط
+    «نیمی از معادله» است و باید کنارِ ``winners_touched`` خوانده شود.
+    """
+
+    n: int = 0                       # شمارِ رکوردهای دارای MFE/MAE
+    mfe_sum: float = 0.0
+    mae_sum: float = 0.0
+    mfe_values: list = field(default_factory=list)   # برای میانه
+    mae_values: list = field(default_factory=list)
+    # بازخوانیِ دو قاعدهٔ خروجِ محتمل:
+    losers_reached_1r: int = 0       # باخت‌هایی که اول به ۱R+ رسیده بودند
+    losers: int = 0                  # کلِ باخت‌های دارای MFE
+    winners_dipped_1r: int = 0       # بردهایی که وسطِ راه ۱R علیه‌شان رفت
+    winners: int = 0                 # کلِ بردهای دارای MFE
+
+    def add(self, mfe: float, mae: float, is_win: bool, is_loss: bool) -> None:
+        self.n += 1
+        self.mfe_sum += mfe
+        self.mae_sum += mae
+        self.mfe_values.append(mfe)
+        self.mae_values.append(mae)
+        if is_loss:
+            self.losers += 1
+            if mfe >= 1.0:
+                self.losers_reached_1r += 1
+        elif is_win:
+            self.winners += 1
+            if mae <= -1.0:
+                self.winners_dipped_1r += 1
+
+    @staticmethod
+    def _median(vals: list) -> Optional[float]:
+        if not vals:
+            return None
+        v = sorted(vals)
+        n = len(v)
+        m = n // 2
+        return v[m] if n % 2 else (v[m - 1] + v[m]) / 2.0
+
+    @property
+    def median_mfe(self) -> Optional[float]:
+        return self._median(self.mfe_values)
+
+    @property
+    def median_mae(self) -> Optional[float]:
+        return self._median(self.mae_values)
+
+    @property
+    def avg_mfe(self) -> Optional[float]:
+        return (self.mfe_sum / self.n) if self.n else None
+
+    @property
+    def avg_mae(self) -> Optional[float]:
+        return (self.mae_sum / self.n) if self.n else None
+
+    @property
+    def losers_reached_1r_rate(self) -> Optional[float]:
+        """سهمِ باخت‌هایی که اول به ۱R+ رسیده بودند (نامزدِ سر‌به‌سر)."""
+        return (self.losers_reached_1r / self.losers) if self.losers else None
+
+    @property
+    def winners_dipped_1r_rate(self) -> Optional[float]:
+        """سهمِ بردهایی که وسطِ راه ۱R علیه‌شان رفت (بهایِ سر‌به‌سر).
+
+        این نیمهٔ دیگرِ معادله است: سر‌به‌سر در ۱R همین‌ها را هم می‌کُشد.
+        بدونِ این عدد، ``losers_reached_1r_rate`` به‌تنهایی گمراه‌کننده است.
+        """
+        return (self.winners_dipped_1r / self.winners) if self.winners else None
+
+
+@dataclass
 class Stats:
     now: datetime
     total: int = 0
@@ -91,6 +174,13 @@ class Stats:
     # S4 (v0.27): سرنوشتِ سیگنال‌هایی که هر استراتژی با آن‌ها *توافق* کرد —
     # همان فلسفهٔ by_evidence (همبستگی ≠ علیت؛ صادقانه در متن کارنامه)
     by_strategy: dict[str, Bucket] = field(default_factory=dict)
+    # v0.29 (فاز ۴): تفکیک بر پایهٔ **نسخهٔ قواعدِ اندازه‌گیری**.
+    # رکوردهای پیش از v0.29 (کلید 1) زیرِ بایاسِ «ورودِ کهنه» سنجیده شده‌اند
+    # و هرگز نباید با رکوردهای v0.29 (کلید 2) در یک میانگین قاطی شوند.
+    by_rules: dict[int, Bucket] = field(default_factory=dict)
+    # v0.29 (فاز ۴): آمارِ نوسانِ درون‌معامله‌ای (MFE/MAE) — فقط روی
+    # رکوردهایی که واقعاً این داده را دارند.
+    excursions: "Excursions" = field(default_factory=lambda: Excursions())
 
     @property
     def last_week_key(self) -> Optional[str]:
@@ -148,4 +238,11 @@ def compute_stats(entries: list[Entry], now: datetime) -> Stats:
             st.by_evidence.setdefault(k, Bucket()).add(e)
         for k in e.strategies:
             st.by_strategy.setdefault(k, Bucket()).add(e)
+        st.by_rules.setdefault(e.rules, Bucket()).add(e)
+        # نوسانِ درون‌معامله‌ای — فقط رکوردهایی که *واقعاً* داده دارند.
+        # None (رکوردهای قدیمی) شمرده نمی‌شود؛ میانگینِ روی مجموعهٔ ناهمگن
+        # عددِ بی‌معنی می‌داد.
+        mfe, mae = getattr(e, "mfe_r", None), getattr(e, "mae_r", None)
+        if mfe is not None and mae is not None:
+            st.excursions.add(mfe, mae, e.is_win, e.is_loss)
     return st

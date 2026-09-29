@@ -53,6 +53,9 @@ from ..data.base import MarketData
 from ..fundamental.calendar import CalendarSnapshot, upcoming_events, veto_for_symbol
 from ..fa import fa_num, fa_ratio
 from ..fundamental.news import NewsSnapshot, news_supports
+# v0.29 (فاز ۴): نسخهٔ قواعدِ اندازه‌گیریِ ژورنال. import از journal
+# حلقه نمی‌سازد (journal به judge وابسته نیست — بررسی شد).
+from ..journal.store import JOURNAL_RULES_VERSION
 from .session import MarketStatus, market_status
 
 # ── مقادیر پیش‌فرض (با config.yaml ادغام می‌شوند) ───────────────
@@ -214,6 +217,10 @@ class Signal:
             # v0.29 (فاز ۳): برای Rِ خالص. رکوردهای قدیمی ندارند → 0.0 →
             # R خالص == R ناخالص (سازگار، بدون حدس).
             "spread_pips": round(float(self.spread_pips or 0.0), 3),
+            # v0.29 (فاز ۴): این رکورد زیرِ کدام قواعد اندازه‌گیری شده.
+            # بدون آن، آمارِ پس از رفعِ بایاس با آمارِ بایاس‌دارِ قبلی قاطی
+            # می‌شد و هر دو بی‌معنی می‌شدند.
+            "rules_version": JOURNAL_RULES_VERSION,
             "score": self.score,
             "max_score": self.max_score,
             "session": self.session_fa,

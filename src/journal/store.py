@@ -20,6 +20,17 @@ from .. import app_paths
 
 JOURNAL_FILE = "signals.jsonl"
 
+# v0.29 (فاز ۴): نسخهٔ قواعدِ اندازه‌گیری.
+#   1 = قواعدِ پیش از v0.29 (رکورد فیلد را ندارد → None → همین فرض می‌شود).
+#       ⚠️ این رکوردها زیرِ بایاسِ «ورودِ کهنه» اندازه‌گیری شده‌اند و R‌شان
+#       سیستماتیک خوش‌بینانه است (برد ~۴ برابر بیش‌برآورد). قابلِ رفعِ
+#       گذشته‌نگر نیستند چون دادهٔ زمانیِ قیمتشان ثبت نشده.
+#   2 = قواعدِ v0.29: ورود از بستهٔ M15 · اسکن از entry_ts · net_r پس‌از‌هزینه.
+# هرگز نباید دو نسخه در یک میانگین قاطی شوند — آمارِ نسخهٔ ۱ در سطلِ
+# خودش گزارش می‌شود، با برچسبِ صریح.
+JOURNAL_RULES_VERSION = 2
+LEGACY_RULES_VERSION = 1
+
 # نتیجه‌ها
 TP, SL, EXPIRED = "TP", "SL", "EXPIRED"
 
@@ -61,6 +72,8 @@ class Entry:
     # v0.29 (فاز ۳): برآوردِ اسپرد (پیپ) در لحظهٔ صدور — برای Rِ خالص.
     # رکوردهای قدیمی ندارند → 0.0 → net_r == r (سازگار، بدون حدس).
     spread_pips: float = 0.0
+    # نسخهٔ قواعدِ اندازه‌گیری. None = رکوردِ قدیمی → LEGACY_RULES_VERSION.
+    rules_version: Optional[int] = None
 
     # نتیجه
     outcome: Optional[str] = None          # None = هنوز باز
@@ -70,6 +83,13 @@ class Entry:
     # v0.29 (فاز ۳): Rِ *خالصِ* پس‌از‌هزینه، کنارِ `r`ِ ناخالص. هیچ‌وقت
     # جایگزینِ `r` نمی‌شود — هر دو گزارش می‌شوند تا تاریخچه گم نشود.
     net_r: Optional[float] = None
+    # v0.29 (فاز ۴): بیشینهٔ نوسانِ سود / زیان (بر حسب R) در بازهٔ معامله.
+    # MFE = قیمت تا کجا به نفع ما رفت · MAE = تا کجا علیه ما.
+    # این دو همان داده‌ای‌اند که برای تنظیمِ لایهٔ خروج لازم است: اگر MFE
+    # میانهٔ معامله‌ها ۱٫۵R باشد، هدفِ ۲R زیادی دور است و سر‌به‌سر در ۱R
+    # کمک می‌کند. None = ثبت نشده (رکوردهای قدیمی) — هرگز صفرِ ساختگی.
+    mfe_r: Optional[float] = None
+    mae_r: Optional[float] = None
     note: str = ""
 
     # ── ویژگی‌ها ────────────────────────────────────────────
@@ -88,6 +108,15 @@ class Entry:
     @property
     def risk_price(self) -> float:
         return (self.risk_pips or 0.0) * (self.pip or 0.0001)
+
+    @property
+    def rules(self) -> int:
+        """نسخهٔ قواعدِ این رکورد — رکوردهای بی‌فیلد، قدیمی شمرده می‌شوند.
+
+        صریح و بدون حدس: نبودِ فیلد یعنی رکورد پیش از v0.29، نه «نسخهٔ ۰»
+        و نه نسخهٔ جاری.
+        """
+        return int(self.rules_version or LEGACY_RULES_VERSION)
 
     @property
     def week_key(self) -> str:
@@ -154,6 +183,8 @@ class Journal:
             strategies=[str(k) for k in (rec.get("strategies") or [])],
             entry_ts=_parse_dt(rec.get("entry_ts")),
             spread_pips=float(rec.get("spread_pips") or 0.0),
+            rules_version=(int(rec["rules_version"])
+                           if rec.get("rules_version") is not None else None),
         )
 
     @staticmethod
@@ -163,6 +194,8 @@ class Journal:
         e.close_price = rec.get("close_price")
         e.r = rec.get("r")
         e.net_r = rec.get("net_r")
+        e.mfe_r = rec.get("mfe_r")
+        e.mae_r = rec.get("mae_r")
         e.note = rec.get("note", "")
 
     # ── نوشتن ───────────────────────────────────────────────
@@ -173,7 +206,9 @@ class Journal:
 
     def add_outcome(self, sid: str, outcome: str, close_price: float,
                     r: float, note: str = "", ts: Optional[datetime] = None,
-                    net_r: Optional[float] = None) -> None:
+                    net_r: Optional[float] = None,
+                    mfe_r: Optional[float] = None,
+                    mae_r: Optional[float] = None) -> None:
         """رکوردِ نتیجه را الحاق می‌کند.
 
         ``net_r`` (v0.29 فاز ۳) اختیاری است: None یعنی «هزینه مدل نشده»
@@ -186,6 +221,8 @@ class Journal:
                      "close_price": round(close_price, 6) if close_price is not None else None,
                      "r": round(r, 3) if r is not None else None,
                      "net_r": round(net_r, 3) if net_r is not None else None,
+                     "mfe_r": round(mfe_r, 3) if mfe_r is not None else None,
+                     "mae_r": round(mae_r, 3) if mae_r is not None else None,
                      "note": note})
 
     # ── پرس‌وجو ──────────────────────────────────────────────

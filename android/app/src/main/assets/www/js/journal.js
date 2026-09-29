@@ -8,6 +8,12 @@
   'use strict';
 
   O.TP = 'TP'; O.SL = 'SL'; O.EXPIRED = 'EXPIRED';
+  // v0.29 (فاز ۴) — آینهٔ src/journal/store.py. باید هم‌عدد بماند (پاریتی):
+  //   1 = قواعدِ پیش از v0.29 (رکورد فیلد را ندارد → همین فرض می‌شود).
+  //       این رکوردها زیرِ بایاسِ «ورودِ کهنه» سنجیده شده‌اند.
+  //   2 = قواعدِ v0.29: ورود از بستهٔ M15 · اسکن از entry_ts · net_r.
+  O.JOURNAL_RULES_VERSION = 2;
+  O.LEGACY_RULES_VERSION = 1;
   O.OUTCOME_FA = { TP: '🎯 هدف خورد', SL: '🛑 حد ضرر خورد', EXPIRED: '⏳ بدون برخورد منقضی شد' };
 
   // ── ذخیره‌سازی ──────────────────────────────────────────────
@@ -50,7 +56,7 @@
 
   // netR اختیاری است (v0.29 فاز ۳): null یعنی «هزینه مدل نشده» و خواننده
   // باید همان r را خالص بداند. آینهٔ add_outcome پایتون.
-  O.Journal.prototype.addOutcome = function (sid, outcome, closePrice, r, note, tsMs, netRVal) {
+  O.Journal.prototype.addOutcome = function (sid, outcome, closePrice, r, note, tsMs, netRVal, mfeR, maeR) {
     this.appendRec({
       kind: 'outcome', id: sid,
       ts: new Date(tsMs || Date.now()).toISOString(),
@@ -58,6 +64,8 @@
       close_price: closePrice != null ? Math.round(closePrice * 1e6) / 1e6 : null,
       r: r != null ? Math.round(r * 1000) / 1000 : null,
       net_r: netRVal != null ? Math.round(netRVal * 1000) / 1000 : null,
+      mfe_r: mfeR != null ? Math.round(mfeR * 1000) / 1000 : null,
+      mae_r: maeR != null ? Math.round(maeR * 1000) / 1000 : null,
       note: note || ''
     });
   };
@@ -92,8 +100,11 @@
         return isNaN(v) ? null : v;
       })(),
       spread_pips: +rec.spread_pips || 0,
+      // نبودِ فیلد = رکوردِ قدیمی → null → e.rules همان ۱ می‌شود (صریح،
+      // نه حدس). آینهٔ Entry.rules_version پایتون.
+      rules_version: (rec.rules_version != null ? (rec.rules_version | 0) : null),
       outcome: null, outcome_ts: null, close_price: null, r: null,
-      net_r: null, note: ''
+      net_r: null, mfe_r: null, mae_r: null, note: ''
     };
   }
 
@@ -103,6 +114,8 @@
     e.close_price = rec.close_price != null ? rec.close_price : null;
     e.r = rec.r != null ? rec.r : null;
     e.net_r = rec.net_r != null ? rec.net_r : null;
+    e.mfe_r = rec.mfe_r != null ? rec.mfe_r : null;
+    e.mae_r = rec.mae_r != null ? rec.mae_r : null;
     e.note = rec.note || '';
   }
 
@@ -110,6 +123,10 @@
   O.entryIsWin = function (e) { return e.outcome === O.TP; };
   O.entryIsLoss = function (e) { return e.outcome === O.SL; };
   O.entryRiskPrice = function (e) { return (e.risk_pips || 0) * (e.pip || 0.0001); };
+  // نسخهٔ قواعدِ این رکورد — بی‌فیلد یعنی قدیمی. آینهٔ Entry.rules پایتون.
+  O.entryRules = function (e) {
+    return (e.rules_version != null) ? e.rules_version : O.LEGACY_RULES_VERSION;
+  };
 
   O.isoWeekKey = function (ms) {
     var d = new Date(ms);
@@ -172,18 +189,46 @@
     return (e.entry_ts != null) ? (barT >= e.entry_ts) : (barT > e.ts);
   }
 
-  function scanBars(e, candles, conservative) {
+  // clamp به قراردادِ استاندارد: mfe ≥ ۰ و mae ≤ ۰. null دست‌نخورده
+  // (یعنی «ثبت نشده»، نه صفرِ ساختگی). آینهٔ _clamp/_clamp_a پایتون.
+  function clampMfe(v) { return v == null ? null : Math.max(0, v); }
+  function clampMae(v) { return v == null ? null : Math.min(0, v); }
+
+  // (سودِ این کندل, زیانِ این کندل) بر حسب R — آینهٔ _excursions پایتون.
+  // عمداً سقف/کفِ *واقعیِ* کندل سنجیده می‌شود نه سطحِ هدف: پرسشِ «هدفِ ۲R
+  // زیادی دور بود؟» فقط با دیدنِ حرکتِ واقعی پاسخ دارد.
+  function excursions(e, high, low, risk) {
+    if (!(risk > 0)) return null;
+    return (e.direction === 'BUY')
+      ? [(high - e.entry) / risk, (low - e.entry) / risk]
+      : [(e.entry - low) / risk, (e.entry - high) / risk];
+  }
+
+  // برمی‌گرداند {hit, mfe, mae}. MFE/MAE روی همهٔ کندل‌های در بازه حساب
+  // می‌شود حتی اگر برخوردی نباشد — سناریوی انقضا هم به آن نیاز دارد.
+  // `until` کرانِ زمانی است (برای انقضا) تا حرکتِ پس از انقضا قاطی نشود.
+  function scanBars(e, candles, conservative, until) {
+    var risk = O.entryRiskPrice(e), mfe = null, mae = null;
     for (var i = 0; i < candles.length; i++) {
       var bar = candles[i];
       if (!inScope(e, bar.t)) continue;
+      if (until != null && bar.t > until) break;
+      var ex = excursions(e, bar.h, bar.l, risk);
+      if (ex) {
+        mfe = (mfe == null) ? ex[0] : Math.max(mfe, ex[0]);
+        mae = (mae == null) ? ex[1] : Math.min(mae, ex[1]);
+      }
       var hitTp, hitSl;
       if (e.direction === 'BUY') { hitTp = bar.h >= e.tp; hitSl = bar.l <= e.sl; }
       else { hitTp = bar.l <= e.tp; hitSl = bar.h >= e.sl; }
-      if (hitTp && hitSl) return conservative ? [O.SL, e.sl] : [O.TP, e.tp];
-      if (hitTp) return [O.TP, e.tp];
-      if (hitSl) return [O.SL, e.sl];
+      if (hitTp && hitSl) {
+        return { hit: conservative ? [O.SL, e.sl] : [O.TP, e.tp],
+                 mfe: clampMfe(mfe), mae: clampMae(mae) };
+      }
+      if (hitTp) return { hit: [O.TP, e.tp], mfe: clampMfe(mfe), mae: clampMae(mae) };
+      if (hitSl) return { hit: [O.SL, e.sl], mfe: clampMfe(mfe), mae: clampMae(mae) };
     }
-    return null;
+    return { hit: null, mfe: clampMfe(mfe), mae: clampMae(mae) };
   }
 
   // v0.29: پیش‌تر این تابع *همهٔ* کندل‌های موجود را بدون کرانِ زمانی
@@ -210,12 +255,19 @@
     journal.openEntries().forEach(function (e) {
       var md = datasets[e.symbol];
       var bars = (md && md.m15 && md.m15.length) ? md.m15 : [];
-      var hit = bars.length ? scanBars(e, bars, conservative) : null;
+      var scan = bars.length ? scanBars(e, bars, conservative, null)
+                             : { hit: null, mfe: null, mae: null };
+      var hit = scan.hit, mfe = scan.mfe, mae = scan.mae;
 
       var rOverride = null, outcome, closePrice, note = '';
       if (hit === null && (nowMs - e.ts) > expiryH * 3600e3) {
         var close = (md && md.m15 && md.m15.length) ? md.m15[md.m15.length - 1].c : null;
         outcome = O.EXPIRED; closePrice = close;
+        if (close !== null && bars.length) {
+          // MFE/MAEٔ معاملهٔ منقضی تا لحظهٔ انقضا، نه تا آخرین کندلِ موجود
+          var sc2 = scanBars(e, bars, conservative, e.ts + expiryH * 3600e3);
+          mfe = sc2.mfe; mae = sc2.mae;
+        }
         if (close === null) {
           note = 'تا ' + O.pyFixed(expiryH, 0) + ' ساعت نه هدف خورد نه حد ضرر؛ قیمت لحظهٔ انقضا در دسترس نبود پس R صفر ثبت شد';
           rOverride = 0;
@@ -233,8 +285,9 @@
 
       var r = rOverride !== null ? rOverride : rFor(e, outcome, closePrice);
       var nr = netR(e, outcome, r);
-      journal.addOutcome(e.id, outcome, closePrice, r, note, nowMs, nr);
+      journal.addOutcome(e.id, outcome, closePrice, r, note, nowMs, nr, mfe, mae);
       e.outcome = outcome; e.close_price = closePrice; e.r = r; e.net_r = nr;
+      e.mfe_r = mfe; e.mae_r = mae;
       e.note = note; e.outcome_ts = nowMs;
       resolved.push(e);
       // لاگ هر دو را نشان می‌دهد وقتی هزینه مدل شده — پنهان نمی‌کنیم
@@ -274,6 +327,36 @@
     return b;
   }
 
+  // ── آمارِ نوسانِ درون‌معامله‌ای (v0.29 فاز ۴) — آینهٔ Excursions پایتون ──
+  // ⚠️ همبستگی ≠ علیت: «سر‌به‌سر در ۱R این باخت‌ها را نجات می‌داد» یک
+  // گزارهٔ بازخوانیِ گذشته است. همان قاعده، بردهایی را هم که در ۱R حرارت
+  // دیده‌اند می‌کُشد — پس هر دو نرخ با هم گزارش می‌شوند، هیچ‌کدام تنها.
+  function Excursions() {
+    return { n: 0, mfe_sum: 0, mae_sum: 0, mfe_values: [], mae_values: [],
+             losers_reached_1r: 0, losers: 0, winners_dipped_1r: 0, winners: 0 };
+  }
+  function excursionsAdd(x, mfe, mae, isWin, isLoss) {
+    x.n += 1; x.mfe_sum += mfe; x.mae_sum += mae;
+    x.mfe_values.push(mfe); x.mae_values.push(mae);
+    if (isLoss) { x.losers += 1; if (mfe >= 1.0) x.losers_reached_1r += 1; }
+    else if (isWin) { x.winners += 1; if (mae <= -1.0) x.winners_dipped_1r += 1; }
+  }
+  function medianOf(vals) {
+    if (!vals.length) return null;
+    var v = vals.slice().sort(function (a, b) { return a - b; });
+    var n = v.length, m = Math.floor(n / 2);
+    return (n % 2) ? v[m] : (v[m - 1] + v[m]) / 2;
+  }
+  O.excursionRates = function (x) {
+    return {
+      median_mfe: medianOf(x.mfe_values), median_mae: medianOf(x.mae_values),
+      avg_mfe: x.n ? x.mfe_sum / x.n : null,
+      avg_mae: x.n ? x.mae_sum / x.n : null,
+      losers_reached_1r_rate: x.losers ? x.losers_reached_1r / x.losers : null,
+      winners_dipped_1r_rate: x.winners ? x.winners_dipped_1r / x.winners : null
+    };
+  };
+
   function scoreBucket(score) {
     if (score >= 10) return '۱۰–۱۱';
     if (score >= 9) return '۹';
@@ -285,11 +368,23 @@
     var st = {
       now: nowMs, total: entries.length, open_count: 0,
       overall: Bucket(), by_week: {}, by_symbol: {}, by_direction: {}, by_score: {}, by_evidence: {},
-      by_strategy: {}
+      by_strategy: {},
+      // v0.29 (فاز ۴): تفکیک بر پایهٔ نسخهٔ قواعد + آمارِ نوسان
+      by_rules: {}, excursions: Excursions()
     };
     entries.forEach(function (e) {
       if (e.outcome == null) { st.open_count += 1; return; }
       bucketAdd(st.overall, e);
+      // تفکیکِ نسخهٔ قواعد — رکوردهای بایاس‌دارِ قدیمی هرگز با رکوردهای
+      // v0.29 در یک سطل نمی‌روند
+      var rv = O.entryRules(e);
+      if (!st.by_rules[rv]) st.by_rules[rv] = Bucket();
+      bucketAdd(st.by_rules[rv], e);
+      // نوسان فقط روی رکوردهایی که *واقعاً* داده دارند (null شمرده نمی‌شود؛
+      // میانگین روی مجموعهٔ ناهمگن عددِ بی‌معنی می‌داد)
+      if (e.mfe_r != null && e.mae_r != null) {
+        excursionsAdd(st.excursions, e.mfe_r, e.mae_r, O.entryIsWin(e), O.entryIsLoss(e));
+      }
       var wk = O.entryWeekKey(e);
       if (!st.by_week[wk]) st.by_week[wk] = Bucket();
       bucketAdd(st.by_week[wk], e);

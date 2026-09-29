@@ -81,10 +81,22 @@
   "stats": {
    "by_direction": {},
    "by_evidence": {},
+   "by_rules": {},
    "by_score": {},
    "by_strategy": {},
    "by_symbol": {},
    "by_week": {},
+   "excursions": {
+    "losers": 0,
+    "losers_reached_1r": 0,
+    "mae_sum": 0.0,
+    "mae_values": [],
+    "mfe_sum": 0.0,
+    "mfe_values": [],
+    "n": 0,
+    "winners": 0,
+    "winners_dipped_1r": 0
+   },
    "now": "2026-09-16T14:30:00+00:00",
    "open_count": 0,
    "overall": {

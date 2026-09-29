@@ -605,6 +605,46 @@ group('۱۰) نگهبان‌ها — ES5 · مصرف‌کننده‌های مج�
 }
 
 // ══════════════════════════════════════════════════════════════
+// v0.29 (فاز ۴): پاریتیِ نسخهٔ قواعدِ ژورنال در سه تعریفِ جدا.
+// چرا نگهبان لازم است: این عدد در سه جا *عمداً* محلی تعریف شده
+// (store.py · journal.js · judge.js) تا وابستگیِ ترتیبِ بارگذاری نسازد.
+// همان دلیلِ محلی‌بودن، دلیلِ خطرناک بودنش است: واگرایی بی‌صدا اتفاق
+// می‌افتد. یک نمونهٔ واقعی هم حینِ توسعه دیده شد — judge.js به
+// O.JOURNAL_RULES_VERSION ارجاع داد که در زمانِ بارگذاری undefined بود و
+// JSON.stringify بی‌صدا حذفش کرد؛ رکوردهای ژورنال بدون rules_version
+// نوشته می‌شدند، یعنی همان باگی که این فاز آمده بود رفع کند.
+group('۱۱) پاریتیِ نسخهٔ قواعدِ ژورنال (سه تعریفِ محلیِ هم‌عدد)');
+{
+  function grab(re, file, label) {
+    const m = read(file, path.basename(file)).match(re);
+    ok(!!m, label + ': عدد از سورس استخراج شد');
+    return m ? +m[1] : null;
+  }
+  const pyCur = grab(/^JOURNAL_RULES_VERSION\s*=\s*(\d+)/m,
+    path.join(ROOT, 'src', 'journal', 'store.py'), 'store.py CURRENT');
+  const pyLeg = grab(/^LEGACY_RULES_VERSION\s*=\s*(\d+)/m,
+    path.join(ROOT, 'src', 'journal', 'store.py'), 'store.py LEGACY');
+  const jsCur = grab(/O\.JOURNAL_RULES_VERSION\s*=\s*(\d+)/,
+    path.join(WWW, 'js', 'journal.js'), 'journal.js CURRENT');
+  const jsLeg = grab(/O\.LEGACY_RULES_VERSION\s*=\s*(\d+)/,
+    path.join(WWW, 'js', 'journal.js'), 'journal.js LEGACY');
+  const jdCur = grab(/^\s*var JOURNAL_RULES_VERSION\s*=\s*(\d+)/m,
+    path.join(WWW, 'js', 'judge.js'), 'judge.js CURRENT');
+
+  ok(pyCur === jsCur && pyCur === jdCur,
+    'CURRENT باید در هر سه یکی باشد — store.py=' + pyCur + ' journal.js='
+    + jsCur + ' judge.js=' + jdCur);
+  ok(pyLeg === jsLeg,
+    'LEGACY باید در هر دو یکی باشد — store.py=' + pyLeg + ' journal.js=' + jsLeg);
+  ok(pyCur > pyLeg,
+    'CURRENT باید از LEGACY بزرگ‌تر باشد (' + pyCur + ' > ' + pyLeg + ')');
+
+  // ⚠️ بررسیِ *رفتاریِ* «رکوردِ ژورنال واقعاً rules_version دارد» در
+  // test_judge_switch.js است، چون این سوئیت فقط core.js را بار می‌کند
+  // (و صریحاً ادعا می‌کند O تنها یک کلید دارد).
+}
+
+// ══════════════════════════════════════════════════════════════
 console.log('\n' + '═'.repeat(56));
 if (failures) {
   console.log('✗ SMOKE CORE FAILED — ' + failures + ' از ' + checks + ' بررسی شکست خورد');

@@ -39,7 +39,12 @@ const GOLDEN_PATH = path.join(HERE, 'judge_rules_js_golden.json');
 function fileList() {
   const base = ['md5.js', 'fa.js', 'icons.js', 'license.js', 'config.js',
     'indicators.js', 'session.js', 'technical.js', 'calendar.js', 'news.js', 'judge.js',
-    'strategies.js'];   // S3: دروازهٔ توافق، استراتژی‌ها را در VM لازم دارد
+    'strategies.js',   // S3: دروازهٔ توافق، استراتژی‌ها را در VM لازم دارد
+    // v0.29 (فاز ۴): journal.js هم لازم است — testJournalRecordSchema
+    // رفت‌وبرگشتِ واقعیِ رکورد را از O.Journal می‌سنجد و O.entryRules/
+    // JOURNAL_RULES_VERSION را مقایسه می‌کند. افزودنش فقط کلیدهای تازه به
+    // O می‌چسباند؛ رفتارِ داور را عوض نمی‌کند (با diffِ طلایی راستی‌آزمایی شد).
+    'journal.js'];
   const pre = ['core.js', 'plugins.js'].filter((f) => fs.existsSync(path.join(WWW, f)));
   return pre.concat(base);
 }
