@@ -80,6 +80,14 @@
       // S4 (v0.27): کلیدِ استراتژی‌های هم‌جهت — رکوردهای قدیمی کلید را
       // ندارند → فهرست خالی (صادقانه؛ آینهٔ Entry.strategies پایتون)
       strategies: (rec.strategies || []).slice(),
+      // v0.29 (فاز ۱): زمانِ بسته‌شدنِ کندلی که قیمتِ ورود از آن آمده.
+      // آینهٔ Entry.entry_ts پایتون. رکوردهای قدیمی ندارند → null →
+      // scanBars به رفتارِ دقیقاً قبلی برمی‌گردد (سازگاری بدون حدس).
+      entry_ts: (function () {
+        if (!rec.entry_ts) return null;
+        var v = Date.parse(rec.entry_ts);
+        return isNaN(v) ? null : v;
+      })(),
       outcome: null, outcome_ts: null, close_price: null, r: null, note: ''
     };
   }
@@ -134,10 +142,22 @@
     return diff / risk;
   }
 
+  // ── «لحظهٔ ورود» کدام است؟ (v0.29 فاز ۱) ────────────────────
+  // پیش‌تر اسکن از e.ts شروع می‌شد — دیوارساعتِ لحظهٔ صدور — در حالی که
+  // e.entry (قیمت) بستهٔ یک کندلِ قدیمی‌تر بود. این دو تا یک ساعت اختلاف
+  // داشتند و کارنامه را خوش‌بینانه می‌کردند (برد ~۴ برابر بیش‌برآورد و
+  // باخت ~۲٫۵ برابر کم‌برآورد). حالا اسکن از entry_ts شروع می‌شود =
+  // زمانِ بسته‌شدنِ همان کندلی که قیمت از آن آمده. رکوردهای قدیمی
+  // entry_ts ندارند → رفتارِ دقیقاً قبلی (عمداً عوض نمی‌شود تا آمارِ
+  // گذشته بی‌صدا جابه‌جا نشود). آینهٔ _in_scope پایتون.
+  function inScope(e, barT) {
+    return (e.entry_ts != null) ? (barT >= e.entry_ts) : (barT > e.ts);
+  }
+
   function scanBars(e, candles, conservative) {
     for (var i = 0; i < candles.length; i++) {
       var bar = candles[i];
-      if (bar.t <= e.ts) continue;
+      if (!inScope(e, bar.t)) continue;
       var hitTp, hitSl;
       if (e.direction === 'BUY') { hitTp = bar.h >= e.tp; hitSl = bar.l <= e.sl; }
       else { hitTp = bar.l <= e.tp; hitSl = bar.h >= e.sl; }
@@ -148,9 +168,14 @@
     return null;
   }
 
-  function bothTouch(e, md) {
-    if (!md || !md.m15) return false;
-    return md.m15.some(function (bar) {
+  // v0.29: پیش‌تر این تابع *همهٔ* کندل‌های موجود را بدون کرانِ زمانی
+  // می‌دید — یعنی برخوردِ دوگانه‌ای که پیش از ورود رخ داده بود هم
+  // «هر دو سطح در یک کندل خوردند» یادداشت می‌گرفت. حالا همان قاعدهٔ
+  // inScope را دارد. آینهٔ _both_touch پایتون.
+  function bothTouch(e, candles) {
+    if (!candles || !candles.length) return false;
+    return candles.some(function (bar) {
+      if (!inScope(e, bar.t)) return false;
       return e.direction === 'BUY'
         ? (bar.h >= e.tp && bar.l <= e.sl)
         : (bar.l <= e.tp && bar.h >= e.sl);
@@ -166,8 +191,8 @@
 
     journal.openEntries().forEach(function (e) {
       var md = datasets[e.symbol];
-      var hit = null;
-      if (md && md.m15 && md.m15.length) hit = scanBars(e, md.m15, conservative);
+      var bars = (md && md.m15 && md.m15.length) ? md.m15 : [];
+      var hit = bars.length ? scanBars(e, bars, conservative) : null;
 
       var rOverride = null, outcome, closePrice, note = '';
       if (hit === null && (nowMs - e.ts) > expiryH * 3600e3) {
@@ -181,7 +206,7 @@
         }
       } else if (hit !== null) {
         outcome = hit[0]; closePrice = hit[1];
-        if (outcome === O.SL && conservative && bothTouch(e, md)) {
+        if (outcome === O.SL && conservative && bothTouch(e, bars)) {
           note = 'هر دو سطح در یک کندل خوردند؛ محتاطانه ضرر شمرده شد';
         }
       } else {

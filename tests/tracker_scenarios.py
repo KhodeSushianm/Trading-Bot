@@ -116,7 +116,7 @@ def run_scenario(sc: dict) -> dict:
             for extra in ("net_r", "mfe_r", "mae_r", "rules_version", "entry_ts"):
                 v = getattr(e, extra, None)
                 if v is not None:
-                    row[extra] = v
+                    row[extra] = v.isoformat() if isinstance(v, datetime) else v
             out["entries"][e.id] = row
         return out
 

@@ -168,6 +168,12 @@ class Signal:
     # دارد). ژورنال فقط کلیدِ موافق‌ها را نگه می‌دارد (فشرده و کافی برای
     # «نرخ برد به تفکیک استراتژی» در آینده).
     strategies: list = field(default_factory=list)
+    # v0.29 (فاز ۱): زمانِ بسته‌شدنِ کندلی که `entry` از آن آمده.
+    # `now` دیوارساعتِ لحظهٔ صدور است (برای نمایش/کول‌داون/هفتهٔ آمار)؛
+    # `entry_ts` لحظهٔ واقعیِ خودِ قیمت است (برای شروعِ اسکنِ نتیجه).
+    # پیش‌تر این دو یکی فرض می‌شدند و تا یک ساعت اختلاف داشتند — همان باگِ
+    # «ورودِ کهنه». None = دادهٔ زمانی نبود → tracker رفتارِ قبلی را نگه می‌دارد.
+    entry_ts: Optional[datetime] = None
 
     @property
     def direction_fa(self) -> str:
@@ -185,6 +191,9 @@ class Signal:
             "kind": "signal",
             "id": self.sid,
             "ts": self.now.isoformat(),
+            # v0.29: زمانِ خودِ قیمتِ ورود (نه دیوارساعتِ صدور). رکوردهای
+            # قدیمی این کلید را ندارند → None → رفتارِ قبلی (سازگار).
+            "entry_ts": self.entry_ts.isoformat() if self.entry_ts else None,
             "symbol": self.symbol,
             "direction": self.direction,
             "entry": round(self.entry, 6),
@@ -827,6 +836,7 @@ def judge_symbol(a: SymbolAnalysis, sym_cfg: dict, md: Optional[MarketData],
         is_gold=bool(pip >= 0.5), session_fa=ctx.status.label, now=ctx.now,
         evidences=j.evidences, warnings=j.warnings, sl_capped=capped,
         strategies=j.strategies,
+        entry_ts=getattr(a, "price_ts", None),
     )
     return j
 

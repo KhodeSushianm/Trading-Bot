@@ -21,13 +21,14 @@ from __future__ import annotations
 import json
 import pathlib
 import sys
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 _ROOT = pathlib.Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(_ROOT))
 
 from tests.tracker_scenarios import battery, scenarios  # noqa: E402
 from src.journal.store import EXPIRED, SL, TP  # noqa: E402
+from src.journal.tracker import resolve_open_signals  # noqa: E402
 
 GOLDEN = _ROOT / "tests" / "golden" / "tracker_golden.json"
 
@@ -189,10 +190,12 @@ for sc_name, sig_id, direction, entry, sl, tp in [
           f"دست‌یافتنی={b['achievable_r']:+.2f}R  "
           f"شکاف={b['gap']:+.2f}R  (×{b['ratio']:.1f})")
 
-# ── پینِ فاز ۰: بایاس *وجود دارد* و بزرگ است ──────────────────
-# بعد از فاز ۲ (ورود از بستهٔ M15) این سه ادعا وارونه می‌شوند:
-# شکاف باید ≈ صفر شود. وارونه‌کردنِ این بخش، بخشی از سوییچِ مستندِ فاز ۲ است.
-BIAS_PINNED = True          # ← فاز ۲ این را False می‌کند
+# ── نشانگرهای فاز ─────────────────────────────────────────────
+# هر نشانگر «وضعیتِ فعلیِ کد» را اعلام می‌کند؛ با انجامِ هر فاز، همان فاز
+# نشانگرش را وارونه می‌کند و بازضبطِ طلایی مستند می‌شود. این یعنی تست
+# هیچ‌وقت بی‌صدا از یک مرحله عبور نمی‌کند (قانون ۴ ریپو).
+ENTRY_TS_HONOURED = True    # ✅ فاز ۱ انجام شد — tracker از entry_ts پیروی می‌کند
+BIAS_PINNED = True          # ⬜ فاز ۲ این را False می‌کند (ورود از بستهٔ M15)
 max_gap = max(abs(r[3]) for r in bias_rows)
 if BIAS_PINNED:
     A(max_gap > 0.5,
@@ -206,12 +209,126 @@ else:
     A(max_gap < 1e-9,
       f"[فاز ۲] بایاس باید بسته شده باشد (بزرگ‌ترین شکاف {max_gap:.6f}R)")
 
-A(actual.get("entry_ts_honoured", {}).get("entries", {})
-  .get("with_ts", {}).get("is_open") is (True if BIAS_PINNED else False),
-  "entry_ts_honoured: در فاز ۰ باز می‌ماند (کد فعلی entry_ts را نادیده "
-  "می‌گیرد)؛ در فاز ۱ باید TP شود")
+_ets = actual.get("entry_ts_honoured", {}).get("entries", {}).get("with_ts", {})
+if ENTRY_TS_HONOURED:
+    A(_ets.get("outcome") == TP and _ets.get("r") == 2.0,
+      f"entry_ts_honoured: اسکن از entry_ts شروع می‌شود → TP "
+      f"({_ets.get('outcome')}, r={_ets.get('r')})")
+    A(_ets.get("entry_ts") == "2026-09-14T10:30:00+00:00",
+      f"entry_ts در خروجی بازتاب می‌شود ({_ets.get('entry_ts')})")
+else:
+    A(_ets.get("is_open") is True,
+      "entry_ts_honoured: کد entry_ts را نادیده می‌گیرد → باز می‌ماند")
 
 print(f"   بزرگ‌ترین شکافِ اندازه‌گیری‌شده: {max_gap:+.2f}R")
+
+# ══════════════════════════════════════════════════════════════
+#  D) زنجیرهٔ سرتاسری — price_ts → Signal.entry_ts → ژورنال → tracker
+# ══════════════════════════════════════════════════════════════
+# چرا این بخش لازم است: همهٔ طلایی‌های داور SymbolAnalysis را *دستی*
+# می‌سازند، پس price_ts در آن‌ها همیشه None است (به‌همین دلیل در طلایی‌ها
+# "entry_ts": null دیده می‌شود). یعنی بدون این بخش، مسیرِ واقعیِ
+# analyze_symbol → judge_symbol → to_journal → Journal → resolve_open_signals
+# هیچ پینی نداشت — دقیقاً همان الگویی که باگِ v0.29 از لای آن رد شد.
+print("═" * 70)
+print("D) زنجیرهٔ سرتاسریِ entry_ts")
+print("═" * 70)
+
+import tempfile
+from pathlib import Path as _Path
+
+import pandas as pd
+
+from src.analysis.technical import PRICE_TF_MIN, analyze_symbol
+from src.data.base import MarketData
+from src.journal.store import Journal
+from src.judge.scoring import judge_symbol
+from tests.golden.gen_judge_golden import (clean_cal, make_analysis, make_ctx,
+                                           ACFG)
+
+# ── D1: analyze_symbol قیمت و زمانش را از *یک* کندل می‌گیرد ──────
+_H1_END = datetime(2026, 9, 23, 13, 0, tzinfo=timezone.utc)   # نمایهٔ آخرین H1
+_h1i = pd.date_range(_H1_END - timedelta(hours=219), periods=220, freq="1h", tz="UTC")
+_h1 = pd.DataFrame({"Open": [1.10] * 220, "High": [1.102] * 220,
+                    "Low": [1.098] * 220,
+                    "Close": [1.10 + i * 1e-5 for i in range(220)]}, index=_h1i)
+_m15i = pd.date_range(_H1_END - timedelta(minutes=15 * 95), periods=96,
+                      freq="15min", tz="UTC")
+_m15 = pd.DataFrame({"Open": [1.10] * 96, "High": [1.102] * 96,
+                     "Low": [1.098] * 96,
+                     "Close": [1.10 + i * 1e-5 for i in range(96)]}, index=_m15i)
+_h4 = _h1.resample("4h").agg({"Open": "first", "High": "max",
+                              "Low": "min", "Close": "last"}).dropna()
+_md = MarketData(symbol="EURUSD", m15=_m15, h1=_h1, h4=_h4)
+_sym = {"name": "EURUSD", "fa": "یورو به دلار آمریکا", "base": "EUR",
+        "quote": "USD", "pip": 0.0001}
+
+_a = analyze_symbol(_sym, _md, ACFG)
+A(_a.price == float(_h1["Close"].iloc[-1]),
+  f"D1: price بستهٔ آخرین کندل است ({_a.price})")
+A(_a.price_ts == _H1_END + timedelta(minutes=PRICE_TF_MIN),
+  f"D1: price_ts = نمایهٔ کندل + {PRICE_TF_MIN} دقیقه "
+  f"(انتظار {_H1_END + timedelta(minutes=PRICE_TF_MIN)}، واقعی {_a.price_ts})")
+
+# ── D2: judge_symbol آن را به Signal منتقل می‌کند ────────────────
+# کهنگیِ عمدی: قیمت از کندلی است که ۱۳:۱۵ بسته شده، ولی صدور ۱۴:۰۰ رخ
+# می‌دهد — همان فاصلهٔ ۴۵ دقیقه‌ای که باگ از آن رد می‌شد.
+_ENTRY_TS = datetime(2026, 9, 23, 13, 15, tzinfo=timezone.utc)
+_NOW = datetime(2026, 9, 23, 14, 0, tzinfo=timezone.utc)
+_a2 = make_analysis(price_ts=_ENTRY_TS)
+_ctx = make_ctx(now=_NOW, cal=clean_cal())
+# strategy_rules=None → دروازهٔ توافق تزریق نمی‌شود (مسیر v0.25). هدفِ این
+# بخش سنجشِ *زمان‌ها* است نه استراتژی‌ها؛ دروازهٔ S3 پینِ خودش را دارد.
+_j = judge_symbol(_a2, {}, None, _ctx, strategy_rules=None)
+A(_j.signal is not None, f"D2: سیگنال صادر شد (reject={_j.reject_reason!r})")
+if _j.signal is not None:
+    A(_j.signal.entry_ts == _ENTRY_TS,
+      f"D2: Signal.entry_ts == price_ts تحلیل ({_j.signal.entry_ts})")
+    A(_j.signal.now == _NOW and _j.signal.now != _j.signal.entry_ts,
+      f"D2: now (دیوارساعتِ صدور) از entry_ts (لحظهٔ قیمت) جدا است: "
+      f"{_j.signal.now} ≠ {_j.signal.entry_ts}")
+
+    # ── D3: to_journal هر دو را می‌نویسد ──────────────────────────
+    rec = _j.signal.to_journal(sent=True)
+    A("entry_ts" in rec, "D3: رکورد ژورنال کلید entry_ts دارد")
+    A(rec["entry_ts"] == _ENTRY_TS.isoformat(),
+      f"D3: entry_ts به ISO نوشته شد ({rec['entry_ts']})")
+    A(rec["ts"] == _NOW.isoformat(),
+      f"D3: ts همان دیوارساعتِ صدور است ({rec['ts']})")
+
+    # ── D4: رفت‌وبرگشت از فایل (append-only) ──────────────────────
+    with tempfile.TemporaryDirectory() as _tmp:
+        _jr = Journal(_Path(_tmp) / "signals.jsonl")
+        _jr.append(rec)
+        _back = _jr.load()[0]
+        A(_back.entry_ts == _ENTRY_TS,
+          f"D4: Entry.entry_ts از فایل بازخوانی شد ({_back.entry_ts})")
+        A(_back.ts == _NOW, f"D4: Entry.ts دست‌نخورده ({_back.ts})")
+
+        # ── D5: tracker از entry_ts اسکن می‌کند نه از ts ───────────
+        # هندسه: قیمتِ ورود از کندلی است که ۱۳:۱۵ بسته شده؛ صدور ۱۴:۰۰.
+        # کندلِ نمایهٔ ۱۳:۱۵ هدف را می‌زند.
+        #   قاعدهٔ قدیمی (index <= ts=14:00) → همهٔ کندل‌ها رد → «باز»
+        #   قاعدهٔ تازه (index >= entry_ts=13:15) → کندلِ ۱۳:۱۵ دیده → TP
+        _tp = _j.signal.tp
+        _bars = pd.DataFrame(
+            {"Open": [_a2.price, _tp, _a2.price, _a2.price],
+             "High": [_a2.price + 0.0001, _tp + 0.0004, _a2.price, _a2.price],
+             "Low": [_a2.price - 0.0001, _tp - 0.0001, _a2.price, _a2.price],
+             "Close": [_a2.price, _tp, _a2.price, _a2.price]},
+            index=pd.date_range(_ENTRY_TS - timedelta(minutes=15), periods=4,
+                                freq="15min", tz="UTC"))
+        _ds = {"EURUSD": MarketData(symbol="EURUSD", m15=_bars, h1=_bars, h4=_bars)}
+        _cfgd = {"journal": {"enabled": True, "expiry_hours": 48,
+                             "conservative_both_touch": True}}
+        _res = resolve_open_signals(_jr, _ds, now=_NOW + timedelta(minutes=20),
+                                    cfg=_cfgd, on_log=lambda _m: None)
+        _e = _jr.load()[0]
+        A(len(_res) == 1 and _e.outcome == TP,
+          f"D5: اسکن از entry_ts شروع شد → TP "
+          f"(outcome={_e.outcome}, resolved={len(_res)})")
+
+print("   زنجیرهٔ analyze_symbol → judge → journal → tracker میخ شد")
 
 # ══════════════════════════════════════════════════════════════
 print("═" * 70)

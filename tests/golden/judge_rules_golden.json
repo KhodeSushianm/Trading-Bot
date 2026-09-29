@@ -484,6 +484,7 @@
      "atr": 0.001,
      "direction": "BUY",
      "entry": 1.149,
+     "entry_ts": null,
      "evidences": [
       "trend:2/2",
       "level:2/2",
@@ -849,6 +850,7 @@
      "atr": 0.001,
      "direction": "BUY",
      "entry": 1.149,
+     "entry_ts": null,
      "evidences": [
       "trend:2/2",
       "level:2/2",
@@ -1346,6 +1348,7 @@
      "atr": 0.001,
      "direction": "BUY",
      "entry": 1.149,
+     "entry_ts": null,
      "evidences": [
       "trend:2/2",
       "level:2/2",
@@ -1571,6 +1574,7 @@
      "atr": 0.001,
      "direction": "SELL",
      "entry": 1.149,
+     "entry_ts": null,
      "evidences": [
       "trend:2/2",
       "level:2/2",
@@ -2026,6 +2030,7 @@
      "atr": 0.001,
      "direction": "BUY",
      "entry": 1.149,
+     "entry_ts": null,
      "evidences": [
       "trend:2/2",
       "level:2/2",
@@ -2837,6 +2842,7 @@
      "atr": 0.001,
      "direction": "BUY",
      "entry": 1.149,
+     "entry_ts": null,
      "evidences": [
       "trend:2/2",
       "level:2/2",
@@ -3056,6 +3062,7 @@
      "atr": 0.001,
      "direction": "BUY",
      "entry": 1.149,
+     "entry_ts": null,
      "evidences": [
       "trend:2/2",
       "level:2/2",
@@ -3672,6 +3679,7 @@
      "atr": 0.001,
      "direction": "BUY",
      "entry": 1.149,
+     "entry_ts": null,
      "evidences": [
       "trend:2/2",
       "level:2/2",

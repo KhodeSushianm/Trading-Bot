@@ -37,13 +37,27 @@
 
     function lastTs(df) { return df && df.length ? new Date(df[df.length - 1].t) : null; }
 
+    // v0.29 (فاز ۱) — تایم‌فریمی که `price` از بستهٔ آن می‌آید (دقیقه).
+    // آینهٔ PRICE_TF_MIN در src/analysis/technical.py. فاز ۱ = ۶۰ (H1)؛
+    // فاز ۲ = ۱۵ (M15). باید همیشه با پایتون یکی بماند (پاریتی).
+    var PRICE_TF_MIN = 60;
+
+    // زمانِ **بسته‌شدنِ** آخرین کندل = نمایهٔ آن + طولِ بازه (ms).
+    // یاهو کندلِ درون‌روزی را با نمایهٔ «باز‌شدن» می‌دهد، پس بستهٔ کندلِ
+    // نمایهٔ T برابرِ قیمتِ لحظهٔ T+interval است. null = داده نبود.
+    function closeTs(df, intervalMin) {
+      if (!df || !df.length) return null;
+      return df[df.length - 1].t + intervalMin * 60000;
+    }
+
     // بررسی کفایت داده (دقیقاً مثل دسکتاپ)
     if (h4.length < emaSlowN + 10 || h1.length < emaSlowN + 10 || m15.length < rsiN + 10) {
       return Object.assign(common, {
         price: h1.length ? h1[h1.length - 1].c : 0,
         trend: 'none', h1_agrees: false, adx: 0, rsi: 50, rsi_rising: false,
         atr: 0, support: null, resistance: null,
-        last_candle: lastTs(m15), verdict: 'DATA'
+        last_candle: lastTs(m15), verdict: 'DATA',
+        price_ts: closeTs(h1, PRICE_TF_MIN)
       });
     }
 
@@ -76,7 +90,8 @@
       price: price, trend: trend, h1_agrees: h1Agrees,
       adx: adxV, rsi: rsiV, rsi_rising: rsiRising, atr: atrV,
       support: lv.support, resistance: lv.resistance,
-      last_candle: lastTs(m15), verdict: verdict
+      last_candle: lastTs(m15), verdict: verdict,
+      price_ts: closeTs(h1, PRICE_TF_MIN)
     });
   };
 

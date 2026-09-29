@@ -149,15 +149,20 @@
   "entry_ts_honoured": {
     "entries": {
       "with_ts": {
-        "close_price": null,
-        "is_open": true,
+        "close_price": 1.104,
+        "entry_ts": "2026-09-14T10:30:00+00:00",
+        "is_open": false,
         "note": "",
-        "outcome": null,
-        "r": null
+        "outcome": "TP",
+        "r": 2.0
       }
     },
-    "logs": [],
-    "resolved_first_call": [],
+    "logs": [
+      "📔 ژورنال: EURUSD BUY → 🎯 هدف خورد (R=+2.00)"
+    ],
+    "resolved_first_call": [
+      "with_ts"
+    ],
     "resolved_second_call": []
   },
   "expired_no_data": {

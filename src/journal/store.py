@@ -53,6 +53,11 @@ class Entry:
     # journal نوشته می‌شود؛ رکوردهای قدیمی کلید را ندارند → فهرست خالی
     # (صادقانه: در by_strategy شمرده نمی‌شوند، نه حدس زده)
     strategies: list[str] = field(default_factory=list)
+    # v0.29 (فاز ۱): زمانِ بسته‌شدنِ کندلی که `entry` از آن آمده.
+    # tracker اسکنِ نتیجه را از این لحظه شروع می‌کند، نه از `ts`
+    # (دیوارساعتِ صدور). رکوردهای قدیمی این فیلد را ندارند → None →
+    # رفتارِ دقیقاً قبلی (سازگاریِ backward بدون حدس).
+    entry_ts: Optional[datetime] = None
 
     # نتیجه
     outcome: Optional[str] = None          # None = هنوز باز
@@ -141,6 +146,7 @@ class Journal:
             session=rec.get("session", ""), evidences=list(rec.get("evidences") or []),
             sent=bool(rec.get("sent", True)),
             strategies=[str(k) for k in (rec.get("strategies") or [])],
+            entry_ts=_parse_dt(rec.get("entry_ts")),
         )
 
     @staticmethod

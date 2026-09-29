@@ -530,7 +530,10 @@
       rr: +rcfg.reward_risk,
       is_gold: pip >= 0.5, session_fa: ctx.status.label, now: ctx.nowMs,
       evidences: j.evidences, warnings: j.warnings, sl_capped: lv.capped,
-      strategies: j.strategies
+      strategies: j.strategies,
+      // v0.29 (فاز ۱): زمانِ بسته‌شدنِ کندلی که `entry` از آن آمده.
+      // آینهٔ Signal.entry_ts پایتون. null = دادهٔ زمانی نبود.
+      entry_ts: (a.price_ts != null ? a.price_ts : null)
     };
     return j;
   };
@@ -565,6 +568,9 @@
   O.signalToJournal = function (s, sent) {
     return {
       kind: 'signal', id: s.sid, ts: new Date(s.now).toISOString(),
+      // v0.29: زمانِ خودِ قیمتِ ورود (نه دیوارساعتِ صدور) — آینهٔ to_journal
+      // پایتون. رکوردهای قدیمی این کلید را ندارند → null → رفتارِ قبلی.
+      entry_ts: (s.entry_ts != null ? new Date(s.entry_ts).toISOString() : null),
       symbol: s.symbol, direction: s.direction,
       entry: Math.round(s.entry * 1e6) / 1e6,
       sl: Math.round(s.sl * 1e6) / 1e6,

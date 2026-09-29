@@ -10,11 +10,17 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Optional
 
 from ..data.base import MarketData
 from . import indicators as ind
+
+# v0.29 — «قیمتِ ورود» و «زمانِ آن قیمت» باید به یک لحظه اشاره کنند.
+# این ثابت می‌گوید `price` از بستهٔ کدام تایم‌فریم می‌آید (دقیقه):
+#   فاز ۱ = ۶۰ (H1 — همان منبعِ فعلی؛ فقط زمانش کنارش ثبت می‌شود)
+#   فاز ۲ = ۱۵ (M15 — کهنگی از ≤۷۵ دقیقه به ≤۱۵ دقیقه می‌رسد)
+PRICE_TF_MIN = 60
 
 
 @dataclass
@@ -35,6 +41,14 @@ class SymbolAnalysis:
     resistance: Optional[float]
     last_candle: Optional[datetime]
     verdict: str             # RANGE | BUY_SETUP | SELL_SETUP | WAIT | DATA
+    # v0.29 (فاز ۱): زمانِ **بسته‌شدنِ** کندلی که `price` از آن آمده.
+    # ژورنال این را به‌عنوان `entry_ts` ثبت می‌کند و tracker اسکنِ نتیجه را
+    # از همان لحظه شروع می‌کند — نه از دیوارساعتِ لحظهٔ صدور. بدون آن،
+    # قیمتِ ورود تا یک ساعت کهنه بود ولی پیگیری از «الان» شروع می‌شد و
+    # کارنامه خوش‌بینانه می‌شد (باگِ v0.29؛ اندازه‌گیری‌شده در
+    # tests/test_tracker.py بخش C). None = دادهٔ زمانی در دسترس نبود →
+    # tracker به رفتارِ قبلی برمی‌گردد (سازگاریِ صادقانه، نه حدس).
+    price_ts: Optional[datetime] = None
 
 
 def analyze_symbol(sym_cfg: dict, md: MarketData, acfg: dict) -> SymbolAnalysis:
@@ -63,9 +77,11 @@ def analyze_symbol(sym_cfg: dict, md: MarketData, acfg: dict) -> SymbolAnalysis:
             trend="none", h1_agrees=False, adx=0.0, rsi=50.0, rsi_rising=False,
             atr=0.0, support=None, resistance=None,
             last_candle=_last_ts(m15), verdict="DATA",
+            price_ts=_close_ts(h1, PRICE_TF_MIN),
         )
 
     price = float(h1["Close"].iloc[-1])
+    price_ts = _close_ts(h1, PRICE_TF_MIN)
 
     # ── روند H4 و هم‌راستایی H1 ───────────────────────────────
     e_fast_h4 = float(ind.ema(h4["Close"], ema_fast_n).iloc[-1])
@@ -100,6 +116,7 @@ def analyze_symbol(sym_cfg: dict, md: MarketData, acfg: dict) -> SymbolAnalysis:
         adx=adx_v, rsi=rsi_v, rsi_rising=rsi_rising, atr=atr_v,
         support=support, resistance=resistance,
         last_candle=_last_ts(m15), verdict=verdict,
+        price_ts=price_ts,
     )
 
 
@@ -107,5 +124,22 @@ def _last_ts(df) -> Optional[datetime]:
     try:
         ts = df.index[-1]
         return ts.to_pydatetime() if hasattr(ts, "to_pydatetime") else datetime.fromisoformat(str(ts))
+    except Exception:
+        return None
+
+
+def _close_ts(df, interval_min: int) -> Optional[datetime]:
+    """زمانِ **بسته‌شدنِ** آخرین کندل = نمایهٔ آن + طولِ بازه.
+
+    یاهو کندل‌های درون‌روزی را با نمایهٔ «زمانِ باز‌شدن» می‌دهد، پس بستهٔ
+    کندلِ نمایهٔ T برابرِ قیمتِ لحظهٔ T+interval است. این همان لحظه‌ای است
+    که `price` به آن تعلق دارد و tracker باید اسکن را از آنجا شروع کند.
+    df خالی/خراب → None (tracker به رفتارِ قبلی برمی‌گردد؛ هرگز حدس نمی‌زنیم).
+    """
+    ts = _last_ts(df)
+    if ts is None:
+        return None
+    try:
+        return ts + timedelta(minutes=interval_min)
     except Exception:
         return None

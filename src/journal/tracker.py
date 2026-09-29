@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """تعیین خودکار نتیجهٔ سیگنال‌های باز — مرحله ۴.
 
-برای هر سیگنال باز، کندل‌های M15ِ بعد از لحظهٔ ورود بررسی می‌شوند:
+برای هر سیگنال باز، کندل‌های M15ِ **بعد از لحظهٔ ورود** بررسی می‌شوند:
   • اگر سقف/کف کندل به TP یا SL برسد، سیگنال بسته می‌شود.
   • اگر یک کندل **هر دو** را بزند، ترتیب برخورد از روی کندل ۱۵ دقیقه‌ای
     قابل دانستن نیست؛ پس با ``conservative_both_touch`` (پیش‌فرض true)
@@ -14,6 +14,17 @@ R:
   TP      → +rr
   SL      → −1
   EXPIRED → (قیمت انقضا − ورود) / ریسک، با علامت جهت
+
+── «لحظهٔ ورود» کدام است؟ (v0.29 فاز ۱) ──────────────────────────
+پیش‌تر اسکن از ``entry.ts`` شروع می‌شد — **دیوارساعتِ لحظهٔ صدور سیگنال** —
+در حالی که ``entry`` (قیمت) بستهٔ یک کندلِ قدیمی‌تر بود. این دو تا یک ساعت
+اختلال داشتند و کارنامه را خوش‌بینانه می‌کردند (برد ~۴ برابر بیش‌برآورد و
+باخت ~۲٫۵ برابر کم‌برآورد؛ اندازه‌گیری‌شده در ``tests/test_tracker.py`` بخش C).
+
+حالا اسکن از ``entry.entry_ts`` شروع می‌شود = **زمانِ بسته‌شدنِ همان کندلی که
+قیمتِ ورود از آن آمده**. یعنی قیمت و زمان به یک لحظه اشاره می‌کنند.
+رکوردهای قدیمی ``entry_ts`` ندارند → رفتارِ دقیقاً قبلی حفظ می‌شود
+(سازگاریِ backward بدون حدس زدن).
 """
 from __future__ import annotations
 
@@ -44,10 +55,44 @@ def _r_for(entry: Entry, outcome: str, close_price: float) -> float:
     return diff / risk
 
 
+def _in_scope(entry: Entry, bar_ts: datetime) -> bool:
+    """آیا این کندل در بازهٔ اسکن است؟
+
+    دو حالت — صریح و سازگار:
+      • ``entry_ts`` موجود (رکورد v0.29 به بعد): کندل‌هایی که **باز‌شدنشان**
+        از لحظهٔ بسته‌شدنِ کندلِ ورود دیرتر یا برابر است. خودِ کندلِ ورود
+        شامل می‌شود؟ نه — نمایهٔ کندلِ ورود = ``entry_ts − interval`` است،
+        پس با ``bar_ts >= entry_ts`` خودبه‌خود بیرون می‌ماند و اولین کندلِ
+        کاملاً پس از ورود، اولین کندلِ اسکن است.
+      • ``entry_ts`` غایب (رکورد قدیمی): رفتارِ دقیقاً قبلی — ``bar_ts > ts``.
+        عمداً عوض نمی‌شود تا آمارِ گذشته بی‌صدا جابه‌جا نشود.
+    """
+    ets = getattr(entry, "entry_ts", None)
+    if ets is not None:
+        return bar_ts >= ets
+    return bar_ts > entry.ts
+
+
+def _build_bars(md) -> list:
+    """کندل‌های M15 به فهرست (ts, high, low) — با هم‌جنس‌سازیِ منطقهٔ زمانی."""
+    if md is None or getattr(md, "m15", None) is None or not len(md.m15):
+        return []
+    bars = []
+    for idx, row in md.m15.iterrows():
+        ts = (idx.to_pydatetime() if hasattr(idx, "to_pydatetime")
+              else datetime.fromisoformat(str(idx)))
+        # کندل‌های Yahoo naive-UTC هستند ولی entry.ts آگاه به منطقهٔ زمانی؛
+        # بدون هم‌جنس‌کردن، مقایسه TypeError می‌دهد.
+        if ts.tzinfo is None:
+            ts = ts.replace(tzinfo=timezone.utc)
+        bars.append((ts, float(row["High"]), float(row["Low"])))
+    return bars
+
+
 def _scan_bars(entry: Entry, bars, conservative: bool):
     """بررسی ترتیبی کندل‌ها. برمی‌گرداند (outcome, close_price) یا None."""
     for ts, high, low in bars:
-        if ts <= entry.ts:
+        if not _in_scope(entry, ts):
             continue
         if entry.direction == "BUY":
             hit_tp = high >= entry.tp
@@ -85,24 +130,14 @@ def resolve_open_signals(journal: Journal, datasets: dict,
     resolved: list[Entry] = []
     for entry in journal.open_entries():
         md = datasets.get(entry.symbol)
-        hit = None
-        if md is not None and md.m15 is not None and len(md.m15):
-            bars = []
-            for idx, row in md.m15.iterrows():
-                ts = (idx.to_pydatetime() if hasattr(idx, "to_pydatetime")
-                      else datetime.fromisoformat(str(idx)))
-                # کندل‌های Yahoo naive-UTC هستند ولی entry.ts آگاه به منطقهٔ
-                # زمانی؛ بدون هم‌جنس‌کردن، مقایسه TypeError می‌دهد.
-                if ts.tzinfo is None:
-                    ts = ts.replace(tzinfo=timezone.utc)
-                bars.append((ts, float(row["High"]), float(row["Low"])))
-            hit = _scan_bars(entry, bars, conservative)
+        bars = _build_bars(md)
+        hit = _scan_bars(entry, bars, conservative) if bars else None
 
         r_override = None
         if hit is None and (now - entry.ts) > timedelta(hours=expiry_h):
             # منقضی: R واقعی از آخرین قیمت موجود
             close = None
-            if md is not None and md.m15 is not None and len(md.m15):
+            if bars:
                 close = float(md.m15["Close"].iloc[-1])
             outcome, close_price = EXPIRED, close
             if close is None:
@@ -118,7 +153,7 @@ def resolve_open_signals(journal: Journal, datasets: dict,
         elif hit is not None:
             outcome, close_price = hit
             note = ("هر دو سطح در یک کندل خوردند؛ محتاطانه ضرر شمرده شد"
-                    if outcome == SL and conservative and _both_touch(entry, md) else "")
+                    if outcome == SL and conservative and _both_touch(entry, bars) else "")
         else:
             continue
 
@@ -132,12 +167,17 @@ def resolve_open_signals(journal: Journal, datasets: dict,
     return resolved
 
 
-def _both_touch(entry: Entry, md) -> bool:
-    """آیا کندلی هست که هر دو سطح را زده باشد؟ (فقط برای یادداشت صادقانه)."""
-    if md is None or md.m15 is None:
-        return False
-    for _ts, row in md.m15.iterrows():
-        high, low = float(row["High"]), float(row["Low"])
+def _both_touch(entry: Entry, bars) -> bool:
+    """آیا کندلی **در بازهٔ اسکن** هست که هر دو سطح را زده باشد؟
+
+    فقط برای یادداشتِ صادقانه. v0.29: پیش‌تر این تابع همهٔ کندل‌های موجود را
+    بدون هیچ کرانِ زمانی می‌دید — یعنی برخوردِ دوگانه‌ای که *پیش از ورود*
+    اتفاق افتاده بود هم «هر دو سطح در یک کندل خوردند» یادداشت می‌گرفت.
+    حالا همان قاعدهٔ ``_in_scope`` را دارد.
+    """
+    for ts, high, low in bars:
+        if not _in_scope(entry, ts):
+            continue
         if entry.direction == "BUY":
             if high >= entry.tp and low <= entry.sl:
                 return True
