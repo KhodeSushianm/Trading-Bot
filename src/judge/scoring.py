@@ -168,7 +168,7 @@ class Signal:
     # دارد). ژورنال فقط کلیدِ موافق‌ها را نگه می‌دارد (فشرده و کافی برای
     # «نرخ برد به تفکیک استراتژی» در آینده).
     strategies: list = field(default_factory=list)
-    # v0.29 (فاز ۱): زمانِ بسته‌شدنِ کندلی که `entry` از آن آمده.
+    # v0.29 (فاز ۱+۲): زمانِ بسته‌شدنِ کندلی که `entry` از آن آمده.
     # `now` دیوارساعتِ لحظهٔ صدور است (برای نمایش/کول‌داون/هفتهٔ آمار)؛
     # `entry_ts` لحظهٔ واقعیِ خودِ قیمت است (برای شروعِ اسکنِ نتیجه).
     # پیش‌تر این دو یکی فرض می‌شدند و تا یک ساعت اختلاف داشتند — همان باگِ
@@ -810,15 +810,25 @@ def judge_symbol(a: SymbolAnalysis, sym_cfg: dict, md: Optional[MarketData],
 
     # ۶) ساخت سیگنال
     rcfg = ctx.jcfg["risk"]
+    # v0.29 (فاز ۲): مبنای معامله قیمتِ *اجرا* است (بستهٔ M15 — آنچه کاربر
+    # در عمل می‌تواند با آن وارد شود)، نه لنگرِ تحلیل (بستهٔ H1). حمایت/مقاومت
+    # و ev_level عمداً روی `a.price` می‌مانند تا امتیازدهی و وتوها
+    # بایت‌به‌بایت دست‌نخورده بمانند؛ سطوح، قیمت‌های مطلقِ بازارند و با
+    # قیمتِ اجرای تازه درست‌تر هم جفت می‌شوند.
+    # None (تحلیلِ دستیِ تست‌ها، یا نبودِ M15) → صادقانه همان `a.price`،
+    # یعنی رفتارِ پیش از v0.29. هرگز صفرِ ساختگی.
+    exec_p = getattr(a, "exec_price", None)
+    if exec_p is None:
+        exec_p = a.price
     _levels = compute_levels if risk_fn is None else risk_fn
-    sl, tp, risk, capped = _levels(j.direction, a.price, a.atr,
+    sl, tp, risk, capped = _levels(j.direction, exec_p, a.atr,
                                    a.support, a.resistance, rcfg)
     if capped:
         cap = float(rcfg.get("max_sl_atr", 3.0))
         j.warnings.append(f"حد ضرر از سطح کلیدی دور بود و به سقف "
                           f"{fa_num(f'{cap:.1f}')}×ATR محدود شد")
     opp = a.resistance if j.direction == "BUY" else a.support
-    if opp is not None and abs(opp - a.price) < abs(tp - a.price):
+    if opp is not None and abs(opp - exec_p) < abs(tp - exec_p):
         kind = "مقاومت" if j.direction == "BUY" else "حمایت"
         j.warnings.append(f"{kind} {opp:.5g} سر راه هدف است — رسیدن به هدف سخت‌تر "
                           f"از چیزی است که نسبت ۱:{fa_ratio(float(rcfg.get('reward_risk', 2.0)))} "
@@ -827,16 +837,16 @@ def judge_symbol(a: SymbolAnalysis, sym_cfg: dict, md: Optional[MarketData],
     pip = a.pip or 0.0001
     j.signal = Signal(
         symbol=a.symbol, fa_name=a.fa_name, direction=j.direction,
-        sid=f"{a.symbol}-{j.direction}-{ctx.now:%Y%m%d%H%M%S}-{round(a.price, 6)}",
+        sid=f"{a.symbol}-{j.direction}-{ctx.now:%Y%m%d%H%M%S}-{round(exec_p, 6)}",
         score=j.score, max_score=j.max_score,
         stars=max(1, min(5, round(j.score / j.max_score * 5))) if j.max_score else 1,
-        entry=a.price, sl=sl, tp=tp, pip=pip, atr=a.atr,
-        risk_pips=risk / pip, reward_pips=abs(tp - a.price) / pip,
+        entry=exec_p, sl=sl, tp=tp, pip=pip, atr=a.atr,
+        risk_pips=risk / pip, reward_pips=abs(tp - exec_p) / pip,
         rr=float(rcfg.get("reward_risk", 2.0)),
         is_gold=bool(pip >= 0.5), session_fa=ctx.status.label, now=ctx.now,
         evidences=j.evidences, warnings=j.warnings, sl_capped=capped,
         strategies=j.strategies,
-        entry_ts=getattr(a, "price_ts", None),
+        entry_ts=getattr(a, "exec_ts", None),
     )
     return j
 

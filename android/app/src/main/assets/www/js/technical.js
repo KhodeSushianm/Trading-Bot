@@ -37,10 +37,12 @@
 
     function lastTs(df) { return df && df.length ? new Date(df[df.length - 1].t) : null; }
 
-    // v0.29 (فاز ۱) — تایم‌فریمی که `price` از بستهٔ آن می‌آید (دقیقه).
-    // آینهٔ PRICE_TF_MIN در src/analysis/technical.py. فاز ۱ = ۶۰ (H1)؛
-    // فاز ۲ = ۱۵ (M15). باید همیشه با پایتون یکی بماند (پاریتی).
-    var PRICE_TF_MIN = 60;
+    // ── v0.29: دو قیمت، دو نقش — آینهٔ src/analysis/technical.py ──
+    //   price      = بستهٔ H1 — لنگرِ *تحلیل* (nearestLevels، ev_level)
+    //   exec_price = بستهٔ M15 — قیمتِ *اجرا* (entry/sl/tp/sid/ژورنال)
+    // باید همیشه با پایتون هم‌عدد بماند (پاریتی).
+    var EXEC_TF_MIN = 15;
+    var H1_TF_MIN = 60;
 
     // زمانِ **بسته‌شدنِ** آخرین کندل = نمایهٔ آن + طولِ بازه (ms).
     // یاهو کندلِ درون‌روزی را با نمایهٔ «باز‌شدن» می‌دهد، پس بستهٔ کندلِ
@@ -50,6 +52,18 @@
       return df[df.length - 1].t + intervalMin * 60000;
     }
 
+    // قیمتِ اجرا؛ null یعنی «نداریم» → مصرف‌کننده به price برمی‌گردد.
+    function execPrice(m15) {
+      return (m15 && m15.length) ? m15[m15.length - 1].c : null;
+    }
+
+    // باید هم‌منبعِ execPrice باشد، وگرنه همان باگِ «قیمت از یک لحظه،
+    // اسکن از لحظهٔ دیگر» برمی‌گردد.
+    function execTs(m15, h1) {
+      if (m15 && m15.length) return closeTs(m15, EXEC_TF_MIN);
+      return closeTs(h1, H1_TF_MIN);
+    }
+
     // بررسی کفایت داده (دقیقاً مثل دسکتاپ)
     if (h4.length < emaSlowN + 10 || h1.length < emaSlowN + 10 || m15.length < rsiN + 10) {
       return Object.assign(common, {
@@ -57,7 +71,7 @@
         trend: 'none', h1_agrees: false, adx: 0, rsi: 50, rsi_rising: false,
         atr: 0, support: null, resistance: null,
         last_candle: lastTs(m15), verdict: 'DATA',
-        price_ts: closeTs(h1, PRICE_TF_MIN)
+        exec_price: execPrice(m15), exec_ts: execTs(m15, h1)
       });
     }
 
@@ -91,7 +105,7 @@
       adx: adxV, rsi: rsiV, rsi_rising: rsiRising, atr: atrV,
       support: lv.support, resistance: lv.resistance,
       last_candle: lastTs(m15), verdict: verdict,
-      price_ts: closeTs(h1, PRICE_TF_MIN)
+      exec_price: execPrice(m15), exec_ts: execTs(m15, h1)
     });
   };
 

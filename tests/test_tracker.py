@@ -131,8 +131,13 @@ print(f"   {CHECKS} بررسی تا اینجا")
 #  C) سنجهٔ بایاس — Rِ ثبت‌شده در برابر Rِ دست‌یافتنی
 # ══════════════════════════════════════════════════════════════
 print("═" * 70)
-print("C) سنجهٔ بایاسِ «ورودِ کهنه»")
+print("C) سنجهٔ بایاسِ «ورودِ کهنه» — رکوردهای *قدیمی* (بدون entry_ts)")
 print("═" * 70)
+# ⚠️ این سناریوها عمداً رکوردِ بدون entry_ts می‌سازند، یعنی همان رکوردهای
+# پیش از v0.29. بایاسِ آن‌ها *قابل رفعِ گذشته‌نگر نیست* — دادهٔ زمانیِ
+# قیمتشان ثبت نشده. این بخش آن واقعیت را اندازه‌گیری و مستند می‌کند و
+# دلیلِ تفکیکِ rules_version در کارنامه است (فاز ۴). بخش E همان سنجه را
+# روی رکوردِ v0.29 می‌زند و باید شکاف ≈ صفر بدهد.
 
 
 def achievable_entry(sc: dict, symbol: str, ts_iso: str) -> float | None:
@@ -239,20 +244,27 @@ from pathlib import Path as _Path
 
 import pandas as pd
 
-from src.analysis.technical import PRICE_TF_MIN, analyze_symbol
+from src.analysis.technical import EXEC_TF_MIN, analyze_symbol
 from src.data.base import MarketData
 from src.journal.store import Journal
 from src.judge.scoring import judge_symbol
 from tests.golden.gen_judge_golden import (clean_cal, make_analysis, make_ctx,
                                            ACFG)
 
-# ── D1: analyze_symbol قیمت و زمانش را از *یک* کندل می‌گیرد ──────
-_H1_END = datetime(2026, 9, 23, 13, 0, tzinfo=timezone.utc)   # نمایهٔ آخرین H1
-_h1i = pd.date_range(_H1_END - timedelta(hours=219), periods=220, freq="1h", tz="UTC")
+# ── D1: analyze_symbol دو قیمت را از دو کندلِ متفاوت می‌گیرد ──────
+# هندسهٔ واقعی: با drop_forming_candle، آخرین کندلِ *بسته‌شدهٔ* M15 از
+# آخرین کندلِ بسته‌شدهٔ H1 تازه‌تر است. مثلاً در دیوارساعتِ ۱۳:۵۰،
+# کندلِ در حالِ تشکیلِ H1 نمایهٔ ۱۳:۰۰ است (حذف می‌شود) پس آخرین H1
+# نمایهٔ ۱۲:۰۰ و بسته‌اش ۱۳:۰۰ است (۵۰ دقیقه کهنه)؛ ولی آخرین M15
+# نمایهٔ ۱۳:۳۰ و بسته‌اش ۱۳:۴۵ است (۵ دقیقه کهنه). همین اختلاف، ریشهٔ
+# بایاسِ v0.29 بود.
+_H1_IDX = datetime(2026, 9, 23, 12, 0, tzinfo=timezone.utc)    # نمایهٔ آخرین H1
+_M15_IDX = datetime(2026, 9, 23, 13, 30, tzinfo=timezone.utc)  # نمایهٔ آخرین M15
+_h1i = pd.date_range(_H1_IDX - timedelta(hours=219), periods=220, freq="1h", tz="UTC")
 _h1 = pd.DataFrame({"Open": [1.10] * 220, "High": [1.102] * 220,
                     "Low": [1.098] * 220,
                     "Close": [1.10 + i * 1e-5 for i in range(220)]}, index=_h1i)
-_m15i = pd.date_range(_H1_END - timedelta(minutes=15 * 95), periods=96,
+_m15i = pd.date_range(_M15_IDX - timedelta(minutes=15 * 95), periods=96,
                       freq="15min", tz="UTC")
 _m15 = pd.DataFrame({"Open": [1.10] * 96, "High": [1.102] * 96,
                      "Low": [1.098] * 96,
@@ -265,17 +277,30 @@ _sym = {"name": "EURUSD", "fa": "یورو به دلار آمریکا", "base": "
 
 _a = analyze_symbol(_sym, _md, ACFG)
 A(_a.price == float(_h1["Close"].iloc[-1]),
-  f"D1: price بستهٔ آخرین کندل است ({_a.price})")
-A(_a.price_ts == _H1_END + timedelta(minutes=PRICE_TF_MIN),
-  f"D1: price_ts = نمایهٔ کندل + {PRICE_TF_MIN} دقیقه "
-  f"(انتظار {_H1_END + timedelta(minutes=PRICE_TF_MIN)}، واقعی {_a.price_ts})")
+  f"D1: price (لنگرِ تحلیل) بستهٔ آخرین H1 است ({_a.price})")
+A(_a.exec_price == float(_m15["Close"].iloc[-1]),
+  f"D1: exec_price (قیمتِ اجرا) بستهٔ آخرین M15 است ({_a.exec_price})")
+A(_a.exec_price != _a.price,
+  f"D1: این دو عمداً متفاوت‌اند — exec تازه‌تر است "
+  f"(price={_a.price} vs exec={_a.exec_price})")
+A(_a.exec_ts == _M15_IDX + timedelta(minutes=EXEC_TF_MIN),
+  f"D1: exec_ts = نمایهٔ آخرین M15 + {EXEC_TF_MIN} دقیقه "
+  f"(انتظار {_M15_IDX + timedelta(minutes=EXEC_TF_MIN)}، واقعی {_a.exec_ts})")
+# کهنگی: exec_ts باید از زمانِ بستهٔ H1 جلوتر باشد (وگرنه فاز ۲ بی‌اثر بود)
+_h1_close_ts = _H1_IDX + timedelta(minutes=60)
+A(_a.exec_ts > _h1_close_ts,
+  f"D1: exec_ts ({_a.exec_ts}) از بستهٔ H1 ({_h1_close_ts}) جلوتر است — "
+  f"کهنگیِ کمتر")
+A(not hasattr(_a, "price_ts"),
+  "D1: فیلدِ price_tsِ فاز ۱ حذف و با exec_price/exec_ts جایگزین شد "
+  "(یک مفهوم، نه دو مفهومِ هم‌پوشان)")
 
 # ── D2: judge_symbol آن را به Signal منتقل می‌کند ────────────────
 # کهنگیِ عمدی: قیمت از کندلی است که ۱۳:۱۵ بسته شده، ولی صدور ۱۴:۰۰ رخ
 # می‌دهد — همان فاصلهٔ ۴۵ دقیقه‌ای که باگ از آن رد می‌شد.
 _ENTRY_TS = datetime(2026, 9, 23, 13, 15, tzinfo=timezone.utc)
 _NOW = datetime(2026, 9, 23, 14, 0, tzinfo=timezone.utc)
-_a2 = make_analysis(price_ts=_ENTRY_TS)
+_a2 = make_analysis(exec_price=1.1495, exec_ts=_ENTRY_TS)
 _ctx = make_ctx(now=_NOW, cal=clean_cal())
 # strategy_rules=None → دروازهٔ توافق تزریق نمی‌شود (مسیر v0.25). هدفِ این
 # بخش سنجشِ *زمان‌ها* است نه استراتژی‌ها؛ دروازهٔ S3 پینِ خودش را دارد.
@@ -283,7 +308,10 @@ _j = judge_symbol(_a2, {}, None, _ctx, strategy_rules=None)
 A(_j.signal is not None, f"D2: سیگنال صادر شد (reject={_j.reject_reason!r})")
 if _j.signal is not None:
     A(_j.signal.entry_ts == _ENTRY_TS,
-      f"D2: Signal.entry_ts == price_ts تحلیل ({_j.signal.entry_ts})")
+      f"D2: Signal.entry_ts == exec_ts تحلیل ({_j.signal.entry_ts})")
+    A(_j.signal.entry == 1.1495 and _j.signal.entry != _a2.price,
+      f"D2: Signal.entry از exec_price است نه price — "
+      f"({_j.signal.entry} در برابر price={_a2.price})")
     A(_j.signal.now == _NOW and _j.signal.now != _j.signal.entry_ts,
       f"D2: now (دیوارساعتِ صدور) از entry_ts (لحظهٔ قیمت) جدا است: "
       f"{_j.signal.now} ≠ {_j.signal.entry_ts}")
@@ -311,11 +339,12 @@ if _j.signal is not None:
         #   قاعدهٔ قدیمی (index <= ts=14:00) → همهٔ کندل‌ها رد → «باز»
         #   قاعدهٔ تازه (index >= entry_ts=13:15) → کندلِ ۱۳:۱۵ دیده → TP
         _tp = _j.signal.tp
+        _px = _j.signal.entry
         _bars = pd.DataFrame(
-            {"Open": [_a2.price, _tp, _a2.price, _a2.price],
-             "High": [_a2.price + 0.0001, _tp + 0.0004, _a2.price, _a2.price],
-             "Low": [_a2.price - 0.0001, _tp - 0.0001, _a2.price, _a2.price],
-             "Close": [_a2.price, _tp, _a2.price, _a2.price]},
+            {"Open": [_px, _tp, _px, _px],
+             "High": [_px + 0.0001, _tp + 0.0004, _px, _px],
+             "Low": [_px - 0.0001, _tp - 0.0001, _px, _px],
+             "Close": [_px, _tp, _px, _px]},
             index=pd.date_range(_ENTRY_TS - timedelta(minutes=15), periods=4,
                                 freq="15min", tz="UTC"))
         _ds = {"EURUSD": MarketData(symbol="EURUSD", m15=_bars, h1=_bars, h4=_bars)}
@@ -330,6 +359,109 @@ if _j.signal is not None:
 
 print("   زنجیرهٔ analyze_symbol → judge → journal → tracker میخ شد")
 
+
+# ══════════════════════════════════════════════════════════════
+#  E) سنجهٔ سرتاسری — آیا بایاس واقعاً بسته شد؟
+# ══════════════════════════════════════════════════════════════
+# بخش C بایاس را روی رکوردهای *قدیمی* اندازه می‌گیرد (بدون entry_ts) و
+# بخش D زنجیرهٔ فیلدها را میخ می‌کند. این بخش همان هندسهٔ بازار را از دو
+# مسیر رد می‌کند و شکاف را A/B مقایسه می‌کند:
+#
+#   مسیر قدیم : entry = بستهٔ کهنهٔ H1 · بدون entry_ts
+#   مسیر v0.29: entry = بستهٔ تازهٔ M15 · entry_ts = زمانِ بسته‌شدنش
+#
+# هر دو روی *یک* دادهٔ بازار. اگر فاز ۲ درست کار کرده باشد، شکافِ مسیر
+# تازه باید ≈ صفر و شکافِ مسیر قدیم بزرگ بماند. این ادعا tautological
+# نیست: اگر کسی exec_price را به H1 برگرداند یا entry_ts را نیندازد،
+# همین‌جا قرمز می‌شود.
+print("═" * 70)
+print("E) سنجهٔ سرتاسری — A/B مسیرِ قدیم در برابر v0.29")
+print("═" * 70)
+
+from src.journal.store import Journal as _Journal2
+
+# هندسه: آخرین H1 ساعت ۱۳:۰۰ بسته شده (قیمت ۱٫۱۰۰۰)؛ آخرین M15 ساعت
+# ۱۳:۴۵ بسته شده (قیمت ۱٫۱۰۳۰)؛ سیگنال ۱۳:۴۷ صادر می‌شود. یعنی در
+# آن ۴۵ دقیقه بازار ۳۰ پیپ به نفع معامله رفته — دقیقاً همان چیزی که
+# منطقِ «تأیید مومنتوم» تضمین می‌کند و ریشهٔ بایاس بود.
+_STALE = 1.1000                     # بستهٔ H1  (لنگرِ تحلیل)
+_FRESH = 1.1030                     # بستهٔ M15 (قیمتِ اجرا)
+_T_EXEC = datetime(2026, 9, 23, 13, 45, tzinfo=timezone.utc)
+_T_NOW = _T_EXEC + timedelta(minutes=2)
+
+_a3 = make_analysis(price=_STALE, exec_price=_FRESH, exec_ts=_T_EXEC)
+_ctx3 = make_ctx(now=_T_NOW, cal=clean_cal())
+_j3 = judge_symbol(_a3, {}, None, _ctx3, strategy_rules=None)
+A(_j3.signal is not None, f"E: سیگنال صادر شد (reject={_j3.reject_reason!r})")
+
+if _j3.signal is not None:
+    _s = _j3.signal
+    _risk = abs(_s.entry - _s.sl)
+    A(_risk > 0, f"E: ریسک مثبت است ({_risk})")
+    A(_s.entry == _FRESH,
+      f"E: ورودِ ثبت‌شده = قیمتِ اجرای M15 ({_s.entry}) نه بستهٔ کهنهٔ "
+      f"H1 ({_STALE})")
+    A(_s.entry_ts == _T_EXEC,
+      f"E: entry_ts = زمانِ بسته‌شدنِ همان کندل ({_s.entry_ts})")
+
+    # دادهٔ بازار: کندلِ اجرا (۱۳:۳۰→۱۳:۴۵، بسته ۱٫۱۰۳۰) و بعد از آن
+    # کندلی که هدف را می‌زند. هر دو مسیر *همین* داده را می‌بینند.
+    _mk = pd.DataFrame(
+        {"Open": [_FRESH, _s.tp, _s.tp],
+         "High": [_FRESH + 0.0001, _s.tp + 0.0004, _s.tp],
+         "Low": [_FRESH - 0.0001, _s.sl + 0.0001, _s.sl + 0.0001],
+         "Close": [_FRESH, _s.tp, _s.tp]},
+        index=pd.date_range(_T_EXEC - timedelta(minutes=15), periods=3,
+                            freq="15min", tz="UTC"))
+    _ds3 = {"EURUSD": MarketData(symbol="EURUSD", m15=_mk, h1=_mk, h4=_mk)}
+    _cfg3 = {"journal": {"enabled": True, "expiry_hours": 48,
+                         "conservative_both_touch": True}}
+
+    def _run(rec: dict) -> dict:
+        with tempfile.TemporaryDirectory() as _t:
+            _j = _Journal2(_Path(_t) / "s.jsonl")
+            _j.append(rec)
+            resolve_open_signals(_j, _ds3, now=_T_NOW + timedelta(minutes=30),
+                                 cfg=_cfg3, on_log=lambda _m: None)
+            _e = _j.load()[0]
+            return {"outcome": _e.outcome, "r": _e.r}
+
+    # مسیر v0.29 — رکوردِ واقعیِ تولیدشده توسط to_journal
+    _new = _run(_s.to_journal(sent=True))
+
+    # مسیر قدیم — همان سیگنال، ولی با ورودِ کهنه و بدون entry_ts
+    _legacy_rec = _s.to_journal(sent=True)
+    _legacy_rec["entry"] = _STALE
+    _legacy_rec.pop("entry_ts", None)
+    _legacy_rec["id"] = _legacy_rec["id"] + "-legacy"
+    # سطح‌ها هم باید با ورودِ کهنه ساخته شوند (همان کاری که کدِ قدیم می‌کرد)
+    _legacy_rec["sl"] = _s.sl + (_STALE - _FRESH)
+    _legacy_rec["tp"] = _s.tp + (_STALE - _FRESH)
+    _legacy_rec["risk_pips"] = abs(_STALE - _legacy_rec["sl"]) / _s.pip
+    _old = _run(_legacy_rec)
+
+    # Rِ دست‌یافتنی برای هر دو: معامله‌گر در ۱۳:۴۷ با ۱٫۱۰۳۰ وارد می‌شود
+    _ach_win = (_s.tp - _FRESH) / _risk
+    _gap_new = (_new["r"] or 0.0) - _ach_win
+    _ach_old = (_legacy_rec["tp"] - _FRESH) / abs(_STALE - _legacy_rec["sl"])
+    _gap_old = (_old["r"] or 0.0) - _ach_old
+
+    print(f"   مسیر قدیم  : outcome={_old['outcome']:<8} r={(_old['r'] or 0):+.2f}  "
+          f"دست‌یافتنی={_ach_old:+.2f}  شکاف={_gap_old:+.2f}R")
+    print(f"   مسیر v0.29 : outcome={_new['outcome']:<8} r={(_new['r'] or 0):+.2f}  "
+          f"دست‌یافتنی={_ach_win:+.2f}  شکاف={_gap_new:+.2f}R")
+
+    A(abs(_gap_new) < 1e-9,
+      f"E: شکافِ مسیر v0.29 باید صفر باشد ({_gap_new:+.6f}R) — ورودِ ثبت‌شده "
+      f"همان قیمتی است که معامله‌گر واقعاً می‌گیرد")
+    A(abs(_gap_old) > 0.5,
+      f"E: شکافِ مسیر قدیم باید بزرگ بماند ({_gap_old:+.2f}R) — وگرنه سنجه "
+      f"بی‌اثر است و ادعای بالا چیزی را اثبات نمی‌کند")
+    A(abs(_gap_new) < abs(_gap_old) / 10,
+      f"E: بهبودِ دست‌کم ۱۰ برابری ({abs(_gap_old):.2f}R → {abs(_gap_new):.2f}R)")
+
+print("   A/B سرتاسری: بایاسِ ورودِ کهنه بسته شد")
+
 # ══════════════════════════════════════════════════════════════
 print("═" * 70)
 if FAILS:
@@ -339,5 +471,6 @@ if FAILS:
     print("═" * 70)
     raise SystemExit(1)
 print(f"✅ TRACKER TESTS OK — {CHECKS} بررسی پاس؛ میخِ رفتاریِ تعیینِ نتیجهٔ "
-      f"سیگنال‌ها (۱۰ سناریو) + سنجهٔ بایاسِ ورودِ کهنه")
+      f"سیگنال‌ها (۱۰ سناریو) + زنجیرهٔ سرتاسریِ entry_ts + "
+      f"سنجهٔ A/B بایاسِ ورودِ کهنه")
 print("═" * 70)

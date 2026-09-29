@@ -16,11 +16,16 @@ from typing import Optional
 from ..data.base import MarketData
 from . import indicators as ind
 
-# v0.29 — «قیمتِ ورود» و «زمانِ آن قیمت» باید به یک لحظه اشاره کنند.
-# این ثابت می‌گوید `price` از بستهٔ کدام تایم‌فریم می‌آید (دقیقه):
-#   فاز ۱ = ۶۰ (H1 — همان منبعِ فعلی؛ فقط زمانش کنارش ثبت می‌شود)
-#   فاز ۲ = ۱۵ (M15 — کهنگی از ≤۷۵ دقیقه به ≤۱۵ دقیقه می‌رسد)
-PRICE_TF_MIN = 60
+# ── v0.29: دو قیمت، دو نقش (پیش‌تر یکی بودند و همین ریشهٔ باگ بود) ──
+#   `price`      = بستهٔ H1 — لنگرِ *تحلیل*: انتخابِ نزدیک‌ترین حمایت/مقاومت
+#                  و سنجشِ فاصله تا سطح کلیدی (ev_level). دست‌نخورده ماند تا
+#                  امتیازدهی و وتوها بایت‌به‌بایت همان قبلی باشند.
+#   `exec_price` = بستهٔ M15 — قیمتِ *اجرا*: آنچه کاربر در عمل می‌تواند با
+#                  آن وارد شود. مبنای entry/sl/tp/sid/ژورنال.
+# کهنگیِ exec_price با drop_forming_candle حداکثر ۱۵ دقیقه است (پیش‌تر تا
+# ~۷۵ دقیقه). EXEC_TF_MIN/H1_TF_MIN طولِ بازه‌اند، برای محاسبهٔ زمانِ بسته‌شدن.
+EXEC_TF_MIN = 15
+H1_TF_MIN = 60
 
 
 @dataclass
@@ -41,14 +46,13 @@ class SymbolAnalysis:
     resistance: Optional[float]
     last_candle: Optional[datetime]
     verdict: str             # RANGE | BUY_SETUP | SELL_SETUP | WAIT | DATA
-    # v0.29 (فاز ۱): زمانِ **بسته‌شدنِ** کندلی که `price` از آن آمده.
-    # ژورنال این را به‌عنوان `entry_ts` ثبت می‌کند و tracker اسکنِ نتیجه را
-    # از همان لحظه شروع می‌کند — نه از دیوارساعتِ لحظهٔ صدور. بدون آن،
-    # قیمتِ ورود تا یک ساعت کهنه بود ولی پیگیری از «الان» شروع می‌شد و
-    # کارنامه خوش‌بینانه می‌شد (باگِ v0.29؛ اندازه‌گیری‌شده در
-    # tests/test_tracker.py بخش C). None = دادهٔ زمانی در دسترس نبود →
-    # tracker به رفتارِ قبلی برمی‌گردد (سازگاریِ صادقانه، نه حدس).
-    price_ts: Optional[datetime] = None
+    # ── v0.29: قیمت و زمانِ *اجرا* ────────────────────────────────
+    # None یعنی «این تحلیل قیمتِ اجرا ندارد» (مثلاً SymbolAnalysisِ دستیِ
+    # تست‌ها) → مصرف‌کننده صادقانه به `price` برمی‌گردد، نه به صفر.
+    # exec_ts زمانِ بسته‌شدنِ همان کندلی است که exec_price از آن آمده؛
+    # ژورنال آن را entry_ts می‌نویسد و tracker اسکن را از آنجا شروع می‌کند.
+    exec_price: Optional[float] = None
+    exec_ts: Optional[datetime] = None
 
 
 def analyze_symbol(sym_cfg: dict, md: MarketData, acfg: dict) -> SymbolAnalysis:
@@ -77,11 +81,11 @@ def analyze_symbol(sym_cfg: dict, md: MarketData, acfg: dict) -> SymbolAnalysis:
             trend="none", h1_agrees=False, adx=0.0, rsi=50.0, rsi_rising=False,
             atr=0.0, support=None, resistance=None,
             last_candle=_last_ts(m15), verdict="DATA",
-            price_ts=_close_ts(h1, PRICE_TF_MIN),
+            exec_price=_exec_price(m15, h1),
+            exec_ts=_exec_ts(m15, h1),
         )
 
     price = float(h1["Close"].iloc[-1])
-    price_ts = _close_ts(h1, PRICE_TF_MIN)
 
     # ── روند H4 و هم‌راستایی H1 ───────────────────────────────
     e_fast_h4 = float(ind.ema(h4["Close"], ema_fast_n).iloc[-1])
@@ -116,7 +120,7 @@ def analyze_symbol(sym_cfg: dict, md: MarketData, acfg: dict) -> SymbolAnalysis:
         adx=adx_v, rsi=rsi_v, rsi_rising=rsi_rising, atr=atr_v,
         support=support, resistance=resistance,
         last_candle=_last_ts(m15), verdict=verdict,
-        price_ts=price_ts,
+        exec_price=_exec_price(m15, h1), exec_ts=_exec_ts(m15, h1),
     )
 
 
@@ -126,6 +130,32 @@ def _last_ts(df) -> Optional[datetime]:
         return ts.to_pydatetime() if hasattr(ts, "to_pydatetime") else datetime.fromisoformat(str(ts))
     except Exception:
         return None
+
+
+def _exec_price(m15, h1) -> Optional[float]:
+    """قیمتِ اجرا = بستهٔ تازه‌ترین کندلِ M15.
+
+    اگر M15 خالی/خراب بود، صادقانه ``None`` برمی‌گرداند تا مصرف‌کننده به
+    ``price`` (بستهٔ H1) برگردد — یعنی رفتارِ پیش از v0.29، نه عددِ ساختگی.
+    """
+    try:
+        if m15 is not None and len(m15):
+            return float(m15["Close"].iloc[-1])
+    except Exception:
+        pass
+    return None
+
+
+def _exec_ts(m15, h1) -> Optional[datetime]:
+    """زمانِ بسته‌شدنِ کندلی که ``_exec_price`` از آن آمده.
+
+    باید با ``_exec_price`` هم‌منبع باشد، وگرنه همان باگِ «قیمت از یک لحظه،
+    اسکن از لحظهٔ دیگر» برمی‌گردد. M15 خالی → زمانِ بستهٔ H1 (هم‌راستا با
+    بازگشتِ قیمت به ``price``).
+    """
+    if m15 is not None and len(m15):
+        return _close_ts(m15, EXEC_TF_MIN)
+    return _close_ts(h1, H1_TF_MIN)
 
 
 def _close_ts(df, interval_min: int) -> Optional[datetime]:

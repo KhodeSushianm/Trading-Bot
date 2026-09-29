@@ -508,32 +508,37 @@
     }
 
     var rcfg = ctx.jcfg.risk;
-    var lv = (riskFn || O.computeLevels)(j.direction, a.price, a.atr, a.support, a.resistance, rcfg);
+    // v0.29 (فاز ۲): مبنای معامله قیمتِ *اجرا* است (بستهٔ M15)، نه لنگرِ
+    // تحلیل (بستهٔ H1). آینهٔ exec_p در src/judge/scoring.py.
+    // null (تحلیلِ دستیِ تست‌ها / نبودِ M15) → صادقانه همان a.price.
+    var execP = (a.exec_price != null) ? a.exec_price : a.price;
+    var lv = (riskFn || O.computeLevels)(j.direction, execP, a.atr, a.support, a.resistance, rcfg);
     if (lv.capped) {
       j.warnings.push('حد ضرر از سطح کلیدی دور بود و به سقف ' + O.faNum(O.pyFixed(+rcfg.max_sl_atr, 1)) + '×ATR محدود شد');
     }
     var opp = j.direction === 'BUY' ? a.resistance : a.support;
-    if (opp != null && Math.abs(opp - a.price) < Math.abs(lv.tp - a.price)) {
+    if (opp != null && Math.abs(opp - execP) < Math.abs(lv.tp - execP)) {
       var kind = j.direction === 'BUY' ? 'مقاومت' : 'حمایت';
       j.warnings.push(kind + ' ' + O.fmtG(opp) + ' سر راه هدف است — رسیدن به هدف سخت‌تر از چیزی است که نسبت ۱:' + O.faRatio(+rcfg.reward_risk) + ' پیشنهاد می‌دهد');
     }
 
     var pip = a.pip || 0.0001;
-    var risk = Math.abs(a.price - lv.sl);
+    var risk = Math.abs(execP - lv.sl);
     j.signal = {
       symbol: a.symbol, fa_name: a.fa_name, direction: j.direction,
-      sid: a.symbol + '-' + j.direction + '-' + sidStamp(new Date(ctx.nowMs)) + '-' + (Math.round(a.price * 1e6) / 1e6),
+      sid: a.symbol + '-' + j.direction + '-' + sidStamp(new Date(ctx.nowMs)) + '-' + (Math.round(execP * 1e6) / 1e6),
       score: j.score, max_score: j.max_score,
       stars: j.max_score ? Math.max(1, Math.min(5, pyRound(j.score / j.max_score * 5))) : 1,
-      entry: a.price, sl: lv.sl, tp: lv.tp, pip: pip, atr: a.atr,
-      risk_pips: risk / pip, reward_pips: Math.abs(lv.tp - a.price) / pip,
+      entry: execP, sl: lv.sl, tp: lv.tp, pip: pip, atr: a.atr,
+      risk_pips: risk / pip, reward_pips: Math.abs(lv.tp - execP) / pip,
       rr: +rcfg.reward_risk,
       is_gold: pip >= 0.5, session_fa: ctx.status.label, now: ctx.nowMs,
       evidences: j.evidences, warnings: j.warnings, sl_capped: lv.capped,
       strategies: j.strategies,
-      // v0.29 (فاز ۱): زمانِ بسته‌شدنِ کندلی که `entry` از آن آمده.
-      // آینهٔ Signal.entry_ts پایتون. null = دادهٔ زمانی نبود.
-      entry_ts: (a.price_ts != null ? a.price_ts : null)
+      // v0.29 (فاز ۱+۲): زمانِ بسته‌شدنِ کندلی که `entry` از آن آمده.
+      // آینهٔ Signal.entry_ts پایتون. null = دادهٔ زمانی نبود → tracker
+      // به رفتارِ قبلی برمی‌گردد.
+      entry_ts: (a.exec_ts != null ? a.exec_ts : null)
     };
     return j;
   };
