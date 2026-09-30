@@ -1,0 +1,8 @@
+# خروجی‌های تولیدیِ بازپخشِ تاریخی — دادهٔ خام و نتیجهٔ میانی.
+# هر دو بزرگ‌اند (کش ~۱۹MB) و کاملاً از `backtest_v029.py` بازتولیدپذیر:
+#     python tools/backtest_v029.py            # کش + trades + گزارش
+# گزارشِ نهایی (backtest_report.md) عمداً *نگه داشته* می‌شود چون مستندِ
+# تصمیمِ آستانه‌های ADX در v0.29.1 است و ارجاعش در CHANGELOG و AI Pack آمده.
+_backtest_cache.json
+_backtest_trades.json
+__pycache__/
