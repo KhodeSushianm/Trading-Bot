@@ -109,7 +109,11 @@ def mk_ctx(**over) -> JudgeContext:
     return JudgeContext(**base)
 
 
-SCFG_TP = {"enabled": True, "adx_min": 20, "rsi_buy": [30, 45],
+# v0.29.1: adx_min 20 → 30 — عمداً هم‌عدد با config.yaml. این کوپلینگ را
+# test_strategies_switch.js::testRegistryPath پین می‌کند (adapter با scfgِ
+# پیش‌فرضِ config.js در برابر ماژول با SCFG_* طلایی). شکستنش یعنی از دست
+# دادنِ تنها نگهبانِ هم‌عددیِ جدول در دو موتور.
+SCFG_TP = {"enabled": True, "adx_min": 30, "rsi_buy": [30, 45],
            "rsi_sell": [55, 70]}
 SCFG_LB = {"enabled": True, "asia_start_hour": 0, "asia_end_hour": 7,
            "london_open_hour": 7, "trade_window_hours": 4,
@@ -156,11 +160,11 @@ A(v.direction == "NONE" and "پولبک معتبر نیست" in v.reasons_fa[0],
 v = trend_pullback.evaluate(mk_a(rsi=25.0), md_bull, SCFG_TP, mk_ctx())
 A(v.direction == "NONE" and "پولبک معتبر نیست" in v.reasons_fa[0],
     "RSI زیر کفِ منطقه (۲۵<۳۰) هم رد است — ورود در سقوطِ آزاد نه")
-v = trend_pullback.evaluate(mk_a(trend="bearish", h1_agrees=True, adx=28.0,
+v = trend_pullback.evaluate(mk_a(trend="bearish", h1_agrees=True, adx=32.0,
                                  rsi=62.0, rsi_rising=False),
                             mk_md(mk_h1(last_bear())), SCFG_TP, mk_ctx())
 A(v.direction == "SELL", f"آینهٔ نزولی کامل باید SELL دهد، {v.direction} داد")
-v = trend_pullback.evaluate(mk_a(trend="bearish", h1_agrees=True, adx=28.0,
+v = trend_pullback.evaluate(mk_a(trend="bearish", h1_agrees=True, adx=32.0,
                                  rsi=62.0, rsi_rising=True),
                             mk_md(mk_h1(last_bear())), SCFG_TP, mk_ctx())
 A(v.direction == "NONE", "در روند نزولی، RSIِ بالارونده = تأیید ادامه نیست")
@@ -184,7 +188,7 @@ A(v.direction == "NONE", "adx_min=40 باید ستاپ ADX=32 را رد کند (
 d1 = trend_pullback.evaluate(mk_a(), md_bull, SCFG_TP, mk_ctx()).to_dict()
 d2 = trend_pullback.evaluate(mk_a(), md_bull, SCFG_TP, mk_ctx()).to_dict()
 A(d1 == d2, "استراتژی ۱ باید قطعی باشد (دو فراخوانی = یک dict)")
-s_low = trend_pullback.evaluate(mk_a(adx=25.0), md_bull, SCFG_TP, mk_ctx()).strength
+s_low = trend_pullback.evaluate(mk_a(adx=31.0), md_bull, SCFG_TP, mk_ctx()).strength
 s_high = trend_pullback.evaluate(mk_a(adx=45.0), md_bull, SCFG_TP, mk_ctx()).strength
 A(s_high > s_low and s_high <= 1.0, "ADX قوی‌تر = ستاپ قوی‌تر (یکنوا و کران‌دار)")
 print(f"✅ A) trend_pullback — {COUNT} میخ سبز")

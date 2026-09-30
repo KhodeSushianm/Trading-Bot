@@ -189,8 +189,11 @@ def _selftest() -> int:
     jcfg = judge_cfg_default()
     wed = datetime(2026, 9, 23, 14, 0, tzinfo=timezone.utc)     # چهارشنبه، هم‌پوشانی لندن/NY
     sat = datetime(2026, 9, 19, 12, 0, tzinfo=timezone.utc)     # شنبه، بازار بسته
-    acfg = {"ema_fast": 50, "ema_slow": 200, "adx_period": 14, "adx_min_trend": 20,
-            "adx_strong": 25, "rsi_period": 14, "atr_period": 14, "swing_window": 5}
+    # v0.29.1: هم‌عدد با config.yaml (adx_min_trend 30 · adx_strong 40).
+    # نمونهٔ زیر adx=32 دارد → با adx_strong=40 یک امتیاز می‌گیرد نه دو تا،
+    # پس امتیاز از ۱۱ به ۱۰ می‌رسد و همچنان بالای آستانهٔ ۷ است.
+    acfg = {"ema_fast": 50, "ema_slow": 200, "adx_period": 14, "adx_min_trend": 30,
+            "adx_strong": 40, "rsi_period": 14, "atr_period": 14, "swing_window": 5}
 
     def _ana(**kw):
         d = dict(symbol="EURUSD", fa_name="یورو به دلار", base="EUR", quote="USD",
@@ -297,8 +300,16 @@ def _selftest() -> int:
     assert abs(r5 - float(rc["min_sl_atr"]) * 0.0010) < 1e-9, "سطح چسبیده → کف min_sl_atr"
 
     # ج) سقف تعداد سیگنال + خلاصهٔ داور
-    many = [_ana(symbol="EURUSD"), _ana(symbol="GBPUSD", base="GBP", quote="USD"),
-            _ana(symbol="AUDUSD", base="AUD", quote="USD", adx=21.0)]
+    # v0.29.1: ADXها با آستانه‌های تازه (min_trend=30 · strong=40) بازنویسی
+    # شدند. پیش‌تر سومی adx=21 داشت تا «نامزدِ ضعیف‌تر» باشد؛ حالا ۲۱ زیرِ
+    # کفِ ۳۰ است و veto_range ردش می‌کند — یعنی CAPPED نمی‌شد و شمارشِ
+    # «۲ تا CAPPED» می‌شکست. این رفتارِ *درستِ* تازه است، نه باگ.
+    # مقادیرِ تازه عمداً سه سطحِ متمایز می‌سازند تا «بهترین نگه داشته می‌شود»
+    # معنا داشته باشد (و نه تساویِ سه‌تایی که آزمون را پوچ می‌کرد):
+    #   ۴۵ ≥ strong → ۲ امتیازِ ev_trend   ·   ۳۵ و ۳۱ → ۱ امتیاز
+    many = [_ana(symbol="EURUSD", adx=45.0),
+            _ana(symbol="GBPUSD", base="GBP", quote="USD", adx=35.0),
+            _ana(symbol="AUDUSD", base="AUD", quote="USD", adx=31.0)]
     from src.judge.scoring import judge_all
     out = judge_all(many, {}, _ctx(cal=clean, news=supportive, max_signals_per_cycle=1))
     assert sum(1 for o in out if o.signal) == 1, "سقف ۱ سیگنال باید رعایت شود"

@@ -22,7 +22,7 @@ _MINIMAL_DEFAULT = """data_source: auto
 symbols:
   - {name: EURUSD, fa: "یورو به دلار آمریکا", yahoo: "EURUSD=X", td: "EUR/USD",
      tv: {screener: forex, exchange: FX, symbol: EURUSD}, base: EUR, quote: USD, pip: 0.0001}
-analysis: {ema_fast: 50, ema_slow: 200, adx_period: 14, adx_min_trend: 20,
+analysis: {ema_fast: 50, ema_slow: 200, adx_period: 14, adx_min_trend: 30,
            rsi_period: 14, atr_period: 14, swing_window: 5, strength_lookback_h1: 24}
 tradingview: {enabled: true, timeframe: 4h}
 fundamental: {enabled: true, cache_ttl_minutes: 30, horizon_hours: 48,
@@ -135,7 +135,7 @@ def load_config(path: str | None = None) -> dict:
     st = cfg.setdefault("strategies", {})
     st.setdefault("min_agree", 1)
     stp = st.setdefault("trend_pullback", {})
-    for k, v in (("enabled", True), ("adx_min", 20),
+    for k, v in (("enabled", True), ("adx_min", 30),   # v0.29.1: هم‌عدد با analysis
                  ("rsi_buy", [30, 45]), ("rsi_sell", [55, 70])):
         stp.setdefault(k, v)
     slb = st.setdefault("london_breakout", {})

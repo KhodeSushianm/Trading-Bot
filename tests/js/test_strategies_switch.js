@@ -293,7 +293,7 @@ function testConfigMirror() {
   const st = O.CONFIG.strategies;
   A(!!st, 'O.CONFIG.strategies باید وجود داشته باشد');
   A(st.min_agree === 1, 'min_agree پیش‌فرض = ۱ (آینهٔ config.yaml)');
-  A(st.trend_pullback.enabled === true && st.trend_pullback.adx_min === 20
+  A(st.trend_pullback.enabled === true && st.trend_pullback.adx_min === 30
     && stableStringify(st.trend_pullback.rsi_buy) === '[30,45]'
     && stableStringify(st.trend_pullback.rsi_sell) === '[55,70]',
     'trend_pullback باید آینهٔ config.yaml باشد');
@@ -312,6 +312,35 @@ function testConfigMirror() {
   // config.yaml به‌روز می‌کرد، این تست یا بی‌صدا بی‌ربط می‌شد یا (اگر
   // js/config.js هم عوض شده بود) قرمزِ گمراه‌کننده می‌داد. حالا واقعاً
   // YAML را می‌خواند → نگهبانِ هم‌عددیِ دو موتور، خودنگهدار.
+  // v0.29.1: آستانه‌های ADX هم باید آینهٔ config.yaml باشند. این دو عدد
+  // بر پایهٔ بازپخشِ تاریخی عوض شدند (adx_min_trend 20→30 · adx_strong 25→40)
+  // و در *دو* فایل زندگی می‌کنند؛ واگرایی یعنی گوشی و اوراکل دو داورِ
+  // متفاوت دارند. همان الگوی پارسِ YAML که پایین‌تر برای جدول نرخ هست.
+  const yamlRaw = fs.readFileSync(path.join(ROOT, 'config.yaml'), 'utf8')
+    .split('\n').filter((l) => !/^\s*#/.test(l));
+  function yamlNum(re, label) {
+    const line = yamlRaw.find((l) => re.test(l));
+    A(!!line, label + ' در config.yaml پیدا نشد');
+    const m = line && line.match(/:\s*([0-9.]+)/);
+    A(!!m, label + ' مقدارِ عددی ندارد: ' + line);
+    return m ? parseFloat(m[1]) : NaN;
+  }
+  const yAdxMin = yamlNum(/^ {2}adx_min_trend:/, 'analysis.adx_min_trend');
+  const yAdxStrong = yamlNum(/^ {2}adx_strong:/, 'analysis.adx_strong');
+  const an = O.CONFIG.analysis;
+  A(an.adx_min_trend === yAdxMin,
+    'analysis.adx_min_trend باید == config.yaml باشد — js:' + an.adx_min_trend
+    + ' yaml:' + yAdxMin);
+  A(an.adx_strong === yAdxStrong,
+    'analysis.adx_strong باید == config.yaml باشد — js:' + an.adx_strong
+    + ' yaml:' + yAdxStrong);
+  A(yAdxStrong > yAdxMin,
+    'adx_strong (' + yAdxStrong + ') باید از adx_min_trend (' + yAdxMin
+    + ') بزرگ‌تر باشد — وگرنه ev_trend به همه ۲ امتیازِ مجانی می‌دهد');
+  A(st.trend_pullback.adx_min === yAdxMin,
+    'strategies.trend_pullback.adx_min باید هم‌عدد با analysis.adx_min_trend '
+    + 'باشد — strategy:' + st.trend_pullback.adx_min + ' analysis:' + yAdxMin);
+
   const yaml = fs.readFileSync(path.join(ROOT, 'config.yaml'), 'utf8')
     .split('\n')
     // کامنت‌ها حذف — وگرنه عددِ ذکرشده در متنِ توضیحی، نرخ خوانده می‌شود

@@ -74,7 +74,12 @@ const RANK_USD_STRONG = [['USD', 0.30], ['GBP', 0.10], ['EUR', -0.20], ['JPY', -
 function makeAnalysis(over) {
   const a = {
     symbol: 'EURUSD', fa_name: 'یورو به دلار آمریکا', base: 'EUR', quote: 'USD',
-    price: 1.1490, pip: 0.0001, trend: 'bullish', h1_agrees: true, adx: 32.0,
+    // v0.29.1: adx پیش‌فرض ۳۲ → ۴۲ — هم‌تراز با gen_judge_golden.py پایتون.
+    // با adx_strong=40 (از ۲۵)، مقدارِ قبلی فقط ۱ امتیازِ ev_trend می‌گرفت
+    // و سناریوهای «طلاییِ کامل» ۱۱/۱۱ نمی‌شدند. اگر این دو ژنراتور
+    // واگرا بمانند، دو طلایی دو چیزِ متفاوت را پین می‌کنند و ادعای
+    // «پاریتیِ بایت‌به‌بایت» بی‌معنا می‌شود.
+    price: 1.1490, pip: 0.0001, trend: 'bullish', h1_agrees: true, adx: 42.0,
     rsi: 38.0, rsi_rising: true, atr: 0.0010, support: 1.1486, resistance: 1.1560,
     last_candle: FIXED_WED, verdict: 'BUY_SETUP'
   };
@@ -320,7 +325,10 @@ function buildBattery(O, opts) {
   const S = (over, ctxOver) => judge(makeSellAnalysis(over), undefined,
     makeCtx(O, Object.assign({ ranking: RANK_USD_STRONG, tvMap: TV_SELL, newsSnap: sellNews() }, ctxOver || {})));
   bat.evidence_judgments = {
-    trend_medium: judge(makeAnalysis({ adx: 22.0 })),
+    // v0.29.1: adx 22 → 32. با adx_min_trend=30، مقدارِ قبلی *وتو* می‌شد
+    // (RANGE) و این رکورد دیگر شاهدِ trend را پین نمی‌کرد. ۳۲ در بازهٔ
+    // [30,40) است → ev_trend یک امتیاز = «روندِ متوسط».
+    trend_medium: judge(makeAnalysis({ adx: 32.0 })),
     level_buy_near: judge(makeAnalysis({ support: 1.1480 })),
     level_buy_far: judge(makeAnalysis({ support: 1.1400 })),
     level_buy_unavailable: judge(makeAnalysis({ support: null })),

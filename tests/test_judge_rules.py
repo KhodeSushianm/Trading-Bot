@@ -71,7 +71,10 @@ VETO_DETAILS = {
     "DATA": "تعداد کندل‌ها برای محاسبهٔ EMA200 کافی نیست — تحلیل قابل اتکا نیست",
     "WEEKEND": "شنبه — بازار فارکس بسته است 🔒",
     "TF_CONFLICT": "روند ۴ ساعته صعودی 📈 است ولی ۱ ساعته هم‌جهت نیست — طبق قوانین، معامله در تضاد تایم‌فریم ممنوع است",
-    "RANGE": "ADX=14 زیر آستانهٔ 20 است — استراتژی روندی در بازار رنج کار نمی‌کند",
+    # v0.29.1: آستانهٔ وتوی RANGE از ۲۰ به ۳۰ رفت (بازپخشِ تاریخی: بازهٔ
+    # ADX<30 در هر دو نیمهٔ زمانی زیرِ خطِ پایه بود). متن، آستانه را embed
+    # می‌کند پس این پین هم باید هم‌عدد بماند.
+    "RANGE": "ADX=14 زیر آستانهٔ 30 است — استراتژی روندی در بازار رنج کار نمی‌کند",
     "EVENT": "«نرخ بهره فدرال رزرو» (آمریکا) — ۱۲ دقیقه بعد. نوسان خبری غیرقابل پیش‌بینی است",
     "VOL_SPIKE": "ATR یک‌ساعتهٔ فعلی ۳.۲ برابر میانگین ۱۰۰ کندل اخیر است (آستانهٔ وتو: ۲.۰ برابر). در این شرایط اسپرد وید می‌شود و حد ضرر قابل اتکا نیست",
     "BREAKING_NEWS": "«🚨 BREAKING: ECB surprise decision» — تا آرام‌شدن بازار صبر کن",
@@ -250,7 +253,7 @@ EV_TEXTS = {
 NO_SETUP_TEXTS = {
     "trend_none": "جهت روند نامشخص است",
     "h1_disagree": "تایم‌فریم ۱ ساعته با ۴ ساعته هم‌جهت نیست",
-    "range_no_veto": "بازار بی‌روند است (ADX=14 زیر 20)",
+    "range_no_veto": "بازار بی‌روند است (ADX=14 زیر 30)",
     "bullish_rsi_high": "روند صعودی است ولی RSI=55 در منطقهٔ پولبک نیست (برای ستاپ خرید باید زیر ۴۵ باشد) — یعنی یا دیر رسیده‌ایم یا اصلاح هنوز تمام نشده",
     "bearish_rsi_low": "روند نزولی است ولی RSI=40 در منطقهٔ اصلاح رو به بالا نیست (برای ستاپ فروش باید بالای ۵۵ باشد)",
 }
@@ -313,7 +316,7 @@ def test_veto_toggles_and_clean() -> None:
       "شاهد سشن در بازار بسته: ۰ امتیاز با دلیل صادقانه")
     j2 = BAT["veto_toggles"]["range_off_low_adx"]
     # S3 (بازضبطِ مستند): پینِ toggle سرِ جایش است (vetoes==[]) ولی این
-    # سناریو دیگر سیگنال نمی‌دهد — ADX=14 زیر آستانهٔ trend_pullback (۲۰)
+    # سناریو دیگر سیگنال نمی‌دهد — ADX=14 زیر آستانهٔ trend_pullback (۳۰ از v0.29.1)
     # است، پس دروازهٔ توافق صادقانه رد می‌کند. موضوعِ پینِ toggle، «وتو
     # برداشته شده» است نه «سیگنال صادر شده».
     A(j2["vetoes"] == [],
@@ -575,12 +578,70 @@ def test_gate_order_and_legacy() -> None:
 
 
 # ══════════════════════════════════════════════════════════════
+def test_adx_thresholds_v0291() -> None:
+    """پینِ صریحِ آستانه‌های ADX (v0.29.1).
+
+    چرا لازم است: تغییرِ ``adx_min_trend`` ۲۰→۳۰ و ``adx_strong`` ۲۵→۴۰ بر
+    پایهٔ بازپخشِ تاریخی بود (بازهٔ ADX<30 در *هر دو* نیمهٔ زمانی زیرِ خطِ
+    پایه؛ بازهٔ ≥40 در هر دو بالای آن — tools/backtest_v029.py). ولی باتریِ
+    طلایی هم‌زمان adx پیش‌فرضش را ۳۲→۴۲ برد تا سناریوهای «کامل» ۱۱/۱۱
+    بمانند، پس **طلایی‌ها خودِ آستانه را پین نمی‌کنند**. بدونِ این تست،
+    برگرداندنِ آستانه به ۲۰ فقط دو خطِ متنی عوض می‌کرد و بی‌صدا رد می‌شد.
+
+    آستانه‌ها از *config واقعی* خوانده می‌شوند نه عددِ سخت‌کدشده، پس اگر روزی
+    دوباره تنظیم شدند این تست خودش به‌روز می‌ماند و فقط «مرز بودن» و
+    «هم‌عددیِ دو منبع» را پین می‌کند.
+    """
+    from src.config import load_config
+    # ⚠️ ROOT در این فایل HERE.parents[1] است (پدرِ ریپو، برای sys.path)؛
+    # config.yaml در خودِ ریپو است → HERE.parent.
+    c = load_config(str(HERE.parent / "config.yaml"))
+    lo = float(c["analysis"]["adx_min_trend"])
+    hi = float(c["analysis"]["adx_strong"])
+    A(hi > lo,
+      f"adx_strong ({hi}) باید از adx_min_trend ({lo}) بزرگ‌تر باشد — وگرنه "
+      f"هر سیگنالی که از وتو رد شود ADX≥{lo}>{hi} دارد و ev_trend به همه "
+      f"۲ امتیاز می‌دهد (نقصِ «امتیازِ مجانی» که v0.29.1 رفعش کرد)")
+
+    # ── مرزِ وتوی RANGE ───────────────────────────────────────
+    j_lo = gen.judge_symbol(gen.make_analysis(adx=lo - 0.01), {}, None,
+                            gen.make_ctx())
+    j_hi = gen.judge_symbol(gen.make_analysis(adx=lo + 0.01), {}, None,
+                            gen.make_ctx())
+    A(bool(j_lo.vetoes) and j_lo.vetoes[0].key == "RANGE",
+      f"ADX={lo - 0.01} باید وتوی RANGE بگیرد (کف={lo})")
+    A(not any(v.key == "RANGE" for v in j_hi.vetoes),
+      f"ADX={lo + 0.01} نباید وتوی RANGE بگیرد")
+    A(f"{lo:.0f}" in j_lo.vetoes[0].detail_fa,
+      f"متنِ وتو باید آستانهٔ *واقعی* ({lo:.0f}) را نشان دهد نه عددِ کهنه: "
+      f"{j_lo.vetoes[0].detail_fa}")
+
+    # ── مرزِ امتیازِ ev_trend ─────────────────────────────────
+    p_lo = gen.ev_trend(gen.make_analysis(adx=hi - 0.01), gen.make_ctx(), "BUY")
+    p_hi = gen.ev_trend(gen.make_analysis(adx=hi + 0.01), gen.make_ctx(), "BUY")
+    A(p_lo.points == 1 and p_hi.points == 2,
+      f"ev_trend باید در adx_strong={hi} از ۱ به ۲ برود "
+      f"(پایین={p_lo.points}، بالا={p_hi.points})")
+    A(p_lo.points != p_hi.points,
+      "دو سطحِ ev_trend باید واقعاً متمایز باشند — اگر یکی باشند این مدرک "
+      "اطلاعاتی حمل نمی‌کند")
+
+    # ── هم‌عددیِ داور و استراتژی ──────────────────────────────
+    st = float(((c.get("strategies") or {}).get("trend_pullback") or {})
+               .get("adx_min", -1))
+    A(st == lo,
+      f"strategies.trend_pullback.adx_min ({st}) باید هم‌عدد با "
+      f"analysis.adx_min_trend ({lo}) باشد — عمدی است تا داور و استراتژی دو "
+      f"تعریفِ متفاوت از «روندِ معتبر» نداشته باشند")
+
+
 def main() -> int:
     tests = [test_golden_battery, test_veto_single, test_veto_order,
              test_veto_toggles_and_clean, test_evidence_branches,
              test_judge_full_paths, test_low_score, test_no_setup,
              test_capped, test_judge_all_mixed, test_risk_math,
-             test_strategy_gate, test_gate_order_and_legacy]
+             test_strategy_gate, test_gate_order_and_legacy,
+             test_adx_thresholds_v0291]
     fails = []
     for t in tests:
         try:
@@ -596,7 +657,8 @@ def main() -> int:
         return 1
     print(f"✅ JUDGE-RULES TESTS OK — {COUNT} بررسی پاس؛ میخ‌های رفتاری داور "
           f"(۷ وتو + ۳۸ شاخهٔ شاهد + داوری کامل + CAPPED + ریاضی ریسک "
-          f"+ دروازهٔ توافق استراتژی‌ها S3) + طلاییِ باتری سناریوها سبز‌اند")
+          f"+ دروازهٔ توافق استراتژی‌ها S3 + مرزهای ADX v0.29.1) "
+          f"+ طلاییِ باتری سناریوها سبز‌اند")
     return 0
 
 

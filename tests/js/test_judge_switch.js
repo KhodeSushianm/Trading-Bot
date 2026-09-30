@@ -187,7 +187,9 @@ function testJudgePathPins() {
   const ns = BAT.judge_no_setup;
   A(ns.trend_none.reject_detail === 'جهت روند نامشخص است', 'NO_SETUP/trend-none');
   A(ns.h1_disagree.reject_detail === 'تایم‌فریم ۱ ساعته با ۴ ساعته هم‌جهت نیست', 'NO_SETUP/h1');
-  A(ns.range_no_veto.reject_detail === 'بازار بی‌روند است (ADX=14 زیر 20)', 'NO-setup/range');
+  // v0.29.1: آستانهٔ وتوی RANGE از ۲۰ به ۳۰ رفت؛ متن آستانه را embed
+  // می‌کند پس این پین هم باید هم‌عدد بماند (آینهٔ test_judge_rules.py).
+  A(ns.range_no_veto.reject_detail === 'بازار بی‌روند است (ADX=14 زیر 30)', 'NO-setup/range');
   A(ns.bullish_rsi_high.reject_detail.indexOf('روند صعودی است ولی RSI=55') === 0, 'NO_SETUP/bullish-rsi');
   A(ns.bearish_rsi_low.reject_detail.indexOf('روند نزولی است ولی RSI=40') === 0, 'NO_SETUP/bearish-rsi');
 

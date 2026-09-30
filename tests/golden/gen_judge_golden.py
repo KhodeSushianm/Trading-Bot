@@ -126,7 +126,12 @@ def make_md(symbol: str = "EURUSD", n: int = 300, base: float = 1.1490,
 
 def make_analysis(**kw) -> SymbolAnalysis:
     d = dict(symbol="EURUSD", fa_name="یورو به دلار آمریکا", base="EUR", quote="USD",
-             price=1.1490, pip=0.0001, trend="bullish", h1_agrees=True, adx=32.0,
+             # v0.29.1: adx پیش‌فرض ۳۲ → ۴۲. با adx_strong=40 (از ۲۵)، مقدارِ
+             # قبلی فقط ۱ امتیازِ ev_trend می‌گرفت و سناریوهای «طلاییِ کامل»
+             # دیگر ۱۱/۱۱ نمی‌شدند. ۴۲ بالای آستانهٔ تازه است، پس همان
+             # ۲ امتیاز و همان ۱۱/۱۱ — مکانیسمِ آزمون دست‌نخورده می‌ماند و
+             # فقط تعریفِ «روندِ قوی» با config هم‌تراز می‌شود.
+             price=1.1490, pip=0.0001, trend="bullish", h1_agrees=True, adx=42.0,
              rsi=38.0, rsi_rising=True, atr=0.0010, support=1.1486, resistance=1.1560,
              last_candle=WED_OVERLAP, verdict="BUY_SETUP")
     d.update(kw)
@@ -364,8 +369,12 @@ def battery_evidence() -> dict:
 
     # ── trend ──
     ctx = make_ctx(cal=clean_cal(), news=good_news())
-    rec("trend_strong", ev_trend(make_analysis(adx=32.0), ctx, d))
-    rec("trend_medium", ev_trend(make_analysis(adx=22.0), ctx, d))
+    # v0.29.1: آستانهٔ «قوی» از ۲۵ به ۴۰ رفت. مقادیرِ قبلی (۳۲/۲۲) با
+    # آستانهٔ تازه *هر دو* ۱ امتیاز می‌گرفتند و تمایزِ strong/medium از بین
+    # می‌رفت — یعنی این دو رکورد دیگر چیزی را پین نمی‌کردند. حالا ۴۵ (≥۴۰ →
+    # ۲ امتیاز) و ۳۲ (<۴۰ → ۱ امتیاز).
+    rec("trend_strong", ev_trend(make_analysis(adx=45.0), ctx, d))
+    rec("trend_medium", ev_trend(make_analysis(adx=32.0), ctx, d))
 
     # ── level ──
     rec("level_buy_close", ev_level(make_analysis(support=1.1486), ctx, "BUY"))

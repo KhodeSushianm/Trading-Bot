@@ -19,7 +19,11 @@
 
     analysis: {
       ema_fast: 50, ema_slow: 200,
-      adx_period: 14, adx_min_trend: 20, adx_strong: 25,
+      // v0.29.1: آستانه‌های ADX بر پایهٔ بازپخشِ تاریخی — آینهٔ config.yaml.
+      // adx_min_trend 20→30 (بازهٔ <30 در هر دو نیمهٔ زمانی منفی بود) و
+      // adx_strong 25→40 (تنها بازهٔ ≥40 در هر دو نیمه مثبت بود). باید
+      // همیشه با YAML هم‌عدد بماند — نگهبانش test_strategies_switch.js.
+      adx_period: 14, adx_min_trend: 30, adx_strong: 40,
       rsi_period: 14, atr_period: 14,
       swing_window: 5, strength_lookback_h1: 24
     },
@@ -90,7 +94,7 @@
     strategies: {
       min_agree: 1,
       trend_pullback: {
-        enabled: true, adx_min: 20, rsi_buy: [30, 45], rsi_sell: [55, 70]
+        enabled: true, adx_min: 30, rsi_buy: [30, 45], rsi_sell: [55, 70]
       },
       london_breakout: {
         enabled: true, asia_start_hour: 0, asia_end_hour: 7,
