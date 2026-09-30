@@ -391,7 +391,17 @@ O.http = async function (url, opts) {
       // انتظارات پایتون را هم‌شکل کن (ts ژورنال → ms؛ detail_fa مدرک tv استثنا)
       const exp = fxj.judgments.map(j => {
         const jj = JSON.parse(JSON.stringify(j));
-        if (jj.signal && jj.signal.journal) jj.signal.journal.ts = Date.parse(jj.signal.journal.ts);
+        if (jj.signal && jj.signal.journal) {
+          jj.signal.journal.ts = Date.parse(jj.signal.journal.ts);
+          // v0.29: entry_ts هم به ms نرمال شود. پایتون `+00:00` می‌نویسد و
+          // JS `.000Z` — همان لحظه، دو رشتهٔ متفاوت. مقایسهٔ رشته‌ای یعنی
+          // شکستِ کاذب؛ مقایسهٔ عددی یعنی سنجشِ *معنا*.
+          // ⚠️ اگر entry_ts رشتهٔ بدون offset باشد، Date.parse آن را محلی
+          // می‌خواند و این عدد غلط می‌شود — پس این خط خودش نگهبانِ آن باگ است.
+          if (jj.signal.journal.entry_ts != null) {
+            jj.signal.journal.entry_ts = Date.parse(jj.signal.journal.entry_ts);
+          }
+        }
         return jj;
       });
       // مقایسه با استثنا: رشتهٔ جزئیات مدرک «tv» (شمارش‌ها در API جدید null هستند
@@ -464,19 +474,42 @@ O.http = async function (url, opts) {
       session: e.session, evidences: e.evidences, sent: e.sent, outcome: e.outcome,
       outcome_ts: e.outcome_ts, close_price: e.close_price, r: e.r, note: e.note,
       strategies: e.strategies,
+      // v0.29: فیلدهای تازه باید در پاریتی سنجیده شوند، وگرنه دو موتور
+      // می‌توانند بی‌صدا واگرا شوند (دقیقاً همان چیزی که این اوراکل برای
+      // گرفتنش هست).
+      entry_ts: e.entry_ts, spread_pips: e.spread_pips,
+      rules_version: e.rules_version, rules: O.entryRules(e),
+      net_r: e.net_r, mfe_r: e.mfe_r, mae_r: e.mae_r,
       week_key: O.entryWeekKey(e), evidence_keys: O.entryEvidenceKeys(e)
     }));
     deepEq('entries', FIX.journal.entries, actEntries, 1e-9);
 
     const st = O.computeStats(entries, FIX.nowMs);
     // پایتون rateها را به‌صورت @property دارد (در vars() نیستند) — از JS حذف کن
-    const strip = b => ({ closed: b.closed, wins: b.wins, losses: b.losses, expired: b.expired, r_sum: b.r_sum });
+    // ⚠️ v0.29: net_r_sum و net_closed افزوده شدند. این فهرست باید دقیقاً
+    // همان فیلدهای dataclassِ Bucket پایتون باشد (vars() همان‌ها را می‌دهد)؛
+    // اگر یکی جا بیفتد، deepEq «missing in actual» می‌دهد.
+    const strip = b => ({ closed: b.closed, wins: b.wins, losses: b.losses, expired: b.expired,
+      r_sum: b.r_sum, net_r_sum: b.net_r_sum, net_closed: b.net_closed });
     const stripMap = m => Object.fromEntries(Object.keys(m).map(k => [k, strip(m[k])]));
     const actStats = {
       total: st.total, open_count: st.open_count, overall: strip(st.overall),
       by_symbol: stripMap(st.by_symbol), by_score: stripMap(st.by_score),
       by_evidence: stripMap(st.by_evidence), by_strategy: stripMap(st.by_strategy),
-      by_week: stripMap(st.by_week)
+      by_week: stripMap(st.by_week),
+      // v0.29: تفکیکِ نسخهٔ قواعد + آمارِ نوسان. کلیدهای by_rules در هر دو
+      // زبان رشته‌اند (کلیدِ شیءِ JS همیشه رشته است؛ JSON هم کلیدِ عددی را
+      // رشته می‌کند) پس مستقیم مقایسه‌پذیرند.
+      by_rules: stripMap(st.by_rules),
+      excursions: { n: st.excursions.n, mfe_sum: st.excursions.mfe_sum,
+        mae_sum: st.excursions.mae_sum, mfe_values: st.excursions.mfe_values,
+        mae_values: st.excursions.mae_values,
+        losers_reached_1r: st.excursions.losers_reached_1r, losers: st.excursions.losers,
+        winners_dipped_1r: st.excursions.winners_dipped_1r, winners: st.excursions.winners },
+      // ویژگی‌های محاسبه‌شدهٔ پایتون (@property، پس در vars() نیستند) با
+      // O.excursionRates در JS ساخته و مستقیم مقایسه می‌شوند — این یعنی
+      // «میانه» و «نرخ‌ها» در دو زبان هم‌تعریف‌اند، نه فقط فیلدهای خام.
+      excursions_rates: O.excursionRates(st.excursions)
     };
     deepEq('stats', FIX.journal.stats, actStats, 1e-9);
     // نرخ‌های محاسبه‌شده هم با تعریف پایتون بررسی شود
@@ -486,6 +519,19 @@ O.http = async function (url, opts) {
     if (expHit !== null && Math.abs(o.hit_rate - expHit) > 1e-12) fails.push('hit_rate mismatch');
     if (Math.abs(o.closed_win_rate - eo.wins / eo.closed) > 1e-12) fails.push('closed_win_rate mismatch');
     if (Math.abs(o.avg_r - eo.r_sum / eo.closed) > 1e-12) fails.push('avg_r mismatch');
+    // v0.29: نرخ‌های محاسبه‌شدهٔ تازه هم با تعریفِ پایتون سنجیده شوند
+    if (eo.net_closed) {
+      if (Math.abs(o.avg_net_r - eo.net_r_sum / eo.net_closed) > 1e-12) fails.push('avg_net_r mismatch');
+    } else if (o.avg_net_r !== null) fails.push('avg_net_r باید null باشد وقتی net_closed=0');
+    const ex = st.excursions, xr = O.excursionRates(ex);
+    const fx = FIX.journal.stats.excursions_rates || {};
+    ['median_mfe', 'median_mae', 'avg_mfe', 'avg_mae',
+     'losers_reached_1r_rate', 'winners_dipped_1r_rate'].forEach(k => {
+      const a = xr[k], b = fx[k];
+      if (a === null || b === null || b === undefined) {
+        if ((a === null) !== (b === null || b === undefined)) fails.push('excursions.' + k + ' nullness mismatch');
+      } else if (Math.abs(a - b) > 1e-9) fails.push('excursions.' + k + ' mismatch: ' + a + ' vs ' + b);
+    });
   });
 
   // ── جمع‌بندی ───────────────────────────────────────────────

@@ -243,6 +243,14 @@ def gen_market_fixtures(cfg: dict) -> None:
                 "support": a.support, "resistance": a.resistance,
                 "last_candle": int(a.last_candle.replace(tzinfo=timezone.utc).timestamp() * 1000)
                 if a.last_candle else None,
+                # v0.29: قیمت و زمانِ *اجرا* (بستهٔ M15) در برابرِ لنگرِ
+                # تحلیل (بستهٔ H1). باید در پاریتی سنجیده شوند وگرنه دو
+                # موتور می‌توانند بی‌صدا روی تایم‌فریمِ متفاوت واگرا شوند —
+                # همان کلاسی از باگ که v0.29 آمده بود رفع کند.
+                # هم‌الگو با last_candle (replace برای هم‌جنس‌سازیِ منطقهٔ زمانی).
+                "exec_price": a.exec_price,
+                "exec_ts": int(a.exec_ts.replace(tzinfo=timezone.utc).timestamp() * 1000)
+                if a.exec_ts else None,
                 "verdict": a.verdict,
             },
         }
@@ -647,6 +655,18 @@ def gen_journal_fixtures(now_ms: int) -> None:
                                     m15=df_from(bars(now_ms - 2 * h, [(156.90, 156.70, 156.80)])),
                                     h1=None, h4=None)
 
+    # E: اولین کندل (start+15m = now−5h45m) دقیقاً روی entry_ts است و هدف
+    #    را می‌زند. mfe از سقفِ واقعیِ کندل (۰٫۶۵۶۵) می‌آید نه از سطحِ هدف.
+    datasets["AUDUSD"] = MarketData(symbol="AUDUSD",
+                                    m15=df_from(bars(now_ms - 6 * h, [(0.6565, 0.6495, 0.6550),
+                                                                      (0.6570, 0.6540, 0.6560)])),
+                                    h1=None, h4=None)
+    # F: کندلِ اولِ در بازه، حد ضررِ فروش را می‌زند (high ≥ ۱۷۵٫۴۰)
+    datasets["CHFJPY"] = MarketData(symbol="CHFJPY",
+                                    m15=df_from(bars(now_ms - 6 * h, [(175.55, 174.90, 175.45),
+                                                                      (175.50, 174.80, 175.00)])),
+                                    h1=None, h4=None)
+
     sigs = [
         {"kind": "signal", "id": "EURUSD-BUY-A", "ts": (now - timedelta(hours=3)).isoformat(),
          "symbol": "EURUSD", "direction": "BUY", "entry": 1.1500, "sl": 1.1470, "tp": 1.1560,
@@ -668,6 +688,29 @@ def gen_journal_fixtures(now_ms: int) -> None:
          "pip": 0.01, "atr": 0.09, "risk_pips": 30.0, "reward_pips": 60.0, "rr": 2.0,
          "score": 8, "max_score": 11, "session": "توکیو", "evidences": ["trend:2/2"],
          "strategies": ["carry"], "sent": True},
+        # ── v0.29: دو رکورد با فیلدهای تازه، تا مسیرِ entry_ts + net_r +
+        #    MFE/MAE در *هر دو موتور* واقعاً اجرا و مقایسه شود. پیش‌تر همهٔ
+        #    رکوردهای فیکسچر بی‌فیلد بودند، یعنی فقط مسیرِ سازگاریِ backward
+        #    سنجیده می‌شد و مسیرِ تازه هیچ پوششِ پاریتی نداشت.
+        # E: entry_ts عمداً *پیش از* ts است (کهنگیِ قیمت) و اولین کندلِ
+        #    در بازه هدف را می‌زند — با قاعدهٔ قدیمی (`bar > ts`) این کندل
+        #    رد می‌شد و سیگنال «باز» می‌ماند؛ با قاعدهٔ تازه TP است.
+        {"kind": "signal", "id": "AUDUSD-BUY-E", "ts": (now - timedelta(hours=4)).isoformat(),
+         "entry_ts": (now - timedelta(hours=5, minutes=45)).isoformat(),
+         "symbol": "AUDUSD", "direction": "BUY", "entry": 0.6500, "sl": 0.6470, "tp": 0.6560,
+         "pip": 0.0001, "atr": 0.0007, "risk_pips": 30.0, "reward_pips": 60.0, "rr": 2.0,
+         "score": 9, "max_score": 11, "session": "لندن", "evidences": ["trend:2/2", "level:2/2"],
+         "strategies": ["trend_pullback"], "sent": True,
+         "spread_pips": 2.0, "rules_version": 2},
+        # F: همان هندسه در سمتِ SELL و با برخوردِ حد ضرر → net_r باید
+        #    یک‌اسپرد کامل کم کند (نه نصف)، و mae باید ≤ −۱ باشد.
+        {"kind": "signal", "id": "CHFJPY-SELL-F", "ts": (now - timedelta(hours=4)).isoformat(),
+         "entry_ts": (now - timedelta(hours=5, minutes=45)).isoformat(),
+         "symbol": "CHFJPY", "direction": "SELL", "entry": 175.00, "sl": 175.40, "tp": 174.20,
+         "pip": 0.01, "atr": 0.18, "risk_pips": 40.0, "reward_pips": 80.0, "rr": 2.0,
+         "score": 8, "max_score": 11, "session": "توکیو", "evidences": ["trend:2/2"],
+         "strategies": ["carry"], "sent": True,
+         "spread_pips": 3.0, "rules_version": 2},
         # یک بستهٔ قدیمی برای آمار
         {"kind": "signal", "id": "EURUSD-BUY-OLD", "ts": (now - timedelta(days=9)).isoformat(),
          "symbol": "EURUSD", "direction": "BUY", "entry": 1.1400, "sl": 1.1370, "tp": 1.1460,
@@ -696,6 +739,12 @@ def gen_journal_fixtures(now_ms: int) -> None:
                 "outcome_ts": int(e.outcome_ts.timestamp() * 1000) if e.outcome_ts else None,
                 "close_price": e.close_price, "r": e.r, "note": e.note,
                 "strategies": e.strategies,
+                # v0.29: شش فیلدِ تازه + `rules` (ویژگیِ محاسبه‌شده).
+                # entry_ts به ms تبدیل می‌شود تا با JS هم‌واحد باشد.
+                "entry_ts": int(e.entry_ts.timestamp() * 1000) if e.entry_ts else None,
+                "spread_pips": e.spread_pips, "rules_version": e.rules_version,
+                "rules": e.rules, "net_r": e.net_r,
+                "mfe_r": e.mfe_r, "mae_r": e.mae_r,
                 "week_key": e.week_key, "evidence_keys": e.evidence_keys()}
 
     FX["journal"] = {
@@ -710,7 +759,20 @@ def gen_journal_fixtures(now_ms: int) -> None:
                   "by_score": {k: vars(v) for k, v in stats.by_score.items()},
                   "by_evidence": {k: vars(v) for k, v in stats.by_evidence.items()},
                   "by_strategy": {k: vars(v) for k, v in stats.by_strategy.items()},
-                  "by_week": {k: vars(v) for k, v in stats.by_week.items()}},
+                  "by_week": {k: vars(v) for k, v in stats.by_week.items()},
+                  # v0.29: تفکیکِ نسخهٔ قواعد + آمارِ نوسان. کلیدهای by_rules
+                  # به رشته تبدیل می‌شوند چون کلیدِ شیءِ JSON/JS همیشه رشته است.
+                  "by_rules": {str(k): vars(v) for k, v in stats.by_rules.items()},
+                  "excursions": vars(stats.excursions),
+                  # ویژگی‌های محاسبه‌شده (در vars() نیستند) — JS با
+                  # O.excursionRates همان‌ها را می‌سازد و مقایسه می‌شوند.
+                  "excursions_rates": {
+                      "median_mfe": stats.excursions.median_mfe,
+                      "median_mae": stats.excursions.median_mae,
+                      "avg_mfe": stats.excursions.avg_mfe,
+                      "avg_mae": stats.excursions.avg_mae,
+                      "losers_reached_1r_rate": stats.excursions.losers_reached_1r_rate,
+                      "winners_dipped_1r_rate": stats.excursions.winners_dipped_1r_rate}},
     }
 
     # md5 (برای dedupe) — چند نمونه با یونیکد

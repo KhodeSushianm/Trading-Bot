@@ -47,6 +47,9 @@
     // زمانِ **بسته‌شدنِ** آخرین کندل = نمایهٔ آن + طولِ بازه (ms).
     // یاهو کندلِ درون‌روزی را با نمایهٔ «باز‌شدن» می‌دهد، پس بستهٔ کندلِ
     // نمایهٔ T برابرِ قیمتِ لحظهٔ T+interval است. null = داده نبود.
+    // ms از epoch → ذاتاً UTC و بدون ابهامِ منطقهٔ زمانی. (پایتون هم باید
+    // tz-aware برگرداند وگرنه isoformat بدون offset می‌نویسد و Date.parse
+    // آن را محلی می‌خواند — نگهبانش run_parity.js است.)
     function closeTs(df, intervalMin) {
       if (!df || !df.length) return null;
       return df[df.length - 1].t + intervalMin * 60000;

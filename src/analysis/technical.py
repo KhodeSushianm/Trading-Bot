@@ -10,7 +10,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Optional
 
 from ..data.base import MarketData
@@ -164,12 +164,23 @@ def _close_ts(df, interval_min: int) -> Optional[datetime]:
     یاهو کندل‌های درون‌روزی را با نمایهٔ «زمانِ باز‌شدن» می‌دهد، پس بستهٔ
     کندلِ نمایهٔ T برابرِ قیمتِ لحظهٔ T+interval است. این همان لحظه‌ای است
     که `price` به آن تعلق دارد و tracker باید اسکن را از آنجا شروع کند.
+
+    ⚠️ **باید tz-aware UTC برگرداند.** اگر naive برگردد، `isoformat()`
+    رشته‌ای *بدون* offset می‌نویسد (``...T08:00:00``) و `Date.parse()` در JS
+    رشتهٔ بدون offset را **به وقتِ محلیِ دستگاه** می‌خواند — یعنی
+    `entry_ts` روی گوشی به‌اندازهٔ اختلافِ منطقهٔ زمانی جابه‌جا می‌شد و کلِ
+    رفعِ «پنجرهٔ کور» بی‌اثر می‌شد. این باگ را اوراکلِ پاریتیِ زنده
+    (`run_parity.js`) گرفت، نه تست‌های آفلاین. هم‌قاعده با tracker که
+    کندل‌های naive را UTC می‌گیرد.
+
     df خالی/خراب → None (tracker به رفتارِ قبلی برمی‌گردد؛ هرگز حدس نمی‌زنیم).
     """
     ts = _last_ts(df)
     if ts is None:
         return None
     try:
+        if ts.tzinfo is None:
+            ts = ts.replace(tzinfo=timezone.utc)      # naive یاهو = UTC
         return ts + timedelta(minutes=interval_min)
     except Exception:
         return None
