@@ -100,8 +100,11 @@
       carry: {
         enabled: true, min_diff: 1.5, news_min_score: 4,
         rates: {
-          as_of: '2026-09',
-          values: { USD: 3.88, EUR: 2.50, GBP: 3.75, JPY: 1.25, AUD: 4.35, CAD: 2.25, CHF: 0.00, XAU: null },
+          // ⚠️ کپیِ سخت‌کدشدهٔ جدولِ config.yaml — باید با آن هم‌عدد بماند.
+          // v0.29 (2026-09-30): AUD 4.35 → 4.60 (RBA در 2026-09-29، بیانیهٔ
+          // رسمی mr-26-27). as_of هم به همان تاریخ رفت.
+          as_of: '2026-09-29',
+          values: { USD: 3.88, EUR: 2.50, GBP: 3.75, JPY: 1.25, AUD: 4.60, CAD: 2.25, CHF: 0.00, XAU: null },
           bias: { USD: 'neutral', EUR: 'neutral', GBP: 'neutral', JPY: 'neutral', AUD: 'neutral', CAD: 'neutral', CHF: 'neutral', XAU: 'neutral' }
         }
       }

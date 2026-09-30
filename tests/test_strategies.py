@@ -116,9 +116,10 @@ SCFG_LB = {"enabled": True, "asia_start_hour": 0, "asia_end_hour": 7,
            "asia_min_bars": 5, "min_range_atr": 0.5, "max_range_atr": 3.0,
            "breakout_margin_atr": 0.15}
 SCFG_CARRY = {"enabled": True, "min_diff": 1.5, "news_min_score": 4,
-              "rates": {"as_of": "2026-09",
+              # هم‌عدد با config.yaml (v0.29: AUD 4.60 از 2026-09-29)
+              "rates": {"as_of": "2026-09-29",
                         "values": {"USD": 3.88, "EUR": 2.50, "GBP": 3.75,
-                                   "JPY": 1.25, "AUD": 4.35, "CAD": 2.25,
+                                   "JPY": 1.25, "AUD": 4.60, "CAD": 2.25,
                                    "CHF": 0.00, "XAU": None},
                         "bias": {c: "neutral" for c in
                                  ("USD", "EUR", "GBP", "JPY", "AUD", "CAD",
@@ -270,7 +271,7 @@ def mk_pair(symbol, base, quote):
     return mk_a(symbol=symbol, base=base, quote=quote)
 
 v = carry.evaluate(mk_pair("AUDJPY", "AUD", "JPY"), None, SCFG_CARRY, mk_ctx())
-A(v.direction == "BUY", f"AUD(4.35)−JPY(1.25)=+3.10 باید BUY دهد، {v.direction} داد")
+A(v.direction == "BUY", f"AUD(4.60)−JPY(1.25)=+3.35 باید BUY دهد، {v.direction} داد")
 A(v.proposes is False, "carry فقط «توافق» است — proposes=False پین است")
 A(abs(v.strength - 1.0) < 1e-9, "اختلاف ۳٫۱ ≥ ۲×min_diff → strength=1.0")
 A("2026-09" in v.reasons_fa[-1], "منبع/تاریخِ جدول باید در دلیل‌ها صادقانه بیاید")
@@ -349,7 +350,15 @@ A(is_valid_contract_id("odin.strategy@1"),
 cfg = load_config(str(ROOT / "config.yaml"))
 A(cfg["strategies"]["min_agree"] == 1, "min_agree پیش‌فرض = ۱")
 A(cfg["strategies"]["carry"]["rates"]["values"]["USD"] == 3.88,
-    "جدول نرخ‌ها باید از config.yaml خوانده شود (USD=3.88, as_of 2026-09)")
+    "جدول نرخ‌ها باید از config.yaml خوانده شود (USD=3.88)")
+# v0.29: as_of و AUD هم صریحاً پین شدند — این جدول دستی است و کهنه‌شدنش
+# یک باگِ بی‌صداست (کاری که پیش از این نسخه اتفاق افتاده بود).
+A(cfg["strategies"]["carry"]["rates"]["as_of"] == "2026-09-29",
+    f"as_of باید تاریخِ آخرین تصمیمِ بانک مرکزی باشد "
+    f"({cfg['strategies']['carry']['rates']['as_of']})")
+A(cfg["strategies"]["carry"]["rates"]["values"]["AUD"] == 4.60,
+    f"AUD=4.60 (RBA در 2026-09-29) — "
+    f"{cfg['strategies']['carry']['rates']['values']['AUD']}")
 A(cfg["strategies"]["carry"]["rates"]["values"]["XAU"] is None,
     "XAU=null — طلای بی‌نرخ")
 

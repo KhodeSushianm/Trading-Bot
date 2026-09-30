@@ -127,9 +127,15 @@ SCFG_LB = {"enabled": True, "asia_start_hour": 0, "asia_end_hour": 7,
            "london_open_hour": 7, "trade_window_hours": 4,
            "asia_min_bars": 5, "min_range_atr": 0.5, "max_range_atr": 3.0,
            "breakout_margin_atr": 0.15}
-RATES = {"as_of": "2026-09",
+# ⚠️ این جدول عمداً کپیِ config.yaml است — test_strategies_switch.js
+# «adapter با scfg پیش‌فرضِ config.js» را با «ماژول با SCFG_* طلایی»
+# مقایسه می‌کند، پس این دو باید هم‌عدد بمانند. همان کوپلینگ، نگهبانِ
+# هم‌عددیِ جدول نرخ در config.yaml و js/config.js است (وگرنه گوشی و
+# اوراکل یک کریِ متفاوت حساب می‌کردند).
+# v0.29 (2026-09-30): AUD 4.35 → 4.60 (RBA در 2026-09-29) + as_of.
+RATES = {"as_of": "2026-09-29",
          "values": {"USD": 3.88, "EUR": 2.50, "GBP": 3.75, "JPY": 1.25,
-                    "AUD": 4.35, "CAD": 2.25, "CHF": 0.00, "XAU": None},
+                    "AUD": 4.60, "CAD": 2.25, "CHF": 0.00, "XAU": None},
          "bias": {c: "neutral" for c in ("USD", "EUR", "GBP", "JPY",
                                          "AUD", "CAD", "CHF", "XAU")}}
 SCFG_CARRY = {"enabled": True, "min_diff": 1.5, "news_min_score": 4,

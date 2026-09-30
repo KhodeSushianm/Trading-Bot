@@ -306,12 +306,43 @@ function testConfigMirror() {
   const ca = st.carry;
   A(ca.enabled === true && ca.min_diff === 1.5 && ca.news_min_score === 4,
     'carry باید آینهٔ config.yaml باشد');
-  A(ca.rates.as_of === '2026-09' && ca.rates.values.USD === 3.88
-    && ca.rates.values.EUR === 2.50 && ca.rates.values.GBP === 3.75
-    && ca.rates.values.JPY === 1.25 && ca.rates.values.AUD === 4.35
-    && ca.rates.values.CAD === 2.25 && ca.rates.values.CHF === 0.00
-    && ca.rates.values.XAU === null,
-    'جدول نرخ‌ها باید آینهٔ config.yaml باشد (XAU=null — طلای بی‌نرخ)');
+  // ── v0.29: این نگهبان پیش‌تر مقادیر را *هاردکد* کرده بود ──────────
+  // یعنی ادعای «آینهٔ config.yaml» را داشت ولی هرگز YAML را نمی‌خواند؛
+  // فقط با عدد‌های ثابتِ خودش مقایسه می‌کرد. نتیجه: وقتی مالک نرخ را در
+  // config.yaml به‌روز می‌کرد، این تست یا بی‌صدا بی‌ربط می‌شد یا (اگر
+  // js/config.js هم عوض شده بود) قرمزِ گمراه‌کننده می‌داد. حالا واقعاً
+  // YAML را می‌خواند → نگهبانِ هم‌عددیِ دو موتور، خودنگهدار.
+  const yaml = fs.readFileSync(path.join(ROOT, 'config.yaml'), 'utf8')
+    .split('\n')
+    // کامنت‌ها حذف — وگرنه عددِ ذکرشده در متنِ توضیحی، نرخ خوانده می‌شود
+    // (همین اتفاق حینِ توسعه افتاد: کامنتِ «AUD از 4.35 به 4.60» پارس شد)
+    .filter((l) => !/^\s*#/.test(l));
+  const iRates = yaml.findIndex((l) => /^ {4}rates:\s*$/.test(l));
+  A(iRates >= 0, 'بلوکِ strategies.carry.rates در config.yaml پیدا نشد');
+  const yAsOf = (yaml.slice(iRates).find((l) => /^ {6}as_of:/.test(l)) || '')
+    .match(/as_of:\s*"?([^"\s]+)"?/);
+  A(!!yAsOf, 'as_of در config.yaml پیدا نشد');
+  const iVals = yaml.findIndex((l, i) => i > iRates && /^ {6}values:\s*$/.test(l));
+  A(iVals > iRates, 'values: در config.yaml پیدا نشد');
+  const yVals = {};
+  for (let i = iVals + 1; i < yaml.length; i++) {
+    const m = yaml[i].match(/^ {8}([A-Z]{3}):\s*(.+?)\s*$/);
+    if (!m) break;                       // پایانِ بلوک (کلیدِ هم‌سطح یا خالی)
+    yVals[m[1]] = (m[2] === 'null') ? null : parseFloat(m[2]);
+  }
+  A(Object.keys(yVals).length === 8,
+    '۸ ارز باید از config.yaml پارس شود — ' + Object.keys(yVals).length + ' تا: '
+    + JSON.stringify(Object.keys(yVals)));
+  A(ca.rates.as_of === yAsOf[1],
+    'as_of باید == config.yaml باشد — js:' + ca.rates.as_of + ' yaml:' + yAsOf[1]);
+  Object.keys(yVals).forEach((c) => {
+    const a = ca.rates.values[c], b = yVals[c];
+    const same = (a === null || b === null) ? (a === b) : (Math.abs(a - b) < 1e-9);
+    A(same, 'نرخِ ' + c + ' باید == config.yaml باشد — js:' + a + ' yaml:' + b
+      + ' (واگرایی یعنی گوشی و اوراکل یک کریِ متفاوت حساب می‌کنند)');
+  });
+  A(ca.rates.values.XAU === null && yVals.XAU === null,
+    'XAU باید null بماند (طلا نرخ بهره ندارد → carry روی طلا بی‌نظر)');
   ['USD', 'EUR', 'GBP', 'JPY', 'AUD', 'CAD', 'CHF', 'XAU'].forEach((c) => {
     A(ca.rates.bias[c] === 'neutral', 'bias پیش‌فرض همه neutral است (' + c + ')');
   });
