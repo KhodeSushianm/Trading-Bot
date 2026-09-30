@@ -142,14 +142,15 @@ def render_stats(stats: Stats, open_entries: list[Entry] | None = None,
                      f"| میانهٔ بیشینهٔ زیانِ دیده‌شده (MAE): {_r(ex.median_mae)}R")
         lines.append(f"   روی {fa_num(ex.n)} سیگنالِ دارایِ این داده")
         lr = ex.losers_reached_1r_rate
-        wd = ex.winners_dipped_1r_rate
-        if lr is not None and wd is not None:
+        wr = ex.winners_reached_1r_rate
+        if lr is not None and wr is not None:
             lines.append(f"   از {fa_num(ex.losers)} باخت، {fa_num(ex.losers_reached_1r)} مورد "
                          f"اول به ۱R+ رسیده بود ({_pct(lr)}) — نامزدِ «سر‌به‌سر در ۱R»")
-            lines.append(f"   از {fa_num(ex.winners)} برد، {fa_num(ex.winners_dipped_1r)} مورد "
-                         f"وسطِ راه ۱R علیه‌شان رفت ({_pct(wd)}) — بهایِ همان قاعده")
-            lines.append("   ↳ ⚠️ هر دو عدد با هم معنا دارند: سر‌به‌سر در ۱R گروهِ اول را "
-                         "نجات می‌دهد و گروهِ دوم را می‌کُشد. تک‌عدد خواندن = تصمیمِ غلط.")
+            lines.append(f"   از {fa_num(ex.winners)} برد، حداکثر {fa_num(ex.winners_reached_1r)} مورد "
+                         f"از منطقهٔ ۱R+ عبور کردند ({_pct(wr)})")
+            lines.append("   ↳ ⚠️ عددِ دوم **کرانِ بالا**ست نه آمارِ دقیق: سر‌به‌سر روی همهٔ"
+                         " این‌ها مسلح می‌شود ولی فقط آن‌هایی را می‌سوزاند که بعدش تا ورود"
+                         " برگشته باشند. تفکیکش به ردیابیِ مسیر نیاز دارد.")
         else:
             lines.append("   هنوز باخت/بردِ کافی برای سنجشِ قاعدهٔ سر‌به‌سر ثبت نشده.")
     elif o.closed:

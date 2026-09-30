@@ -772,7 +772,7 @@ def gen_journal_fixtures(now_ms: int) -> None:
                       "avg_mfe": stats.excursions.avg_mfe,
                       "avg_mae": stats.excursions.avg_mae,
                       "losers_reached_1r_rate": stats.excursions.losers_reached_1r_rate,
-                      "winners_dipped_1r_rate": stats.excursions.winners_dipped_1r_rate}},
+                      "winners_reached_1r_rate": stats.excursions.winners_reached_1r_rate}},
     }
 
     # md5 (برای dedupe) — چند نمونه با یونیکد

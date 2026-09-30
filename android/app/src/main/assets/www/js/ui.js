@@ -677,15 +677,18 @@
         'میانهٔ بیشینهٔ سودِ دیده‌شده: ' + O.rFmt(xr.median_mfe) + 'R' +
         ' · میانهٔ بیشینهٔ زیان: ' + O.rFmt(xr.median_mae) + 'R' +
         '<br>روی ' + O.faNum(ex.n) + ' سیگنالِ دارایِ این داده';
-      if (xr.losers_reached_1r_rate != null && xr.winners_dipped_1r_rate != null) {
+      if (xr.losers_reached_1r_rate != null && xr.winners_reached_1r_rate != null) {
         html += '<br>از ' + O.faNum(ex.losers) + ' باخت، ' + O.faNum(ex.losers_reached_1r) +
           ' مورد اول به ۱R+ رسیده بود (' + O.faPct(xr.losers_reached_1r_rate) + ')' +
-          '<br>از ' + O.faNum(ex.winners) + ' برد، ' + O.faNum(ex.winners_dipped_1r) +
-          ' مورد وسطِ راه ۱R علیه‌شان رفت (' + O.faPct(xr.winners_dipped_1r_rate) + ')';
+          '<br>از ' + O.faNum(ex.winners) + ' برد، حداکثر ' + O.faNum(ex.winners_reached_1r) +
+          ' مورد از منطقهٔ ۱R+ عبور کردند (' + O.faPct(xr.winners_reached_1r_rate) + ')';
       }
+      // v0.29.1: متنِ پیشین ادعا می‌کرد عددِ دوم «بهایِ دقیق» است. نبود —
+      // سنجه‌اش ساختاری همیشه صفر بود. حالا صریحاً «حداکثر» می‌گوید.
       html += '</div><div class="stat-defs" style="margin-top:6px">' +
-        'هر دو عدد با هم معنا دارند: «سر‌به‌سر در ۱R» گروهِ اول را نجات ' +
-        'می‌دهد و گروهِ دوم را می‌کُشد. تک‌عدد خواندن = تصمیمِ غلط.</div></div>';
+        'عددِ دوم کرانِ بالا است نه آمارِ دقیق: «سر‌به‌سر در ۱R» روی همهٔ ' +
+        'این بردها مسلح می‌شود، ولی فقط آن‌هایی را می‌سوزاند که بعدش تا ' +
+        'قیمتِ ورود برگشته باشند. تفکیکش به ردیابیِ مسیر نیاز دارد.</div></div>';
     } else if (entries.length) {
       html += '<div class="card"><div class="card-title">' + ct('chart-bar', 'نوسانِ درونِ معامله') + '</div>' +
         '<div style="font-size:11.5px;color:var(--text-2);margin-top:6px">' +

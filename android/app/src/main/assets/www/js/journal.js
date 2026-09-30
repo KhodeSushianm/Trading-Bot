@@ -333,13 +333,18 @@
   // دیده‌اند می‌کُشد — پس هر دو نرخ با هم گزارش می‌شوند، هیچ‌کدام تنها.
   function Excursions() {
     return { n: 0, mfe_sum: 0, mae_sum: 0, mfe_values: [], mae_values: [],
-             losers_reached_1r: 0, losers: 0, winners_dipped_1r: 0, winners: 0 };
+             losers_reached_1r: 0, losers: 0, winners_reached_1r: 0, winners: 0 };
   }
   function excursionsAdd(x, mfe, mae, isWin, isLoss) {
     x.n += 1; x.mfe_sum += mfe; x.mae_sum += mae;
     x.mfe_values.push(mfe); x.mae_values.push(mae);
     if (isLoss) { x.losers += 1; if (mfe >= 1.0) x.losers_reached_1r += 1; }
-    else if (isWin) { x.winners += 1; if (mae <= -1.0) x.winners_dipped_1r += 1; }
+    // v0.29.1: پیش‌تر `mae <= -1.0` بود — یعنی «بردهایی که ۱R حرارت
+    // دیدند». ولی حد ضرر دقیقاً در −۱R است، پس هر معامله‌ای که تا آنجا
+    // برود *باخت* ثبت می‌شود؛ سنجه به‌طور ساختاری همیشه صفر بود.
+    // حالا «از منطقهٔ ۱R+ عبور کردند» = کرانِ بالاییِ بهایِ سر‌به‌سر.
+    // آینهٔ Excursions.add پایتون.
+    else if (isWin) { x.winners += 1; if (mfe >= 1.0) x.winners_reached_1r += 1; }
   }
   function medianOf(vals) {
     if (!vals.length) return null;
@@ -353,7 +358,7 @@
       avg_mfe: x.n ? x.mfe_sum / x.n : null,
       avg_mae: x.n ? x.mae_sum / x.n : null,
       losers_reached_1r_rate: x.losers ? x.losers_reached_1r / x.losers : null,
-      winners_dipped_1r_rate: x.winners ? x.winners_dipped_1r / x.winners : null
+      winners_reached_1r_rate: x.winners ? x.winners_reached_1r / x.winners : null
     };
   };
 

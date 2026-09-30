@@ -505,7 +505,7 @@ O.http = async function (url, opts) {
         mae_sum: st.excursions.mae_sum, mfe_values: st.excursions.mfe_values,
         mae_values: st.excursions.mae_values,
         losers_reached_1r: st.excursions.losers_reached_1r, losers: st.excursions.losers,
-        winners_dipped_1r: st.excursions.winners_dipped_1r, winners: st.excursions.winners },
+        winners_reached_1r: st.excursions.winners_reached_1r, winners: st.excursions.winners },
       // ویژگی‌های محاسبه‌شدهٔ پایتون (@property، پس در vars() نیستند) با
       // O.excursionRates در JS ساخته و مستقیم مقایسه می‌شوند — این یعنی
       // «میانه» و «نرخ‌ها» در دو زبان هم‌تعریف‌اند، نه فقط فیلدهای خام.
@@ -526,7 +526,7 @@ O.http = async function (url, opts) {
     const ex = st.excursions, xr = O.excursionRates(ex);
     const fx = FIX.journal.stats.excursions_rates || {};
     ['median_mfe', 'median_mae', 'avg_mfe', 'avg_mae',
-     'losers_reached_1r_rate', 'winners_dipped_1r_rate'].forEach(k => {
+     'losers_reached_1r_rate', 'winners_reached_1r_rate'].forEach(k => {
       const a = xr[k], b = fx[k];
       if (a === null || b === null || b === undefined) {
         if ((a === null) !== (b === null || b === undefined)) fails.push('excursions.' + k + ' nullness mismatch');

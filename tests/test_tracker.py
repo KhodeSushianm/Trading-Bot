@@ -576,11 +576,45 @@ A(_x.losers == 2 and _x.losers_reached_1r == 1,
   f"({_x.losers_reached_1r}/{_x.losers})")
 A(_x.losers_reached_1r_rate == 0.5,
   f"F4: نرخِ نامزدهای سر‌به‌سر = ۵۰٪ ({_x.losers_reached_1r_rate})")
-A(_x.winners == 2 and _x.winners_dipped_1r == 1,
-  f"F4: از ۲ برد، ۱ مورد ۱R حرارت دیده ({_x.winners_dipped_1r}/{_x.winners})")
-A(_x.winners_dipped_1r_rate == 0.5,
-  f"F4: بهایِ سر‌به‌سر هم گزارش می‌شود ({_x.winners_dipped_1r_rate}) — "
-  f"نیمهٔ دومِ معادله")
+# دادهٔ آزمون: دو برد با mfe = ۲٫۳ و ۲٫۰ → هر دو از منطقهٔ ۱R+ عبور کرده‌اند
+A(_x.winners == 2 and _x.winners_reached_1r == 2,
+  f"F4: هر ۲ برد از منطقهٔ ۱R+ عبور کردند ({_x.winners_reached_1r}/{_x.winners})")
+A(_x.winners_reached_1r_rate == 1.0,
+  f"F4: کرانِ بالاییِ بهایِ سر‌به‌سر گزارش می‌شود ({_x.winners_reached_1r_rate})")
+
+# ── پینِ رگرسیونِ v0.29.1: چرا سنجهٔ پیشین عملاً صفر بود ────────────
+# ادعا: با ``conservative_both_touch=true`` (پیش‌فرضِ تولید و config.yaml)،
+# هیچ معاملهٔ TP نمی‌تواند mae ≤ −۱R داشته باشد — چون حد ضرر دقیقاً در
+# −۱R است و هر لمسِ آن → SL، حتی اگر همان کندل هدف را هم زده باشد. پس شرطِ
+# قدیمی (`mae <= -1.0` روی بردها) روی ژورنالِ واقعی برقرار نمی‌شد.
+#
+# ⚠️ این ادعا فقط برای حالتِ *محتاطانه* درست است. با conservative=false
+# (غیرپیش‌فرض) کندلِ دوسربرخورد TP شمرده می‌شود و mae می‌تواند زیر −۱R
+# باشد — نخستین اجرای این پین دقیقاً همان‌جا شکست (سناریوی
+# both_touch_optimistic) و ادعای اولیهٔ «ساختاری غیرممکن» را اصلاح کرد.
+# پس استثنا صریح و مستند است، نه پنهان.
+_CONSERVATIVE_SCENES = [k for k in actual
+                        if k != "both_touch_optimistic"]
+_tp_deep = [(k, sid)
+            for k in _CONSERVATIVE_SCENES
+            for sid, e in actual[k].get("entries", {}).items()
+            if e.get("outcome") == TP and e.get("mae_r") is not None
+            and e["mae_r"] <= -1.0]
+A(not _tp_deep,
+  f"F4-regression: با conservative=true هیچ TP با mae ≤ −۱R نیست "
+  f"(یافته: {_tp_deep}) — شرطِ قدیمی برقرار نمی‌شد")
+
+# و ثابت شود که حالتِ خوش‌بینانه *واقعاً* استثناست (وگرنه پینِ بالا بی‌معنا
+# می‌شد — ممکن بود صرفاً هیچ TP با mae عمیق در باتری نباشد)
+_opt = actual.get("both_touch_optimistic", {}).get("entries", {}).get("bt", {})
+A(_opt.get("outcome") == TP and (_opt.get("mae_r") or 0) <= -1.0,
+  f"F4-regression: با conservative=false استثنا وجود دارد "
+  f"(outcome={_opt.get('outcome')}, mae={_opt.get('mae_r')}) → پینِ بالا "
+  f"واقعاً حالت‌محور است نه تصادفی")
+
+A(any(e.get("outcome") == TP and (e.get("mfe_r") or 0) >= 1.0
+      for sc in actual.values() for e in sc.get("entries", {}).values()),
+  "F4-regression: TP با mfe ≥ ۱R وجود دارد → سنجهٔ تازه واقعاً عدد می‌دهد")
 A(_stt.expectancy is not None and _stt.expectancy_net is not None
   and _stt.expectancy_net < _stt.expectancy,
   f"F4: expectancy_net < expectancy (هزینه همیشه کم می‌کند): "
@@ -599,8 +633,12 @@ A("پیش از v0.29" in _txt and "ورودِ کهنه" in _txt,
   "F5: رکوردهای قدیمی با برچسبِ هشدارِ صریح نشان داده می‌شوند")
 A("دو دسته را با هم میانگین نگیرید" in _txt,
   "F5: هشدارِ «قاطی نکنید» در خودِ گزارش هست")
-A("نامزدِ «سر‌به‌سر در ۱R»" in _txt and "بهایِ همان قاعده" in _txt,
-  "F5: هر دو نیمهٔ معادلهٔ سر‌به‌سر چاپ می‌شوند (نه فقط نیمهٔ جذاب)")
+A("نامزدِ «سر‌به‌سر در ۱R»" in _txt, "F5: نیمهٔ «باخت‌های نجات‌یافتنی» چاپ می‌شود")
+A("کرانِ بالا" in _txt and "عبور کردند" in _txt,
+  "F5: نیمهٔ دوم با برچسبِ صریحِ «کرانِ بالا» چاپ می‌شود — نه به‌عنوانِ "
+  "آمارِ دقیق (همان اشتباهی که v0.29.0 داشت)")
+A("بهایِ همان قاعده" not in _txt,
+  "F5: متنِ قدیمیِ گمراه‌کننده («بهایِ همان قاعده») حذف شده")
 
 # F6: Excursions خالی → None، نه صفر
 from src.journal.stats import Excursions as _Exc
